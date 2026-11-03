@@ -25,6 +25,8 @@ export default function RegisterPage() {
       if (hr) sessionStorage.setItem("onboarding_hr", hr);
       const plat = params.get("plat");
       if (plat) sessionStorage.setItem("onboarding_plat", plat);
+      const crm = params.get("crm");
+      if (crm) sessionStorage.setItem("onboarding_crm", crm);
     }
     const billing = params.get("billing");
     if (billing) {

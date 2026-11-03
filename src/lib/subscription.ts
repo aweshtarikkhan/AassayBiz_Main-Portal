@@ -248,3 +248,19 @@ export function canSendDirectEmailOrWhatsApp(planStr: string = '', activePlans: 
   }
   return true;
 }
+
+
+/**
+ * CRM Portal Access Limits:
+ * - Included in CRM / Suite plan: 2 Sales Team portal logins
+ * - Additional Sales Team Member login: ₹999/month per member
+ */
+export const CRM_BASE_PORTAL_USERS_LIMIT = 2;
+export const CRM_ADDITIONAL_USER_COST_PER_MONTH = 999;
+
+export function getCrmPortalUserLimit(purchasedCrmLimit?: number | null): number {
+  if (typeof purchasedCrmLimit === 'number' && purchasedCrmLimit > CRM_BASE_PORTAL_USERS_LIMIT) {
+    return purchasedCrmLimit;
+  }
+  return CRM_BASE_PORTAL_USERS_LIMIT;
+}

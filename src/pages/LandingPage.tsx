@@ -242,15 +242,18 @@ export default function LandingPage() {
   const [selectedPlans, setSelectedPlans] = useState<string[]>([]);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [hrExtra, setHrExtra] = useState(0);
+  const [crmExtra, setCrmExtra] = useState(0);
 
-  const getPlanPrice = (baseMo: number, baseYr: number, hasHrAddon = false) => {
+  const getPlanPrice = (baseMo: number, baseYr: number, hasHrAddon = false, hasCrmAddon = false) => {
     const platAddon = platformExtra * 99;
     const hrAddon = hasHrAddon ? hrExtra * 29 : 0;
-    const totalMo = baseMo + platAddon + hrAddon;
+    const crmAddon = hasCrmAddon ? crmExtra * 999 : 0;
+    const totalMo = baseMo + platAddon + hrAddon + crmAddon;
     // Yearly 17% discount roughly
     const platAddonYr = Math.round(platformExtra * 99 * 12 * 0.83);
     const hrAddonYr = hasHrAddon ? Math.round(hrExtra * 29 * 12 * 0.83) : 0;
-    const totalYr = baseYr + platAddonYr + hrAddonYr;
+    const crmAddonYr = hasCrmAddon ? Math.round(crmExtra * 999 * 12 * 0.83) : 0;
+    const totalYr = baseYr + platAddonYr + hrAddonYr + crmAddonYr;
     if (billingCycle === "yearly") {
       const monthlyEquiv = Math.floor(totalYr / 12);
       return monthlyEquiv.toLocaleString("en-IN");
@@ -258,10 +261,11 @@ export default function LandingPage() {
     return totalMo.toLocaleString("en-IN");
   };
 
-  const getPlanYearlyTotal = (baseYr: number, hasHrAddon = false) => {
+  const getPlanYearlyTotal = (baseYr: number, hasHrAddon = false, hasCrmAddon = false) => {
     const platAddonYr = Math.round(platformExtra * 99 * 12 * 0.83);
     const hrAddonYr = hasHrAddon ? Math.round(hrExtra * 29 * 12 * 0.83) : 0;
-    const totalYr = baseYr + platAddonYr + hrAddonYr;
+    const crmAddonYr = hasCrmAddon ? Math.round(crmExtra * 999 * 12 * 0.83) : 0;
+    const totalYr = baseYr + platAddonYr + hrAddonYr + crmAddonYr;
     return totalYr.toLocaleString("en-IN");
   };
   const [platformExtra, setPlatformExtra] = useState(0);
@@ -945,6 +949,9 @@ export default function LandingPage() {
               if (platformExtra > 0) {
                 totalAmount += platformExtra * (isYearly ? Math.round(99 * 12 * 0.83) : 99);
               }
+              if (crmExtra > 0) {
+                totalAmount += crmExtra * (isYearly ? Math.round(999 * 12 * 0.83) : 999);
+              }
             } else {
               if (finalSelected.has("accounting")) totalAmount += isYearly ? 5988 : 599;
               if (finalSelected.has("hr")) totalAmount += isYearly ? 5988 : 599;
@@ -955,6 +962,9 @@ export default function LandingPage() {
               }
               if (finalSelected.has("hr") && hrExtra > 0) {
                 totalAmount += hrExtra * (isYearly ? Math.round(29 * 12 * 0.83) : 29);
+              }
+              if (finalSelected.has("crm") && crmExtra > 0) {
+                totalAmount += crmExtra * (isYearly ? Math.round(999 * 12 * 0.83) : 999);
               }
             }
 
@@ -1317,13 +1327,13 @@ export default function LandingPage() {
                           {/* Price */}
                           <div className="mb-5">
                             <div className="flex items-baseline gap-1">
-                              <span className="text-3xl font-black text-slate-900">{`₹${getPlanPrice(599, 5988)}`}</span>
+                              <span className="text-3xl font-black text-slate-900">{`₹${getPlanPrice(599, 5988, false, true)}`}</span>
                               <span className="text-xs text-slate-500 font-semibold">/month</span>
                             </div>
                             {isYearly ? (
                               <div className="mt-1 flex flex-col gap-1">
                                 <span className="text-xs font-semibold text-slate-500">
-                                  Billed annually at ₹{getPlanYearlyTotal(5988)}/year upfront
+                                  Billed annually at ₹{getPlanYearlyTotal(5988, false, true)}/year upfront
                                 </span>
                                 <span className="inline-block w-fit text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2.5 py-0.5 rounded-full">
                                   Save 17% (Pay upfront)
@@ -1358,15 +1368,33 @@ export default function LandingPage() {
                               <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5]" />
                               <span>500 WhatsApp messages</span>
                             </div>
+
+                            <div className="flex items-center gap-2.5 text-blue-700 font-semibold pt-0.5">
+                              <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 stroke-[2.5]" />
+                              <span>CRM Portal: 2 Sales Team Logins</span>
+                            </div>
+
+                            {/* Additional CRM Member Counter */}
+                            <div className="flex items-center justify-between w-full bg-blue-50/70 p-2 rounded-lg border border-blue-200/80 mt-1" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center gap-2">
+                                <Users className="w-4 h-4 text-blue-600 shrink-0" />
+                                <span className="text-slate-800 font-semibold text-xs sm:text-[13px]">+ Extra CRM Member (₹999/mo)</span>
+                              </div>
+                              <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
+                                <button onClick={(e) => { e.stopPropagation(); setCrmExtra(Math.max(0, crmExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
+                                <span className="font-bold text-sm w-5 text-center text-slate-800">{crmExtra}</span>
+                                <button onClick={(e) => { e.stopPropagation(); setCrmExtra(crmExtra + 1); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
+                              </div>
+                            </div>
                             
                             <div className="flex items-center gap-2.5 text-slate-700 font-semibold pt-1">
                               <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                               <span>Platform access up to 3 employees</span>
                             </div>
-                            <div className="flex items-center justify-between w-full bg-orange-50/50 p-2 rounded-lg border border-orange-100/50 mt-2" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-between w-full bg-orange-50/50 p-2 rounded-lg border border-orange-100/50 mt-1" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center gap-2">
                                 <Users className="w-4 h-4 text-[#e77817] shrink-0" />
-                                <span className="text-slate-700 font-semibold">+ Additional Platform Access (₹99/mo)</span>
+                                <span className="text-slate-700 font-semibold text-xs sm:text-[13px]">+ Additional Platform Access (₹99/mo)</span>
                               </div>
                               <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
                                 <button onClick={(e) => { e.stopPropagation(); setPlatformExtra(Math.max(0, platformExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
@@ -1380,7 +1408,7 @@ export default function LandingPage() {
                         {/* Button */}
                         <div className="mt-auto pt-2 flex justify-end">
                           <Link
-                            to={`/register?plan=crm&billing=${billingCycle}`}
+                            to={`/register?plan=crm&billing=${billingCycle}${platformExtra > 0 ? `&plat=${platformExtra}` : ''}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}`}
                             onClick={(e) => e.stopPropagation()}
                             className="border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1 transition-all duration-200 shadow-2xs"
                           >
@@ -1674,6 +1702,23 @@ export default function LandingPage() {
                             </div>
                             <span>Everything in Free Plan + Business Accounting + Business HR + Business CRM + Business Promotion</span>
                           </div>
+                          <div className="flex items-center gap-2.5 text-blue-800 font-semibold">
+                            <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0">
+                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            </div>
+                            <span>CRM Portal: 2 Sales Team Logins (Extra @ ₹999/mo)</span>
+                          </div>
+                          <div className="flex items-center justify-between max-w-md bg-blue-50/50 p-2 rounded-lg border border-blue-100/50" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-2">
+                              <Users className="w-4 h-4 text-blue-600 shrink-0" />
+                              <span className="text-slate-700 font-semibold text-xs sm:text-[13px]">+ Additional CRM Sales Team (₹999/mo)</span>
+                            </div>
+                            <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
+                              <button onClick={(e) => { e.stopPropagation(); setCrmExtra(Math.max(0, crmExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
+                              <span className="font-bold text-sm w-5 text-center text-slate-800">{crmExtra}</span>
+                              <button onClick={(e) => { e.stopPropagation(); setCrmExtra(crmExtra + 1); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
+                            </div>
+                          </div>
                           <div className="flex items-center gap-2.5 text-slate-700 font-semibold">
                             <div className="w-4 h-4 rounded-full bg-[#28166f] text-white flex items-center justify-center shrink-0">
                               <Check className="w-2.5 h-2.5 stroke-[3]" />
@@ -1683,7 +1728,7 @@ export default function LandingPage() {
                           <div className="flex items-center justify-between max-w-md bg-orange-50/50 p-2 rounded-lg border border-orange-100/50" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
                               <Users className="w-4 h-4 text-[#e77817] shrink-0" />
-                              <span className="text-slate-700 font-semibold">+ Additional Platform Access (₹99/mo)</span>
+                              <span className="text-slate-700 font-semibold text-xs sm:text-[13px]">+ Additional Platform Access (₹99/mo)</span>
                             </div>
                             <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
                               <button onClick={(e) => { e.stopPropagation(); setPlatformExtra(Math.max(0, platformExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
@@ -1696,7 +1741,7 @@ export default function LandingPage() {
                         {/* Right: Solid Action Button */}
                         <div className="flex items-center justify-end lg:border-l lg:border-slate-200 lg:pl-8">
                           <Link
-                            to={`/register?plan=suite&billing=${billingCycle}${platformExtra > 0 ? `&plat=${platformExtra}` : ''}`}
+                            to={`/register?plan=suite&billing=${billingCycle}${platformExtra > 0 ? `&plat=${platformExtra}` : ''}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}`}
                             onClick={(e) => e.stopPropagation()}
                             className="bg-[#e77817] hover:bg-[#d46a0f] text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-orange-500/25 flex items-center gap-2 transition-all duration-200 text-sm whitespace-nowrap"
                           >
@@ -1738,7 +1783,7 @@ export default function LandingPage() {
                         </div>
                       </div>
                       <Button size="lg" className="w-full md:w-auto h-14 px-10 text-lg font-bold bg-[#e77817] hover:bg-[#d46a0f] text-white rounded-full shadow-[0_0_20px_rgba(231,120,23,0.4)]" asChild>
-                        <Link to={`/register?plan=${Array.from(finalSelected).join(",")}&billing=${billingCycle}&hr=${hrExtra}&plat=${platformExtra}`}>
+                        <Link to={`/register?plan=${Array.from(finalSelected).join(",")}&billing=${billingCycle}&hr=${hrExtra}&plat=${platformExtra}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}`}>
                           Proceed to Checkout <ArrowRight className="ml-2 h-5 w-5" />
                         </Link>
                       </Button>

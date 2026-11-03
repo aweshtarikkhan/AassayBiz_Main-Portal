@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Check, Loader2, Minus, Plus, Users, Sparkles, Download, CheckCircle2, AlertCircle, Mail, FileText, Gift, Calculator, Target, Megaphone, Crown, MessageSquare, BarChart3, Bell, ArrowRight, Clock } from "lucide-react";
+import { Check, Loader2, Minus, Plus, Users, Sparkles, Download, CheckCircle2, AlertCircle, Mail, FileText, Gift, Calculator, Target, Megaphone, Crown, MessageSquare, BarChart3, Bell, ArrowRight, Clock, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useFeatureStore } from "@/store/feature-store";
@@ -86,6 +86,10 @@ export function PlanSelectorModal({
   const [extraPlatformEmployeesToAdd, setExtraPlatformEmployeesToAdd] = useState<number>(() => {
     const p = sessionStorage.getItem("onboarding_plat");
     return p ? parseInt(p) || 0 : 0;
+  });
+  const [extraCrmMembersToAdd, setExtraCrmMembersToAdd] = useState<number>(() => {
+    const c = sessionStorage.getItem("onboarding_crm");
+    return c ? parseInt(c) || 0 : 0;
   });
 
 
@@ -295,6 +299,8 @@ export function PlanSelectorModal({
           "Unlimited Leads",
           "API Integrations",
           "Sales Pipeline",
+          "CRM Portal Access for 2 Sales Team Members",
+          "Additional Member: ₹999/Month per user",
           "500 WhatsApp messages",
           "Platform access up to 3 employees"
         ];
@@ -309,6 +315,7 @@ export function PlanSelectorModal({
       case "suite":
         return [
           "Everything in Free Plan + Business Accounting + Business HR + Business CRM + Business Promotion",
+          "CRM Portal Access for 2 Sales Team Members (Add extra @ ₹999/Mo)",
           "Platform Access up to 5 employees"
         ];
       default:
@@ -355,6 +362,16 @@ export function PlanSelectorModal({
   const getExtraPlatformEmployeeCost = (count: number) => {
     if (count <= 0) return 0;
     const rateRupees = 99;
+    if (billingCycle === "yearly") {
+      return Math.round((count * rateRupees * 12) * (1 - yearlyDiscountPct / 100));
+    }
+    return count * rateRupees;
+  };
+
+  // Cost calculation for extra CRM members (rate: ₹999/member/mo in RUPEES, with 20% off if yearly)
+  const getExtraCrmMemberCost = (count: number) => {
+    if (count <= 0) return 0;
+    const rateRupees = 999;
     if (billingCycle === "yearly") {
       return Math.round((count * rateRupees * 12) * (1 - yearlyDiscountPct / 100));
     }
@@ -435,6 +452,9 @@ export function PlanSelectorModal({
   if (extraPlatformEmployeesToAdd > 0) {
     totalAmountRupees += getExtraPlatformEmployeeCost(extraPlatformEmployeesToAdd);
   }
+  if (extraCrmMembersToAdd > 0) {
+    totalAmountRupees += getExtraCrmMemberCost(extraCrmMembersToAdd);
+  }
 
   const subtotalBeforeDiscountRupees = totalAmountRupees;
 
@@ -457,7 +477,7 @@ export function PlanSelectorModal({
     const p = plans.find(pl => pl.id === id);
     return p && p.name !== "free";
   });
-  const hasAddonSelected = (isHrActive && extraEmployeesToAdd > 0) || extraPlatformEmployeesToAdd > 0;
+  const hasAddonSelected = (isHrActive && extraEmployeesToAdd > 0) || extraPlatformEmployeesToAdd > 0 || extraCrmMembersToAdd > 0;
 
   // Free plan is selectable/continuable if on free plan with no paid items picked, or free plan card clicked
   const canContinueWithFree = (!hasPaidPlanActive && !hasPaidPlanSelected && !hasAddonSelected) || (isFreeSelected && !hasPaidPlanSelected && !hasAddonSelected);
@@ -1608,6 +1628,24 @@ export function PlanSelectorModal({
                             <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5]" />
                             <span>500 WhatsApp messages</span>
                           </div>
+                          <div className="flex items-center gap-2.5 text-blue-700 font-semibold pt-0.5">
+                            <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 stroke-[2.5]" />
+                            <span>CRM Portal: 2 Sales Team Logins</span>
+                          </div>
+
+                          {/* Additional CRM Member Counter */}
+                          <div className="flex items-center justify-between w-full bg-blue-50/70 p-2 rounded-lg border border-blue-200/80 mt-1" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1.5">
+                              <Users className="w-4 h-4 text-blue-600 shrink-0" />
+                              <span className="text-slate-800 font-semibold text-xs">+ Extra CRM Member (₹999/mo)</span>
+                            </div>
+                            <div className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setExtraCrmMembersToAdd(Math.max(0, extraCrmMembersToAdd - 1)); }} className="text-slate-400 hover:text-slate-700"><Minus className="w-3.5 h-3.5" /></button>
+                              <span className="font-bold text-xs w-4 text-center text-slate-800">{extraCrmMembersToAdd}</span>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setExtraCrmMembersToAdd(extraCrmMembersToAdd + 1); }} className="text-slate-400 hover:text-slate-700"><Plus className="w-3.5 h-3.5" /></button>
+                            </div>
+                          </div>
+
                           <div className="flex items-center gap-2.5 text-slate-700 font-semibold pt-1">
                             <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                             <span>Platform access up to 3 employees</span>
@@ -1931,6 +1969,23 @@ export function PlanSelectorModal({
                           </div>
                           <span>Everything in Free Plan + Business Accounting + Business HR + Business CRM + Business Promotion</span>
                         </div>
+                        <div className="flex items-center gap-2.5 text-blue-800 font-semibold">
+                          <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                          <span>CRM Portal: 2 Sales Team Logins (Extra @ ₹999/mo)</span>
+                        </div>
+                        <div className="flex items-center justify-between max-w-md bg-blue-50/50 p-2 rounded-lg border border-blue-100/50" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
+                            <Users className="w-4 h-4 text-blue-600 shrink-0" />
+                            <span className="text-slate-700 font-semibold text-xs">+ Additional CRM Sales Team (₹999/mo)</span>
+                          </div>
+                          <div className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setExtraCrmMembersToAdd(Math.max(0, extraCrmMembersToAdd - 1)); }} className="text-slate-400 hover:text-slate-700"><Minus className="w-3.5 h-3.5" /></button>
+                            <span className="font-bold text-xs w-5 text-center text-slate-800">{extraCrmMembersToAdd}</span>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setExtraCrmMembersToAdd(extraCrmMembersToAdd + 1); }} className="text-slate-400 hover:text-slate-700"><Plus className="w-3.5 h-3.5" /></button>
+                          </div>
+                        </div>
                         <div className="flex items-center gap-2.5 text-slate-700 font-semibold">
                           <div className="w-4 h-4 rounded-full bg-[#28166f] text-white flex items-center justify-center shrink-0">
                             <Check className="w-2.5 h-2.5 stroke-[3]" />
@@ -1967,49 +2022,98 @@ export function PlanSelectorModal({
             
             {/* Global Add-ons Section */}
             {(hasAnyActionToCheckout || plans.some(p => isPlanActive(p.name) && p.name !== 'free')) && (
-              <div className="bg-indigo-50/50 rounded-xl border border-indigo-100 p-5 mt-6 mb-2">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
-                      <Users className="h-4 w-4 text-indigo-600" />
-                      Extra Admin / Platform Users
-                    </h3>
-                    <p className="text-xs text-slate-600 mt-1 max-w-md">
-                      Your paid plan includes standard platform access. Need to invite more managers to the Admin Panel? Add them here for ₹99/user/month.
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-center gap-2 min-w-[140px]">
-                    <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border border-indigo-200 w-full shadow-sm">
-                      <Button 
-                        size="icon" 
-                        variant="outline" 
-                        className="h-8 w-8 rounded-md hover:bg-indigo-50 hover:text-indigo-700" 
-                        disabled={extraPlatformEmployeesToAdd <= 0}
-                        onClick={() => setExtraPlatformEmployeesToAdd(Math.max(0, extraPlatformEmployeesToAdd - 1))}
-                      >
-                        <Minus className="h-3.5 w-3.5" />
-                      </Button>
-                      
-                      <div className="text-center px-2 flex-1">
-                        <span className="text-sm font-bold text-slate-900">
-                          +{extraPlatformEmployeesToAdd}
-                        </span>
-                      </div>
-                      
-                      <Button 
-                        size="icon" 
-                        variant="outline" 
-                        className="h-8 w-8 rounded-md hover:bg-indigo-50 hover:text-indigo-700" 
-                        onClick={() => setExtraPlatformEmployeesToAdd(extraPlatformEmployeesToAdd + 1)}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </Button>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6 mb-2">
+                <div className="bg-indigo-50/50 rounded-xl border border-indigo-100 p-5">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                        <Users className="h-4 w-4 text-indigo-600" />
+                        Extra Admin / Platform Users
+                      </h3>
+                      <p className="text-xs text-slate-600 mt-1 max-w-md">
+                        Your paid plan includes standard platform access. Need to invite more managers to the Admin Panel? Add them here for ₹99/user/month.
+                      </p>
                     </div>
-                    {extraPlatformEmployeesToAdd > 0 && (
-                      <span className="text-xs font-semibold text-indigo-700">
-                        +₹{getExtraPlatformEmployeeCost(extraPlatformEmployeesToAdd).toLocaleString('en-IN')} / {billingCycle === 'yearly' ? 'yr' : 'mo'}
-                      </span>
-                    )}
+                    <div className="flex flex-col items-center gap-2 min-w-[140px]">
+                      <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border border-indigo-200 w-full shadow-sm">
+                        <Button 
+                          size="icon" 
+                          variant="outline" 
+                          className="h-8 w-8 rounded-md hover:bg-indigo-50 hover:text-indigo-700" 
+                          disabled={extraPlatformEmployeesToAdd <= 0}
+                          onClick={() => setExtraPlatformEmployeesToAdd(Math.max(0, extraPlatformEmployeesToAdd - 1))}
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </Button>
+                        
+                        <div className="text-center px-2 flex-1">
+                          <span className="text-sm font-bold text-slate-900">
+                            +{extraPlatformEmployeesToAdd}
+                          </span>
+                        </div>
+                        
+                        <Button 
+                          size="icon" 
+                          variant="outline" 
+                          className="h-8 w-8 rounded-md hover:bg-indigo-50 hover:text-indigo-700" 
+                          onClick={() => setExtraPlatformEmployeesToAdd(extraPlatformEmployeesToAdd + 1)}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      {extraPlatformEmployeesToAdd > 0 && (
+                        <span className="text-xs font-semibold text-indigo-700">
+                          +₹{getExtraPlatformEmployeeCost(extraPlatformEmployeesToAdd).toLocaleString('en-IN')} / {billingCycle === 'yearly' ? 'yr' : 'mo'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50/50 rounded-xl border border-blue-100 p-5">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                        <Users className="h-4 w-4 text-blue-600" />
+                        Extra CRM Sales Team Members
+                      </h3>
+                      <p className="text-xs text-slate-600 mt-1 max-w-md">
+                        CRM & Suite include 2 Sales Team logins. Need more executive accounts? Add extra CRM member access for ₹999/user/month.
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center gap-2 min-w-[140px]">
+                      <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border border-blue-200 w-full shadow-sm">
+                        <Button 
+                          size="icon" 
+                          variant="outline" 
+                          className="h-8 w-8 rounded-md hover:bg-blue-50 hover:text-blue-700" 
+                          disabled={extraCrmMembersToAdd <= 0}
+                          onClick={() => setExtraCrmMembersToAdd(Math.max(0, extraCrmMembersToAdd - 1))}
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </Button>
+                        
+                        <div className="text-center px-2 flex-1">
+                          <span className="text-sm font-bold text-slate-900">
+                            +{extraCrmMembersToAdd}
+                          </span>
+                        </div>
+                        
+                        <Button 
+                          size="icon" 
+                          variant="outline" 
+                          className="h-8 w-8 rounded-md hover:bg-blue-50 hover:text-blue-700" 
+                          onClick={() => setExtraCrmMembersToAdd(extraCrmMembersToAdd + 1)}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      {extraCrmMembersToAdd > 0 && (
+                        <span className="text-xs font-semibold text-blue-700">
+                          +₹{getExtraCrmMemberCost(extraCrmMembersToAdd).toLocaleString('en-IN')} / {billingCycle === 'yearly' ? 'yr' : 'mo'}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

@@ -19,11 +19,15 @@ import {
   Users,
   Building2,
   Loader2,
+  AlertCircle,
+  Sparkles,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useAppStore } from "@/store/app-store";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { CRM_BASE_PORTAL_USERS_LIMIT, CRM_ADDITIONAL_USER_COST_PER_MONTH } from "@/lib/subscription";
+import { PlanSelectorModal } from "@/components/shared/PlanSelectorModal";
 import {
   Table,
   TableBody,
@@ -106,6 +110,11 @@ export default function CRMTeamPage() {
   // Credentials Success Modal state
   const [credentialsData, setCredentialsData] = useState<CredentialsModalData | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // CRM Portal Access Quota & Upgrade Limit States
+  const crmPortalLimit = CRM_BASE_PORTAL_USERS_LIMIT; // 2 included logins
+  const [limitModalOpen, setLimitModalOpen] = useState(false);
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
 
   const generateRandomPassword = () => {
     const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -193,7 +202,15 @@ export default function CRMTeamPage() {
 
         // Auto grant portal access if checked
         if (formData.grant_portal_access && cleanEmail && formData.portal_password?.length >= 6) {
-          try {
+          if (accessCount >= crmPortalLimit) {
+            toast({
+              title: "Portal Access Limit Reached",
+              description: `Your CRM plan includes ${crmPortalLimit} portal accounts (currently ${accessCount}/${crmPortalLimit} in use). Additional member costs ₹${CRM_ADDITIONAL_USER_COST_PER_MONTH}/Mo. Executive created without portal access.`,
+              variant: "destructive",
+            });
+            setLimitModalOpen(true);
+          } else {
+            try {
             await supabase.rpc("grant_crm_portal_access", {
               p_team_member_id: inserted.id,
               p_email: cleanEmail,
@@ -209,8 +226,9 @@ export default function CRMTeamPage() {
               portalUrl: crmPortalUrl,
               phone: formData.phone,
             });
-          } catch (accErr: any) {
-            console.warn("Auto grant access error:", accErr);
+            } catch (accErr: any) {
+              console.warn("Auto grant access error:", accErr);
+            }
           }
         }
 
@@ -274,6 +292,10 @@ export default function CRMTeamPage() {
 
   // Open Grant Access Dialog
   const openGrantAccess = (member: any) => {
+    if (accessCount >= crmPortalLimit && !member.auth_user_id) {
+      setLimitModalOpen(true);
+      return;
+    }
     setGrantMember(member);
     setGrantEmail(member.email || "");
     setGrantPassword(generateRandomPassword());
@@ -454,6 +476,44 @@ export default function CRMTeamPage() {
           <Button onClick={openAdd} className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm font-semibold">
             <Plus className="mr-2 h-4 w-4" /> Add Executive
           </Button>
+        </div>
+
+        {/* CRM Portal Access Quota Bar */}
+        <div className="p-4 rounded-xl border bg-gradient-to-r from-blue-50/80 via-indigo-50/60 to-purple-50/60 dark:from-slate-900 dark:via-blue-950/30 dark:to-slate-900 border-blue-200/80 dark:border-blue-900/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600/10 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+              <KeyRound className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  CRM Portal Access: {accessCount} / {crmPortalLimit} Accounts Used
+                </h3>
+                {accessCount >= crmPortalLimit ? (
+                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 text-[11px] font-semibold">
+                    Included Limit Reached (2/2)
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 text-[11px] font-semibold">
+                    {crmPortalLimit - accessCount} Slot Available
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                Base CRM includes 2 Sales Team portal logins. Additional members are ₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/Month per executive account.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end md:self-center">
+            <Button
+              size="sm"
+              onClick={() => setLimitModalOpen(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
+            >
+              + Add Member Slot (₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/mo)
+            </Button>
+          </div>
         </div>
 
         {/* Main Card */}
@@ -724,21 +784,44 @@ export default function CRMTeamPage() {
 
             {/* If creating new executive, offer instant portal access toggle */}
             {!editingId && (
-              <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-900 space-y-2 mt-1">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs font-semibold text-blue-950 dark:text-blue-200 cursor-pointer">
-                      Grant CRM Portal Access Immediately
-                    </Label>
-                    <p className="text-[11px] text-muted-foreground">
-                      Creates official login account for this sales executive.
-                    </p>
+              accessCount >= crmPortalLimit ? (
+                <div className="p-3 bg-amber-50/90 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-900 space-y-2 mt-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 font-semibold text-xs text-amber-900 dark:text-amber-200">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        CRM Portal Limit Reached ({accessCount}/{crmPortalLimit} Used)
+                      </div>
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                        CRM includes 2 Sales Team logins. Additional members cost ₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/Month. You can still add this executive for pipeline tracking without portal login.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setLimitModalOpen(true)}
+                      className="h-7 px-2 text-[11px] bg-amber-600 hover:bg-amber-700 text-white font-semibold shrink-0"
+                    >
+                      + Add Slot
+                    </Button>
                   </div>
-                  <Switch
-                    checked={formData.grant_portal_access}
-                    onCheckedChange={(v) => setFormData({ ...formData, grant_portal_access: v })}
-                  />
                 </div>
+              ) : (
+                <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-900 space-y-2 mt-1">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-xs font-semibold text-blue-950 dark:text-blue-200 cursor-pointer">
+                        Grant CRM Portal Access Immediately
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Creates official login account for this sales executive ({accessCount}/{crmPortalLimit} slots used).
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.grant_portal_access}
+                      onCheckedChange={(v) => setFormData({ ...formData, grant_portal_access: v })}
+                    />
+                  </div>
 
                 {formData.grant_portal_access && (
                   <div className="pt-2 border-t border-blue-200/80 dark:border-blue-900/80 space-y-2">
@@ -766,6 +849,7 @@ export default function CRMTeamPage() {
                   </div>
                 )}
               </div>
+            )
             )}
 
             {editingId && (
@@ -1102,6 +1186,77 @@ export default function CRMTeamPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* CRM Portal Access Limit Reached Modal */}
+      <Dialog open={limitModalOpen} onOpenChange={setLimitModalOpen}>
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-2">
+              <KeyRound className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-center text-lg font-bold">
+              CRM Portal Access Limit Reached ({crmPortalLimit} / {crmPortalLimit} Used)
+            </DialogTitle>
+            <DialogDescription className="text-center text-xs text-slate-500 pt-1">
+              Your business CRM subscription includes <strong>{crmPortalLimit} official Sales Team member accounts</strong> with login access.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="flex justify-between items-center text-slate-700 dark:text-slate-300">
+                <span>Included Portal Accounts:</span>
+                <span className="font-bold text-slate-900 dark:text-white">{crmPortalLimit} Executives</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-700 dark:text-slate-300">
+                <span>Currently Active Logins:</span>
+                <span className="font-bold text-amber-600 dark:text-amber-400">{accessCount} / {crmPortalLimit}</span>
+              </div>
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-blue-900 dark:text-blue-300 font-semibold">
+                <span>Additional Sales Member Cost:</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400">₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/Month per user</span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-blue-50/60 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-900 text-[11px] text-blue-900 dark:text-blue-200 space-y-1">
+              <div className="font-semibold flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                Each Additional CRM Member Gets:
+              </div>
+              <ul className="list-disc pl-4 space-y-0.5 text-slate-600 dark:text-slate-400">
+                <li>Dedicated CRM Portal login at <code>https://crm.aassaybiz.com</code></li>
+                <li>Personalized sales pipeline & assigned leads</li>
+                <li>Follow-ups, notes & call logs scoped to their accounts</li>
+                <li>Direct WhatsApp & Email outreach capability</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-2">
+            <Button
+              variant="outline"
+              onClick={() => setLimitModalOpen(false)}
+              className="w-full sm:w-auto text-xs"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+             setLimitModalOpen(false);
+             setIsPlanModalOpen(true);
+              }}
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs"
+            >
+              + Add Member Slot (₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/mo)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Upgrade / Plan Selector Modal */}
+      <PlanSelectorModal
+        open={isPlanModalOpen}
+        onOpenChange={setIsPlanModalOpen}
+      />
     </div>
   );
 }
