@@ -16,7 +16,12 @@ import {
   Receipt, 
   Bike, 
   Car, 
-  Bus, 
+  Bus,
+  Plane,
+  Hotel,
+  Utensils,
+  Shirt,
+  Coins, 
   CheckCircle2, 
   XCircle, 
   Clock, 
@@ -54,6 +59,9 @@ export interface ExpenseItem {
   rate_per_km?: number;
   travel_from?: string;
   travel_to?: string;
+  trip_start_date?: string;
+  trip_end_date?: string;
+  outstation_details?: any;
   description?: string;
   merchant_name?: string;
   invoice_number?: string;
@@ -127,6 +135,9 @@ export default function HRExpensesPage() {
   // Partial Approval
   const [partialApproveOpen, setPartialApproveOpen] = useState(false);
   const [customApprovedAmount, setCustomApprovedAmount] = useState<string>("");
+
+  // Outstation Breakdown Modal
+  const [selectedOutstationItem, setSelectedOutstationItem] = useState<ExpenseItem | null>(null);
 
   useEffect(() => {
     if (currentOrg?.id) {
@@ -705,9 +716,14 @@ export default function HRExpensesPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5 font-medium text-slate-800 text-sm">
-                            {exp.expense_type === "travel_km" ? (
-                              <Badge variant="outline" className="gap-1 border-amber-300 text-amber-800 bg-amber-50">
-                                <Bike className="h-3 w-3" /> Travel by KM
+                            {exp.expense_type === "outstation" ? (
+                              <Badge variant="outline" className="gap-1 border-indigo-300 text-indigo-800 bg-indigo-50 font-semibold text-xs">
+                                <Plane className="h-3 w-3" /> Outstation Trip
+                              </Badge>
+                            ) : exp.expense_type === "travel_km" ? (
+                              <Badge variant="outline" className="gap-1 border-amber-300 text-amber-800 bg-amber-50 font-semibold text-xs">
+                                {exp.vehicle_type === 'car' ? <Car className="h-3 w-3" /> : exp.vehicle_type === 'auto' ? <Bus className="h-3 w-3" /> : <Bike className="h-3 w-3" />}
+                                Local ({exp.vehicle_type === 'car' ? 'Car' : exp.vehicle_type === 'auto' ? 'Cab/Auto' : 'Bike'})
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="border-slate-300">
@@ -720,7 +736,28 @@ export default function HRExpensesPage() {
                           )}
                         </TableCell>
                         <TableCell className="max-w-xs">
-                          {exp.expense_type === "travel_km" ? (
+                          {exp.expense_type === "outstation" ? (
+                            <div className="text-xs space-y-1">
+                              <div className="font-semibold text-slate-900 flex items-center gap-1">
+                                <MapPin className="h-3 w-3 shrink-0 text-indigo-500" />
+                                <span>{exp.outstation_details?.trip_from || exp.travel_from} → {exp.outstation_details?.trip_to || exp.travel_to}</span>
+                                <Badge className="bg-indigo-100 text-indigo-700 text-[10px] px-1 py-0 hover:bg-indigo-100 ml-1">
+                                  {exp.outstation_details?.trip_days || 1} Days
+                                </Badge>
+                              </div>
+                              <div className="text-slate-500 line-clamp-1 text-[11px]">
+                                {exp.outstation_details?.purpose || exp.description || "Official tour"}
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSelectedOutstationItem(exp)}
+                                className="h-6 text-[11px] px-2 gap-1 text-indigo-700 border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100"
+                              >
+                                <Eye className="h-3 w-3" /> View Tour Breakdown
+                              </Button>
+                            </div>
+                          ) : exp.expense_type === "travel_km" ? (
                             <div className="text-xs space-y-0.5">
                               <span className="font-semibold text-slate-800">
                                 {exp.distance_km} KM @ ₹{exp.rate_per_km}/KM ({exp.vehicle_type?.toUpperCase()})
@@ -874,15 +911,45 @@ export default function HRExpensesPage() {
                           <div className="text-xs text-slate-500">{exp.employees?.designation || "Staff"}</div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-xs font-medium text-slate-800">{exp.category_name}</span>
-                          {exp.expense_type === "travel_km" && (
-                            <span className="block text-[11px] text-amber-700 font-medium">
-                              {exp.distance_km} KM ({exp.vehicle_type?.toUpperCase()})
-                            </span>
+                          {exp.expense_type === "outstation" ? (
+                            <div>
+                              <Badge variant="outline" className="gap-1 border-indigo-300 text-indigo-800 bg-indigo-50 font-semibold text-xs">
+                                <Plane className="h-3 w-3" /> Outstation
+                              </Badge>
+                            </div>
+                          ) : exp.expense_type === "travel_km" ? (
+                            <div>
+                              <span className="text-xs font-semibold text-slate-800">
+                                Local ({exp.vehicle_type === 'car' ? 'Car' : exp.vehicle_type === 'auto' ? 'Cab/Auto' : 'Bike'})
+                              </span>
+                              <span className="block text-[11px] text-amber-700 font-medium">
+                                {exp.distance_km} KM @ ₹{exp.rate_per_km}/KM
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs font-medium text-slate-800">{exp.category_name}</span>
                           )}
                         </TableCell>
                         <TableCell className="max-w-xs text-xs text-slate-600">
-                          {exp.expense_type === "travel_km" ? (
+                          {exp.expense_type === "outstation" ? (
+                            <div className="space-y-1">
+                              <div className="font-semibold text-slate-900 flex items-center gap-1">
+                                <MapPin className="h-3 w-3 shrink-0 text-indigo-500" />
+                                <span>{exp.outstation_details?.trip_from || exp.travel_from} → {exp.outstation_details?.trip_to || exp.travel_to}</span>
+                                <Badge className="bg-indigo-100 text-indigo-700 text-[10px] px-1 py-0 hover:bg-indigo-100 ml-1">
+                                  {exp.outstation_details?.trip_days || 1} Days
+                                </Badge>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSelectedOutstationItem(exp)}
+                                className="h-6 text-[11px] px-2 gap-1 text-indigo-700 border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100"
+                              >
+                                <Eye className="h-3 w-3" /> View Tour Breakdown
+                              </Button>
+                            </div>
+                          ) : exp.expense_type === "travel_km" ? (
                             <span>{exp.travel_from} → {exp.travel_to}</span>
                           ) : (
                             <span className="truncate block">{exp.description || exp.merchant_name || "—"}</span>
@@ -1188,6 +1255,269 @@ export default function HRExpensesPage() {
               {actionLoading ? "Processing..." : "Confirm Settlement"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* MODAL 5: OUTSTATION TOUR CLAIM BREAKDOWN & HR APPROVAL */}
+      <Dialog open={!!selectedOutstationItem} onOpenChange={(open) => !open && setSelectedOutstationItem(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-indigo-950">
+              <Plane className="h-5 w-5 text-indigo-600" /> Outstation Tour Claim Breakdown
+            </DialogTitle>
+            <DialogDescription>
+              Review itemized travel, lodging, food, incidental costs, and daily allowance (DA).
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOutstationItem && (
+            <div className="space-y-4 pt-2">
+              {/* Employee & Route Summary */}
+              <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">{selectedOutstationItem.employees?.name || "Employee"}</h4>
+                    <p className="text-xs text-slate-500">{selectedOutstationItem.employees?.designation || "Staff"} • {selectedOutstationItem.employees?.email}</p>
+                  </div>
+                  <div>
+                    {getStatusBadge(selectedOutstationItem.status)}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-indigo-100 text-xs">
+                  <div>
+                    <span className="text-slate-500 block">Route (सफर):</span>
+                    <span className="font-bold text-slate-800">
+                      {selectedOutstationItem.outstation_details?.trip_from || selectedOutstationItem.travel_from} → {selectedOutstationItem.outstation_details?.trip_to || selectedOutstationItem.travel_to}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Duration (दिन):</span>
+                    <span className="font-bold text-slate-800">
+                      {selectedOutstationItem.outstation_details?.trip_days || 1} Days
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Dates:</span>
+                    <span className="font-medium text-slate-800">
+                      {selectedOutstationItem.trip_start_date ? format(parseISO(selectedOutstationItem.trip_start_date), "dd MMM") : selectedOutstationItem.expense_date}
+                      {selectedOutstationItem.trip_end_date && ` - ${format(parseISO(selectedOutstationItem.trip_end_date), "dd MMM yyyy")}`}
+                    </span>
+                  </div>
+                </div>
+
+                {selectedOutstationItem.outstation_details?.purpose && (
+                  <div className="pt-1 border-t border-indigo-100 text-xs">
+                    <span className="text-slate-500 block">Trip Purpose:</span>
+                    <span className="font-medium text-slate-800">{selectedOutstationItem.outstation_details.purpose}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Itemized Table / Cards */}
+              <div className="space-y-2 text-xs">
+                {/* 1. Travel Fare */}
+                <div className="p-3 border rounded-xl bg-white flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-blue-50 text-blue-700 rounded-lg">
+                      <Plane className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-800">1. Travel Fare / Tickets (ट्रेवलिंग बिल)</span>
+                      <p className="text-[11px] text-slate-500">
+                        Mode: {selectedOutstationItem.outstation_details?.items?.travel?.mode || "Travel"}
+                        {selectedOutstationItem.outstation_details?.items?.travel?.booking_ref ? ` • Ref: ${selectedOutstationItem.outstation_details.items.travel.booking_ref}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-slate-900 text-sm">
+                      ₹{(selectedOutstationItem.outstation_details?.items?.travel?.amount || 0).toLocaleString("en-IN")}
+                    </span>
+                    {selectedOutstationItem.outstation_details?.items?.travel?.receipt_url && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setReceiptModalUrl(selectedOutstationItem.outstation_details.items.travel.receipt_url)}
+                        className="h-7 text-xs px-2 gap-1 text-blue-700 border-blue-200 hover:bg-blue-50"
+                      >
+                        <Eye className="h-3 w-3" /> View Ticket
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Hotel Lodging */}
+                <div className="p-3 border rounded-xl bg-white flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-purple-50 text-purple-700 rounded-lg">
+                      <Hotel className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-800">2. Hotel / Lodging (होटल बिल)</span>
+                      <p className="text-[11px] text-slate-500">
+                        {selectedOutstationItem.outstation_details?.items?.hotel?.hotel_name || "Hotel Stay"}
+                        {selectedOutstationItem.outstation_details?.items?.hotel?.nights ? ` • ${selectedOutstationItem.outstation_details.items.hotel.nights} Nights` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-slate-900 text-sm">
+                      ₹{(selectedOutstationItem.outstation_details?.items?.hotel?.amount || 0).toLocaleString("en-IN")}
+                    </span>
+                    {selectedOutstationItem.outstation_details?.items?.hotel?.receipt_url && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setReceiptModalUrl(selectedOutstationItem.outstation_details.items.hotel.receipt_url)}
+                        className="h-7 text-xs px-2 gap-1 text-purple-700 border-purple-200 hover:bg-purple-50"
+                      >
+                        <Eye className="h-3 w-3" /> View Bill
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3. Food & Meals */}
+                <div className="p-3 border rounded-xl bg-white flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-emerald-50 text-emerald-700 rounded-lg">
+                      <Utensils className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-800">3. Food / Meals (फूड बिल)</span>
+                      <p className="text-[11px] text-slate-500">
+                        {selectedOutstationItem.outstation_details?.items?.food?.description || "Tour food & meals"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-slate-900 text-sm">
+                      ₹{(selectedOutstationItem.outstation_details?.items?.food?.amount || 0).toLocaleString("en-IN")}
+                    </span>
+                    {selectedOutstationItem.outstation_details?.items?.food?.receipt_url && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setReceiptModalUrl(selectedOutstationItem.outstation_details.items.food.receipt_url)}
+                        className="h-7 text-xs px-2 gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                      >
+                        <Eye className="h-3 w-3" /> View Bill
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 4. Other Expenses */}
+                <div className="p-3 border rounded-xl bg-white flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-cyan-50 text-cyan-700 rounded-lg">
+                      <Shirt className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-800">4. Other (लॉन्ड्री & अन्य खर्च)</span>
+                      <p className="text-[11px] text-slate-500">
+                        {selectedOutstationItem.outstation_details?.items?.other?.description || "Incidentals, laundry, transit"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-slate-900 text-sm">
+                      ₹{(selectedOutstationItem.outstation_details?.items?.other?.amount || 0).toLocaleString("en-IN")}
+                    </span>
+                    {selectedOutstationItem.outstation_details?.items?.other?.receipt_url && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setReceiptModalUrl(selectedOutstationItem.outstation_details.items.other.receipt_url)}
+                        className="h-7 text-xs px-2 gap-1 text-cyan-700 border-cyan-200 hover:bg-cyan-50"
+                      >
+                        <Eye className="h-3 w-3" /> View Bill
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 5. Daily Allowance (DA) */}
+                <div className="p-3 border rounded-xl bg-white flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-amber-50 text-amber-700 rounded-lg">
+                      <Coins className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-800">5. DA (Daily Allowance / दैनिक भत्ता)</span>
+                      <p className="text-[11px] text-slate-500">
+                        {selectedOutstationItem.outstation_details?.items?.da?.days || selectedOutstationItem.outstation_details?.trip_days || 1} Days
+                        {selectedOutstationItem.outstation_details?.items?.da?.daily_rate ? ` @ ₹${selectedOutstationItem.outstation_details.items.da.daily_rate}/day` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-slate-900 text-sm">
+                      ₹{(selectedOutstationItem.outstation_details?.items?.da?.amount || 0).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Total & Action Footer */}
+              <div className="p-4 bg-slate-900 text-white rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-slate-400 block">Total Claimed Amount</span>
+                  <span className="text-xl font-bold">₹{Number(selectedOutstationItem.amount).toLocaleString("en-IN")}</span>
+                </div>
+                {selectedOutstationItem.status === "approved" || selectedOutstationItem.status === "paid" ? (
+                  <div className="text-right">
+                    <span className="text-xs text-slate-400 block">Approved Amount</span>
+                    <span className="text-xl font-bold text-emerald-400">
+                      ₹{Number(selectedOutstationItem.approved_amount !== undefined ? selectedOutstationItem.approved_amount : selectedOutstationItem.amount).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                ) : selectedOutstationItem.status === "submitted" ? (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const itm = selectedOutstationItem;
+                        setSelectedOutstationItem(null);
+                        handleApprove(itm);
+                      }}
+                      disabled={actionLoading}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs"
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1" /> Approve Full (₹{Number(selectedOutstationItem.amount).toLocaleString("en-IN")})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const itm = selectedOutstationItem;
+                        setSelectedOutstationItem(null);
+                        setSelectedExpense(itm);
+                        setCustomApprovedAmount(String(itm.amount));
+                        setPartialApproveOpen(true);
+                      }}
+                      className="bg-white/10 hover:bg-white/20 text-white text-xs border-white/20"
+                    >
+                      Partial ₹
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        const itm = selectedOutstationItem;
+                        setSelectedOutstationItem(null);
+                        setSelectedExpense(itm);
+                        setRejectModalOpen(true);
+                      }}
+                      className="text-xs"
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

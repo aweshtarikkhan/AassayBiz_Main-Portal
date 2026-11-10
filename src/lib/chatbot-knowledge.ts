@@ -596,20 +596,34 @@ IMPORTANT CONTACT RULES:
 
 24. EMPLOYEE EXPENSE MANAGEMENT & TRAVEL REIMBURSEMENT SYSTEM
 - Dual-Portal Architecture:
-  * Business HR Portal (/hr-expenses, /employee-expenses): HR Admin manages vehicle rates, reviews pending claims, approves or rejects with mandatory reason, previews high-res receipts/PDFs, tracks monthly reimbursement ledgers, exports CSV reports, and marks payouts as settled.
-  * Employee Attendance Portal (/expenses): Employees submit travel claims and bill reimbursements with receipt upload, view approval status in real-time, and track monthly payouts.
-- Vehicle Travel & Per-KM Cost Auto-Calculation:
-  * HR Admin sets per-KM reimbursement rates for Bike (2-Wheeler), Car (4-Wheeler), and Auto / Cab from the HR Expenses Settings modal.
-  * Employees enter travel date, start & destination locations, vehicle type (1-touch button), and distance traveled in KM.
-  * The system automatically calculates total claim amount in real-time based on the HR-approved rate.
+  * Business HR Portal (/hr-expenses, /employee-expenses): HR Admin manages vehicle rates, reviews pending local and outstation claims, approves or rejects with mandatory reason, views detailed Outstation Tour Claim Breakdowns (Travel, Hotel, Food, Other, DA) with previews of all itemized bills/PDFs, tracks monthly reimbursement ledgers, exports CSV reports, and marks payouts as settled.
+  * Employee Attendance Portal (/expenses): Employees submit Local travel logs or comprehensive Outstation tour claims with optional bill uploads, view approval status in real-time, inspect itemized breakdowns, and track monthly payouts.
+- Two Main Expense Claim Options (Local vs Outstation):
+  When clicking "+ New Claim", employees choose between two distinct workflows:
+  1. Local (लोकल):
+     - Designed for daily in-city travel reimbursement by KM.
+     - 3 Vehicle Options: Bike (2-Wheeler / बाइक), Car (4-Wheeler / कार), and Cab / Auto (कैब/ऑटो).
+     - Per-KM Rates: Configured and managed by HR Admin in HR Portal (e.g. Bike ₹3.50/KM, Car ₹8.00/KM, Auto/Cab ₹5.00/KM).
+     - Auto-Calculation: Total claim amount is calculated in real-time (Distance in KM × HR-Approved Rate).
+     - Required details: Vehicle selection, Travel Date (future dates strictly disallowed), Distance in KM, From location, To location, Trip Purpose / Note, and optional fuel slip / toll receipt upload.
+     - Note: The standalone general "Bill / Receipt" tab has been completely eliminated from the local workflow.
+  2. Outstation (आउट स्टेशन):
+     - Designed for corporate outstation tours, client visits, and business travel claims bundled into a single unified submission.
+     - Trip Header: From City (प्रारंभ शहर), Destination City (गंतव्य शहर), Trip Start Date, Trip End Date, auto-calculated Trip Duration (Days), and Tour Purpose / Note.
+     - Itemized Expense Sections with Optional Bill Uploads (employees can upload bills or enter figures manually without uploading):
+       * Travel Fare / Tickets (ट्रेवलिंग बिल): Travel Mode (Flight, Train, Bus, Intercity Cab, Personal Car, Other), Ticket/PNR Ref, Amount (₹), and optional ticket upload.
+       * Hotel / Lodging (होटल बिल): Hotel Name, Number of Nights, Total Amount (₹), and optional hotel invoice upload.
+       * Food / Meals (फूड बिल): Meal details (Breakfast, Lunch, Dinner, Client meals), Total Amount (₹), and optional food bill upload.
+       * Other (लॉन्ड्री & अन्य खर्च): Covers laundry, local conveyance/auto at destination, station parking, tolls, etc., Total Amount (₹), and optional bill upload.
+       * DA (Daily Allowance / दैनिक भत्ता): Calculated automatically via Trip Days × Daily DA Rate (e.g., ₹500/day default or custom) or entered directly as a custom DA amount.
+     - Auto-Calculated Gross Claim: Real-time gross sum (Travel + Hotel + Food + Other + DA) with visual itemized badges.
+     - Single Submission: All itemized costs and all attached bill files are submitted together in a single claim record (expense_type: 'outstation').
+     - Dedicated Breakdown Viewer: Both Employee and HR portals feature a 1-click "View Breakdown" dialog displaying the complete itemized breakdown, route, dates, and preview links for every uploaded bill.
 - Bill / Receipt Uploads & File Rules:
   * Supported file formats: JPG, JPEG, PNG, BMP, WEBP, PDF, and screenshots.
   * GIF files are strictly rejected with an instant alert.
   * File size limit: Maximum 2 MB per receipt document.
   * Date validation: Future dates are strictly disallowed (date pickers enforce max=today, and submissions for future dates are blocked).
-- Expense Categories & Custom Categories:
-  * Standard categories: Food & Meals, Travel & Fuel, Hotel & Accommodation, Toll & Parking, Client Entertainment, Office Supplies & Stationery, Mobile & Internet, Courier & Shipping, Medical & First Aid, Repair & Maintenance, Miscellaneous.
-  * Custom Category creation: Employees can click "+ Write Custom" to type any new category name, which is automatically saved to the organization's category database for future use.
 - Mobile Responsiveness & Navigation Shortcuts:
   * Mobile Dashboard Quick Access Grid: Directly below the attendance punch widget, a hero 2x2 grid features rich cards for Tasks (with pending count), Expenses (Bike KM & Bills), Leaves (with live balance), and History (Punches & Logs), followed by a 5-icon shortcut bar for Chat, Documents, Holidays, Settings, and an "All Pages" menu trigger.
   * Mobile Bottom Navigation Bar: Sleek 6-item bottom bar evenly distributed: History, Leaves, elevated circular Home button, Tasks (with pending badge), Expenses, and All Pages (which opens the comprehensive sidebar drawer). The elevated circular Home button features an exterior label to eliminate text clipping or border overlap.
