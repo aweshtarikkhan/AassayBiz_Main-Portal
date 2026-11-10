@@ -41,7 +41,7 @@ export function buildSubscriptionEmailHTML(data: SubscriptionInvoiceData): strin
                       <img src="https://aassaybiz.com/logo.png" alt="Aassay Biz" style="height: 36px; max-height: 36px; width: auto; max-width: 180px; display: block; object-fit: contain;" />
                     </div>
                     <p style="margin: 8px 0 0; color: #bfdbfe; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">
-                      Everything you need. One smart platform
+                      India's Smartest Business Operating & GST Billing Platform - Everything you need. One smart platform
                     </p>
                   </td>
                   <td align="right" style="vertical-align: top;">
@@ -150,7 +150,7 @@ export function buildSubscriptionEmailHTML(data: SubscriptionInvoiceData): strin
                 Everything you need. One smart platform
               </p>
               <p style="margin: 0 0 6px; color: #94a3b8; font-size: 11px;">
-                Aassay Biz Technologies Pvt. Ltd. • GSTIN: 23AABCS1429B1Z8 • SAC Code: 998313
+                Emerging Thoughts Pvt. Ltd. • GSTIN: 23AAICE6101F1Z6 • SAC Code: 998315
               </p>
               <p style="margin: 0; color: #94a3b8; font-size: 11px;">
                 &copy; ${new Date().getFullYear()} <span style="font-weight: 700;"><span style="color: #e77817;">A</span><span style="color: #28166f;">assay</span> <span style="color: #e77817;">Biz</span></span>. All rights reserved. 100% Made in India.

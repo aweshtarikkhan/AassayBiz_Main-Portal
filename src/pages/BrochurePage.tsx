@@ -462,7 +462,7 @@ export default function BrochurePage() {
                     <span className="font-bold text-xs text-slate-900">Business HR</span>
                     <span className="text-xs font-black text-purple-600">₹599/mo</span>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">25 staff included (+₹29/extra). Attendance, payroll runs, leaves & shifts.</p>
+                  <p className="text-[10px] text-slate-500 mt-1">10 staff included (+₹49/extra). Attendance, payroll runs, leaves & shifts.</p>
                 </div>
                 <div className="p-2.5 rounded-lg bg-white border border-slate-200">
                   <div className="flex items-center justify-between">

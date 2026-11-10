@@ -20,6 +20,18 @@ type Message = {
   content: string;
 };
 
+export const ConciergeAvatar = ({ size = 20, color = "#e77817", faceColor = "#ffffff" }: { size?: number; color?: string; faceColor?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="10" r="4.5" fill={faceColor} />
+    <path d="M4 11C4 6.58 7.58 3 12 3C16.42 3 20 6.58 20 11V13" stroke={color} strokeWidth="2.2" strokeLinecap="round"/>
+    <rect x="3" y="10" width="2.5" height="4.5" rx="1.25" fill={color}/>
+    <rect x="18.5" y="10" width="2.5" height="4.5" rx="1.25" fill={color}/>
+    <path d="M19 13V15C19 16.5 17.5 17.5 15.5 17.5H14.5" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+    <circle cx="14" cy="17.5" r="1.5" fill={color}/>
+    <path d="M6.5 19.5C6.5 17 8.8 16 12 16C15.2 16 17.5 17 17.5 19.5" fill={faceColor} opacity="0.9"/>
+  </svg>
+);
+
 export const AIChatWidget = () => {
   const { socials } = usePlatformSocials();
   const displayPhone = socials?.phone || "+91 7806025875";
@@ -165,13 +177,13 @@ export const AIChatWidget = () => {
       <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 select-none">
         <button
           onClick={() => setIsOpen(true)}
-          className="relative group flex items-center justify-center w-11 h-11 rounded-full bg-gradient-to-tr from-[#1a0e4f]/85 via-[#28166f]/80 to-[#1e40af]/80 hover:from-[#1a0e4f] hover:via-[#28166f] hover:to-[#1e40af] backdrop-blur-md opacity-80 hover:opacity-100 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-300 border border-white/40 hover:border-white/70 cursor-pointer"
+          className="relative group flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-tr from-[#1a0e4f] via-[#28166f] to-[#1e1b4b] hover:from-[#1a0e4f] hover:to-[#28166f] shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 border-2 border-[#e77817] cursor-pointer"
           title="AssayBiz AI Assistant"
           aria-label="Open AI Chatbot"
         >
           <div className="relative flex items-center justify-center">
-            <MessageCircle className="w-5 h-5 text-white transition-transform group-hover:scale-110" />
-            <Sparkles className="w-2.5 h-2.5 text-[#e77817] absolute -top-1 -right-1 animate-pulse" />
+            <ConciergeAvatar size={24} color="#e77817" faceColor="#ffffff" />
+            <Sparkles className="w-2.5 h-2.5 text-[#e77817] absolute -top-1.5 -right-1.5 animate-pulse" />
           </div>
 
           {/* Delicate Live Online Ping Indicator */}
@@ -186,18 +198,21 @@ export const AIChatWidget = () => {
 
   return (
     <div className={`fixed right-6 bottom-6 w-80 sm:w-[24rem] bg-white dark:bg-gray-900 shadow-2xl rounded-2xl overflow-hidden flex flex-col z-50 border border-gray-200 dark:border-gray-800 transition-all duration-300 ease-in-out ${isMinimized ? 'h-14' : 'h-[500px] max-h-[80vh]'}`}>
-      {/* Header */}
-      <div className="bg-gradient-to-r from-[#1a0e4f] via-[#28166f] to-[#1e40af] text-white px-4 py-3 flex items-center justify-between cursor-pointer select-none shadow-sm" onClick={() => setIsMinimized(!isMinimized)}>
+      {/* Header - Theme 1: Assay Navy + Brand Orange Accent Line */}
+      <div 
+        className="bg-gradient-to-r from-[#1a0e4f] via-[#28166f] to-[#1e1b4b] border-b-[3px] border-[#e77817] text-white px-4 py-3 flex items-center justify-between cursor-pointer select-none shadow-sm" 
+        onClick={() => setIsMinimized(!isMinimized)}
+      >
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-            <Bot size={18} className="text-white" />
+          <div className="w-8 h-8 rounded-full bg-white/15 border border-white/30 flex items-center justify-center">
+            <ConciergeAvatar size={19} color="#e77817" faceColor="#ffffff" />
           </div>
           <div>
             <div className="font-semibold text-sm leading-tight flex items-center gap-1.5">
               AssayBiz AI Assistant
               <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
             </div>
-            <span className="text-[10px] text-white/80">Always Online • Ask anything</span>
+            <span className="text-[10px] text-white/80">Official Billing & Support Concierge</span>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -226,13 +241,17 @@ export const AIChatWidget = () => {
           <div className="flex-1 p-4 overflow-y-auto bg-gray-50 dark:bg-gray-900 flex flex-col gap-4">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === "user" ? "bg-[#28166f]/10 text-[#28166f]" : "bg-white border border-gray-200 text-blue-600 shadow-sm"}`}>
-                  {msg.role === "user" ? <User size={16} /> : <Bot size={16} />}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  msg.role === "user" 
+                    ? "bg-[#1a0e4f]/10 text-[#1a0e4f] dark:bg-white/10 dark:text-white" 
+                    : "bg-[#1a0e4f] border-[1.5px] border-[#e77817] shadow-xs"
+                }`}>
+                  {msg.role === "user" ? <User size={16} /> : <ConciergeAvatar size={18} color="#e77817" faceColor="#ffffff" />}
                 </div>
                 <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${
                   msg.role === "user" 
-                    ? "bg-[#28166f] text-white rounded-tr-none" 
-                    : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 shadow-sm border border-gray-100 dark:border-gray-700 rounded-tl-none"
+                    ? "bg-[#1a0e4f] text-white rounded-tr-none shadow-xs" 
+                    : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 shadow-xs border border-gray-100 dark:border-gray-700 rounded-tl-none"
                 }`}>
                   <div className="prose prose-sm dark:prose-invert max-w-none break-words prose-p:leading-relaxed prose-pre:bg-gray-100 prose-pre:text-gray-800 dark:prose-pre:bg-gray-800 dark:prose-pre:text-gray-200">
                     <ReactMarkdown>{msg.content}</ReactMarkdown>
@@ -242,47 +261,47 @@ export const AIChatWidget = () => {
             ))}
             {isLoading && (
               <div className="flex gap-3 flex-row">
-                <div className="w-8 h-8 rounded-full bg-white border border-gray-200 text-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <Bot size={16} />
+                <div className="w-8 h-8 rounded-full bg-[#1a0e4f] border-[1.5px] border-[#e77817] flex items-center justify-center flex-shrink-0 shadow-xs">
+                  <ConciergeAvatar size={18} color="#e77817" faceColor="#ffffff" />
                 </div>
-                <div className="px-4 py-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-1.5 h-10">
-                  <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></div>
-                  <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></div>
+                <div className="px-4 py-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl rounded-tl-none shadow-xs flex items-center gap-1.5 h-10">
+                  <div className="w-1.5 h-1.5 bg-[#e77817] rounded-full animate-bounce"></div>
+                  <div className="w-1.5 h-1.5 bg-[#e77817] rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></div>
+                  <div className="w-1.5 h-1.5 bg-[#e77817] rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></div>
                 </div>
               </div>
             )}
 
-            {/* Quick Suggestion Chips */}
+            {/* Quick Suggestion Chips - Theme 1 Styled */}
             {messages.length <= 1 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 <button
                   type="button"
                   onClick={() => handleSendText("AssayBiz me kya kya core features aur modules hain?")}
-                  className="text-[11px] px-2.5 py-1 bg-white dark:bg-gray-800 hover:bg-[#28166f]/5 dark:hover:bg-slate-800 text-[#28166f] dark:text-blue-400 border border-[#28166f]/25 dark:border-slate-700 rounded-full transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                  className="text-[11px] px-2.5 py-1 bg-white dark:bg-gray-800 hover:bg-[#fff7ed] dark:hover:bg-slate-800 text-[#1a0e4f] dark:text-orange-400 border border-[#e77817]/40 hover:border-[#e77817] rounded-full transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
                 >
-                  <Sparkles size={12} /> Platform Features
+                  <Sparkles size={12} className="text-[#e77817]" /> Platform Features
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSendText("Attendance aur Payroll rules kaise kaam karte hain?")}
-                  className="text-[11px] px-2.5 py-1 bg-white dark:bg-gray-800 hover:bg-[#28166f]/5 dark:hover:bg-slate-800 text-[#28166f] dark:text-blue-400 border border-[#28166f]/25 dark:border-slate-700 rounded-full transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                  className="text-[11px] px-2.5 py-1 bg-white dark:bg-gray-800 hover:bg-[#fff7ed] dark:hover:bg-slate-800 text-[#1a0e4f] dark:text-orange-400 border border-[#e77817]/40 hover:border-[#e77817] rounded-full transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
                 >
                   👥 Attendance & Payroll
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSendText("AssayBiz ke pricing plans aur packages kya hain?")}
-                  className="text-[11px] px-2.5 py-1 bg-white dark:bg-gray-800 hover:bg-[#28166f]/5 dark:hover:bg-slate-800 text-[#28166f] dark:text-blue-400 border border-[#28166f]/25 dark:border-slate-700 rounded-full transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                  className="text-[11px] px-2.5 py-1 bg-white dark:bg-gray-800 hover:bg-[#fff7ed] dark:hover:bg-slate-800 text-[#1a0e4f] dark:text-orange-400 border border-[#e77817]/40 hover:border-[#e77817] rounded-full transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
                 >
                   💰 Pricing Plans
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSendText("What are your contact details, phone number and email?")}
-                  className="text-[11px] px-2.5 py-1 bg-white dark:bg-gray-800 hover:bg-[#28166f]/5 dark:hover:bg-slate-800 text-[#28166f] dark:text-blue-400 border border-[#28166f]/25 dark:border-slate-700 rounded-full transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                  className="text-[11px] px-2.5 py-1 bg-white dark:bg-gray-800 hover:bg-[#fff7ed] dark:hover:bg-slate-800 text-[#1a0e4f] dark:text-orange-400 border border-[#e77817]/40 hover:border-[#e77817] rounded-full transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
                 >
-                  <Phone size={12} /> Contact & Support
+                  <Phone size={12} className="text-[#e77817]" /> Contact & Support
                 </button>
               </div>
             )}
@@ -290,18 +309,18 @@ export const AIChatWidget = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Footer */}
+          {/* Footer - Theme 1 Styled with Assay Brand Orange Action Button */}
           <div className="p-3 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
             <form onSubmit={(e) => { e.preventDefault(); handleSendText(); }} className="flex gap-2">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask about AssayBiz..."
-                className="flex-1 focus-visible:ring-[#28166f] rounded-full bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 h-10"
+                className="flex-1 focus-visible:ring-[#e77817] rounded-full bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 h-10 text-sm"
                 disabled={isLoading}
               />
-              <Button type="submit" disabled={!input.trim() || isLoading} className="rounded-full w-10 h-10 p-0 bg-[#28166f] hover:bg-[#1a0e4f] shrink-0 shadow-sm">
-                <Send size={16} className={input.trim() && !isLoading ? "text-white" : "text-white/50"} />
+              <Button type="submit" disabled={!input.trim() || isLoading} className="rounded-full w-10 h-10 p-0 bg-[#e77817] hover:bg-[#d96b0f] shrink-0 shadow-xs cursor-pointer transition-transform hover:scale-105 active:scale-95">
+                <Send size={16} className={input.trim() && !isLoading ? "text-white" : "text-white/60"} />
               </Button>
             </form>
           </div>

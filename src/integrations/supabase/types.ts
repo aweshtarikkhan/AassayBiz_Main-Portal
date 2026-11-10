@@ -39,6 +39,126 @@ export type Database = {
   }
   public: {
     Tables: {
+      employee_tasks: {
+        Row: {
+          id: string
+          org_id: string
+          employee_id: string
+          title: string
+          description: string | null
+          status_id: string | null
+          status: string
+          priority: string
+          due_date: string | null
+          due_time: string | null
+          assigned_by: string | null
+          assigned_by_name: string | null
+          completed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          employee_id: string
+          title: string
+          description?: string | null
+          status_id?: string | null
+          status?: string
+          priority?: string
+          due_date?: string | null
+          due_time?: string | null
+          assigned_by?: string | null
+          assigned_by_name?: string | null
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          employee_id?: string
+          title?: string
+          description?: string | null
+          status_id?: string | null
+          status?: string
+          priority?: string
+          due_date?: string | null
+          due_time?: string | null
+          assigned_by?: string | null
+          assigned_by_name?: string | null
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_tasks_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_tasks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_tasks_status_id_fkey"
+            columns: ["status_id"]
+            isOneToOne: false
+            referencedRelation: "task_statuses"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      task_statuses: {
+        Row: {
+          id: string
+          org_id: string
+          name: string
+          color: string
+          is_default: boolean
+          is_completed: boolean
+          order_index: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          name: string
+          color?: string
+          is_default?: boolean
+          is_completed?: boolean
+          order_index?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          name?: string
+          color?: string
+          is_default?: boolean
+          is_completed?: boolean
+          order_index?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_statuses_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       accounts: {
         Row: {
           code: string

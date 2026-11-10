@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useAppStore } from "@/store/app-store";
+import { useFeatureStore } from "@/store/feature-store";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { CRM_BASE_PORTAL_USERS_LIMIT, CRM_ADDITIONAL_USER_COST_PER_MONTH } from "@/lib/subscription";
@@ -112,7 +113,14 @@ export default function CRMTeamPage() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // CRM Portal Access Quota & Upgrade Limit States
-  const crmPortalLimit = CRM_BASE_PORTAL_USERS_LIMIT; // 2 included logins
+  const globalCrmLimit = useFeatureStore((s) => s.crmPortalLimit) || CRM_BASE_PORTAL_USERS_LIMIT;
+  const [crmPortalLimit, setCrmPortalLimit] = useState<number>(globalCrmLimit);
+
+  useEffect(() => {
+    if (globalCrmLimit && globalCrmLimit > crmPortalLimit) {
+      setCrmPortalLimit(globalCrmLimit);
+    }
+  }, [globalCrmLimit]);
   const [limitModalOpen, setLimitModalOpen] = useState(false);
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
 
@@ -141,6 +149,20 @@ export default function CRMTeamPage() {
     if (!org?.id) return;
     try {
       setLoading(true);
+      try {
+        const { data: subData } = await supabase
+          .from("subscriptions")
+          .select("manual_override_features")
+          .eq("org_id", org.id)
+          .eq("status", "active");
+
+        const maxCrm = Math.max(
+          CRM_BASE_PORTAL_USERS_LIMIT,
+          globalCrmLimit,
+          ...(subData || []).map((s: any) => Number(s.manual_override_features?.crm_team_limit) || 0)
+        );
+        setCrmPortalLimit(maxCrm);
+      } catch {}
       await ensureAdminInCrmTeam(org.id, null, org.email || undefined);
       const { data, error } = await supabase
         .from("crm_team")

@@ -714,9 +714,9 @@ export default function EmployeesPage() {
               <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               <span>
                 Staff Capacity: <strong>{rows.length}</strong> / <strong>{currentLimit}</strong>
-                {currentLimit > ((effectivePlan === 'suite' || effectivePlan === 'hr') ? 25 : 3) && (
+                {currentLimit > ((effectivePlan === 'suite' || effectivePlan === 'hr') ? 10 : 3) && currentLimit !== 25 && (
                   <span className="ml-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                    (+{currentLimit - ((effectivePlan === 'suite' || effectivePlan === 'hr') ? 25 : 3)} Extra)
+                    (+{currentLimit > 25 ? currentLimit - 25 : currentLimit - ((effectivePlan === 'suite' || effectivePlan === 'hr') ? 10 : 3)} Extra)
                   </span>
                 )}
                 <span className="ml-1 opacity-80 font-normal">({planName})</span>

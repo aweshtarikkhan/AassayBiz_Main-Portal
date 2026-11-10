@@ -369,18 +369,42 @@ export function AppLayout() {
               : 'free';
 
             let resolvedEmpLimit = 3;
+            let maxPlatformUsers = 0;
+            let maxCrmLimit = 2;
 
-            if (parsedPlans.includes('suite') || parsedPlans.includes('hr')) {
-              resolvedEmpLimit = 25;
-              const extraOrPurchased = Math.max(subData.employee_limit || 0, subData.employee_count || 0);
-              if (extraOrPurchased > 25) {
-                resolvedEmpLimit = extraOrPurchased;
+            try {
+              const { data: activeSubs } = await supabase
+                .from("subscriptions")
+                .select("employee_count, platform_employee_count, manual_override_features")
+                .eq("org_id", activeOrgId)
+                .eq("status", "active");
+
+              const maxActiveCount = Math.max(
+                0,
+                ...(activeSubs || []).map((s: any) => Number(s.employee_count || s.manual_override_features?.employee_limit) || 0)
+              );
+              if (maxActiveCount > 0) {
+                resolvedEmpLimit = maxActiveCount;
+              } else if (parsedPlans.includes('suite') || parsedPlans.includes('hr')) {
+                resolvedEmpLimit = 10;
+              } else {
+                const extraOrPurchased = Math.max(subData.employee_limit || 0, subData.employee_count || 0);
+                resolvedEmpLimit = extraOrPurchased > 3 ? extraOrPurchased : 3;
               }
-            } else {
-              resolvedEmpLimit = 3;
-              const extraOrPurchased = Math.max(subData.employee_limit || 0, subData.employee_count || 0);
-              if (extraOrPurchased > 3) {
-                resolvedEmpLimit = extraOrPurchased;
+
+              maxPlatformUsers = Math.max(
+                0,
+                ...(activeSubs || []).map((s: any) => Number(s.platform_employee_count || s.manual_override_features?.platform_user_limit) || 0)
+              );
+
+              maxCrmLimit = Math.max(
+                2,
+                ...(activeSubs || []).map((s: any) => Number(s.manual_override_features?.crm_team_limit) || 0)
+              );
+            } catch (quotaErr) {
+              console.warn("Failed to load subscription quotas:", quotaErr);
+              if (parsedPlans.includes('suite') || parsedPlans.includes('hr')) {
+                resolvedEmpLimit = 10;
               }
             }
 
@@ -397,8 +421,9 @@ export function AppLayout() {
               trial_ends_at: subData.trial_ends_at,
               employee_limit: resolvedEmpLimit,
               employee_count: subData.employee_count,
-              platform_employee_limit: subData.platform_employee_limit,
-              platform_employee_count: subData.platform_employee_count,
+              platform_employee_limit: maxPlatformUsers > 0 ? maxPlatformUsers : subData.platform_employee_limit,
+              platform_employee_count: maxPlatformUsers > 0 ? maxPlatformUsers : (subData.platform_employee_count || 0),
+              crm_portal_limit: maxCrmLimit,
               invoice_limit: subData.invoice_limit,
               client_limit: subData.client_limit,
               item_limit: subData.item_limit,

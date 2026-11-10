@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,7 @@ export function PlanSelectorModal({
   forceOrgId, 
   orgId: propOrgId 
 }: PlanSelectorModalProps) {
+  const navigate = useNavigate();
   const handleModalClose = () => {
     if (onClose) onClose();
     if (onOpenChange) onOpenChange(false);
@@ -170,7 +172,7 @@ export function PlanSelectorModal({
       // Determine standard base limit for the active plan (NEVER SUMMED)
       let planBaseLimit = 3;
       if (fetchedActivePlans.includes("suite") || fetchedActivePlans.includes("hr")) {
-        planBaseLimit = 25;
+        planBaseLimit = 10;
       } else {
         planBaseLimit = 3;
       }
@@ -180,21 +182,24 @@ export function PlanSelectorModal({
       // Only respect genuine purchased extra employees (employee_count in subscriptions table)
       // Never use subData.employee_limit as it sums multiple plans in old accounts
       const purchasedCount = subData?.employee_count || 0;
-      if ((fetchedActivePlans.includes("suite") || fetchedActivePlans.includes("hr")) && purchasedCount > 25) {
+      if ((fetchedActivePlans.includes("suite") || fetchedActivePlans.includes("hr")) && purchasedCount > 10) {
         empLimit = purchasedCount;
       }
 
-      // Direct query to subscriptions table to check if there is a purchased employee_count > 25
+      // Direct query to subscriptions table to check if there is an active employee_count > empLimit
       if (orgId && (fetchedActivePlans.includes("suite") || fetchedActivePlans.includes("hr"))) {
-        const { data: directSub } = await supabase
+        const { data: directSubs } = await supabase
           .from("subscriptions")
           .select("employee_count")
           .eq("org_id", orgId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (directSub?.employee_count && directSub.employee_count > empLimit) {
-          empLimit = directSub.employee_count;
+          .eq("status", "active");
+        
+        const maxActiveCount = Math.max(
+          0,
+          ...(directSubs || []).map((s: any) => s.employee_count || 0)
+        );
+        if (maxActiveCount > empLimit) {
+          empLimit = maxActiveCount;
         }
       }
 
@@ -287,7 +292,7 @@ export function PlanSelectorModal({
       case "hr":
         return [
           "Everything in Free Plan",
-          "25 Employee Attendance",
+          "10 Employee Attendance",
           "Attendance & Payroll",
           "Shifts & Leaves",
           "500 WhatsApp messages",
@@ -378,10 +383,10 @@ export function PlanSelectorModal({
     return count * rateRupees;
   };
 
-  // Cost calculation for extra HR employees (rate: ₹29/employee/mo in RUPEES, with 20% off if yearly)
+  // Cost calculation for extra HR employees (rate: ₹49/employee/mo in RUPEES, with 20% off if yearly)
   const getExtraEmployeeCost = (count: number) => {
     if (count <= 0) return 0;
-    const rateRupees = 29;
+    const rateRupees = 49;
     if (billingCycle === "yearly") {
       return Math.round((count * rateRupees * 12) * (1 - yearlyDiscountPct / 100));
     }
@@ -403,7 +408,7 @@ export function PlanSelectorModal({
       if (plan.name === "hr") {
         toast({
           title: "HR is Already Active",
-          description: "Business HR and Business Suite include 25 employees by default. Use the counter inside the HR card below to add extra employees at ₹29 each.",
+          description: "Business HR and Business Suite include 10 employees by default. Use the counter inside the HR card below to add extra employees at ₹49 each.",
         });
       } else {
         toast({
@@ -540,7 +545,7 @@ export function PlanSelectorModal({
 
       // Determine base limit for the TARGET plan being checked out
       const isSuiteOrHrTarget = targetPlanNames.includes("suite") || targetPlanNames.includes("hr");
-      const targetBaseLimit = isSuiteOrHrTarget ? 25 : 3;
+      const targetBaseLimit = isSuiteOrHrTarget ? 10 : 3;
 
       let totalEmployeesToSend = targetBaseLimit;
 
@@ -568,7 +573,7 @@ export function PlanSelectorModal({
         // Purchasing / upgrading to a new plan
         if (extraEmployeesToAdd > 0) {
           totalEmployeesToSend = targetBaseLimit + extraEmployeesToAdd;
-        } else if (isSuiteOrHrTarget && activeEmployeeLimit > 25) {
+        } else if (isSuiteOrHrTarget && activeEmployeeLimit > 10) {
           // If already on Suite/HR and had purchased extra capacity, preserve it
           totalEmployeesToSend = activeEmployeeLimit;
         } else {
@@ -722,6 +727,44 @@ export function PlanSelectorModal({
         }
         return;
       }
+
+      // For paid purchases, navigate to the dedicated Checkout & Statutory Billing Information page
+      let planDisplay = targetPlanNames
+        .map((p) => {
+          const found = plans.find((pl) => pl.name === p);
+          return found ? found.display_name : p.toUpperCase();
+        })
+        .join(" + ");
+
+      if (targetPlanNames.includes("suite")) {
+        planDisplay = "Aassay Biz - Flagship Business Suite";
+      } else if (isOnlyAddingExtraEmployees) {
+        planDisplay = `HRMS Capacity Expansion (+${extraEmployeesToAdd} Staff Slots)`;
+      }
+
+      const checkoutPayload = {
+        orgId,
+        targetPlanNames,
+        planDisplayName: planDisplay,
+        billingCycle,
+        extraEmployeesToAdd,
+        extraPlatformEmployeesToAdd,
+        extraCrmMembersToAdd,
+        totalEmployeesToSend,
+        promoCode: validCoupon ? promoCode : "",
+        validCoupon,
+        subtotalRupees: subtotalBeforeDiscountRupees,
+        gstRupees: gstAmountRupees,
+        finalAmountRupees,
+        finalAmountPaise,
+        isOnlyAddingExtraEmployees
+      };
+
+      sessionStorage.setItem("assay_checkout_payload", JSON.stringify(checkoutPayload));
+      setProcessingPlan(false);
+      handleModalClose();
+      navigate("/checkout", { state: checkoutPayload });
+      return;
 
       // Ensure Razorpay checkout script is loaded
       if (typeof (window as any).Razorpay === "undefined") {
@@ -1419,7 +1462,7 @@ export function PlanSelectorModal({
                           </div>
                           <div className="flex items-center gap-2.5">
                             <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5]" />
-                            <span>25 Employee Attendance</span>
+                            <span>10 Employee Attendance</span>
                           </div>
 
                           {/* Extra Employee Counter Box */}
@@ -1427,7 +1470,7 @@ export function PlanSelectorModal({
                             <div className="flex items-center justify-between mb-1.5">
                               <div className="flex items-center gap-1.5">
                                 <Users className="w-4 h-4 text-emerald-600 shrink-0" />
-                                <span className="text-slate-800 font-bold text-xs">+ Extra Employee (₹29/mo)</span>
+                                <span className="text-slate-800 font-bold text-xs">+ Extra Employee (₹49/mo)</span>
                               </div>
                               <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
                                 <button type="button" onClick={(e) => { e.stopPropagation(); setExtraEmployeesToAdd(Math.max(0, extraEmployeesToAdd - 1)); }} className="text-slate-400 hover:text-slate-700"><Minus className="w-3.5 h-3.5" /></button>
@@ -1933,7 +1976,7 @@ export function PlanSelectorModal({
                             {active ? (
                               <div className="flex flex-col gap-0.5">
                                 <span className="text-2xl font-black text-[#e77817]">₹{isYearly ? "1,699" : "1,999"}/month</span>
-                                <span className="text-xs text-slate-500 font-medium">Active for Business ({activeEmployeeLimit || 5} Employees Quota)</span>
+                                <span className="text-xs text-slate-500 font-medium">Active for Business ({activeEmployeeLimit || 10} Employees Quota)</span>
                               </div>
                             ) : (
                               <>

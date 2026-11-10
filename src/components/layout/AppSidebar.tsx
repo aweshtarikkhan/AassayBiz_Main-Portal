@@ -28,6 +28,7 @@ import {
   Boxes,
   UserCog,
   CalendarCheck,
+  CheckSquare,
   Calendar,
   FileBarChart2,
   Truck,
@@ -120,7 +121,9 @@ const catalogItems = [
 const peopleItems = [
   { title: "Employees", url: "/employees", icon: UserCog, addUrl: "/employees?add=1" },
   { title: "Attendance", url: "/attendance", icon: CalendarCheck, addUrl: null },
+  { title: "Tasks", url: "/tasks", icon: CheckSquare, addUrl: "/tasks?add=1" },
   { title: "Leaves", url: "/leaves", icon: ClipboardList, addUrl: null },
+  { title: "Expenses", url: "/employee-expenses", icon: Receipt, addUrl: null },
   { title: "Shifts", url: "/shifts", icon: CalendarCheck, addUrl: null },
   { title: "Documents", url: "/employee-documents", icon: ScrollText, addUrl: null },
   { title: "Payroll", url: "/payroll", icon: Calculator, addUrl: null },
@@ -180,6 +183,7 @@ export function AppSidebar() {
   const [unreadHrChatCount, setUnreadHrChatCount] = useState(0);
   const [pendingRegularizationsCount, setPendingRegularizationsCount] = useState(0);
   const [pendingLeavesCount, setPendingLeavesCount] = useState(0);
+  const [pendingExpensesCount, setPendingExpensesCount] = useState(0);
 
   useEffect(() => {
     if (!org?.id) return;
@@ -240,6 +244,14 @@ export function AppSidebar() {
           .eq("org_id", org.id)
           .eq("status", "pending");
         if (isMounted) setPendingLeavesCount(leaveCount || 0);
+
+        // 4. Pending Employee Expenses
+        const { count: expCount } = await (supabase as any)
+          .from("employee_expenses")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", org.id)
+          .eq("status", "submitted");
+        if (isMounted) setPendingExpensesCount(expCount || 0);
       } catch (e) {
         // ignore
       }
@@ -271,6 +283,11 @@ export function AppSidebar() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "leaves" },
+        () => { fetchCounts(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "employee_expenses" },
         () => { fetchCounts(); }
       )
       .subscribe();
@@ -623,7 +640,7 @@ export function AppSidebar() {
                       {g.key === "people" && (
                         <div className="relative flex items-center justify-center shrink-0">
                           <UserCog className="h-5 w-5 opacity-70 group-hover/groupbtn:opacity-100 shrink-0" />
-                          {collapsed && (unreadHrChatCount > 0 || pendingRegularizationsCount > 0 || pendingLeavesCount > 0) && (
+                          {collapsed && (unreadHrChatCount > 0 || pendingRegularizationsCount > 0 || pendingLeavesCount > 0 || pendingExpensesCount > 0) && (
                             <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
@@ -642,7 +659,7 @@ export function AppSidebar() {
                         <div className="flex-1 flex items-center justify-between pr-2 ml-2 min-w-0">
                             <span className="font-medium text-slate-300 group-hover/groupbtn:text-white tracking-wide text-sm truncate flex items-center">
                               {t(g.label)}
-                              {g.key === "people" && (unreadHrChatCount > 0 || pendingRegularizationsCount > 0 || pendingLeavesCount > 0) && (
+                              {g.key === "people" && (unreadHrChatCount > 0 || pendingRegularizationsCount > 0 || pendingLeavesCount > 0 || pendingExpensesCount > 0) && (
                                 <span className="relative flex h-2 w-2 ml-1.5" title="New action or message pending">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                                   <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
@@ -712,6 +729,17 @@ export function AppSidebar() {
                                 <div className="flex items-center gap-1.5 ml-auto shrink-0">
                                   <span className="px-1.5 py-0.2 text-[9px] font-bold bg-amber-500 text-white rounded-full">
                                     {pendingLeavesCount}
+                                  </span>
+                                  <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                  </span>
+                                </div>
+                              )}
+                              {item.url === "/employee-expenses" && pendingExpensesCount > 0 && (
+                                <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                                  <span className="px-1.5 py-0.2 text-[9px] font-bold bg-amber-500 text-white rounded-full">
+                                    {pendingExpensesCount}
                                   </span>
                                   <span className="relative flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>

@@ -246,12 +246,12 @@ export default function LandingPage() {
 
   const getPlanPrice = (baseMo: number, baseYr: number, hasHrAddon = false, hasCrmAddon = false) => {
     const platAddon = platformExtra * 99;
-    const hrAddon = hasHrAddon ? hrExtra * 29 : 0;
+    const hrAddon = hasHrAddon ? hrExtra * 49 : 0;
     const crmAddon = hasCrmAddon ? crmExtra * 999 : 0;
     const totalMo = baseMo + platAddon + hrAddon + crmAddon;
     // Yearly 17% discount roughly
     const platAddonYr = Math.round(platformExtra * 99 * 12 * 0.83);
-    const hrAddonYr = hasHrAddon ? Math.round(hrExtra * 29 * 12 * 0.83) : 0;
+    const hrAddonYr = hasHrAddon ? Math.round(hrExtra * 49 * 12 * 0.83) : 0;
     const crmAddonYr = hasCrmAddon ? Math.round(crmExtra * 999 * 12 * 0.83) : 0;
     const totalYr = baseYr + platAddonYr + hrAddonYr + crmAddonYr;
     if (billingCycle === "yearly") {
@@ -961,7 +961,7 @@ export default function LandingPage() {
                 totalAmount += platformExtra * (isYearly ? Math.round(99 * 12 * 0.83) : 99);
               }
               if (finalSelected.has("hr") && hrExtra > 0) {
-                totalAmount += hrExtra * (isYearly ? Math.round(29 * 12 * 0.83) : 29);
+                totalAmount += hrExtra * (isYearly ? Math.round(49 * 12 * 0.83) : 49);
               }
               if (finalSelected.has("crm") && crmExtra > 0) {
                 totalAmount += crmExtra * (isYearly ? Math.round(999 * 12 * 0.83) : 999);
@@ -1229,13 +1229,13 @@ export default function LandingPage() {
                             </div>
                             <div className="flex items-center gap-2.5">
                               <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5]" />
-                              <span>25 Employee Attendance</span>
+                              <span>10 Employee Attendance</span>
                             </div>
                             
                             <div className="flex items-center justify-between w-full bg-emerald-50/50 p-2 rounded-lg border border-emerald-100/50 mt-1" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center gap-2">
                                  <Users className="w-4 h-4 text-emerald-600 shrink-0" />
-                                 <span className="text-slate-700 font-semibold">+ Extra Employee (₹29/mo)</span>
+                                 <span className="text-slate-700 font-semibold">+ Extra Employee (₹49/mo)</span>
                               </div>
                               <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
                                 <button onClick={(e) => { e.stopPropagation(); setHrExtra(Math.max(0, hrExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>

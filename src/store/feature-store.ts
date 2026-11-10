@@ -231,6 +231,7 @@ interface FeatureState {
   subscriptionStatus: 'trial' | 'active' | 'expired' | 'cancelled' | 'courtesy' | null;
   employeeLimit: number | null;
   platformEmployeeLimit: number | null;
+  crmPortalLimit: number;
   employeeCount: number;
   platformEmployeeCount: number;
   invoiceLimit: number | null;
@@ -246,6 +247,7 @@ interface FeatureState {
     employee_count: number;
     platform_employee_limit?: number | null;
     platform_employee_count?: number;
+    crm_portal_limit?: number | null;
     invoice_limit?: number | null;
     client_limit?: number | null;
     item_limit?: number | null;
@@ -317,6 +319,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   subscriptionStatus: null,
   employeeLimit: null,
   platformEmployeeLimit: null,
+  crmPortalLimit: 2,
   employeeCount: 0,
   platformEmployeeCount: 0,
   invoiceLimit: null,
@@ -338,6 +341,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       platformEmployeeLimit: meta.platform_employee_limit || null,
       employeeCount: meta.employee_count,
       platformEmployeeCount: meta.platform_employee_count || 0,
+      crmPortalLimit: meta.crm_portal_limit || 2,
       invoiceLimit: meta.invoice_limit || null,
       clientLimit: meta.client_limit || null,
       itemLimit: meta.item_limit || null,

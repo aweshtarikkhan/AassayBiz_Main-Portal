@@ -76,7 +76,13 @@ interface OrgData {
   subscription: {
     plan_name: string;
     enabled_features: string[];
+    employee_limit?: number;
   } | null;
+  custom_limits?: {
+    employee_limit: number;
+    crm_team_limit: number;
+    platform_user_limit: number;
+  };
 }
 
 interface DashboardData {
@@ -214,6 +220,14 @@ export default function PlatformAdminPage() {
   const [partnerSaving, setPartnerSaving] = useState(false);
 
   // Dashboard Enhanced States
+  // Business Quota & Capacity Management States
+  const [selectedOrgForQuota, setSelectedOrgForQuota] = useState<OrgData | null>(null);
+  const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
+  const [quotaEmpLimit, setQuotaEmpLimit] = useState(25);
+  const [quotaCrmLimit, setQuotaCrmLimit] = useState(2);
+  const [quotaPlatUserLimit, setQuotaPlatUserLimit] = useState(5);
+  const [savingQuota, setSavingQuota] = useState(false);
+
   const [trendData, setTrendData] = useState<{
     usersChange: number; orgsChange: number; revenueChange: number; invoicesChange: number;
   }>({ usersChange: 0, orgsChange: 0, revenueChange: 0, invoicesChange: 0 });
@@ -514,6 +528,59 @@ export default function PlatformAdminPage() {
         }
       } catch (profileErr) {
         console.warn("Could not augment users with account_id", profileErr);
+      }
+
+      try {
+        const { data: allActiveSubs } = await supabase
+          .from("subscriptions")
+          .select("id, org_id, employee_count, platform_employee_count, manual_override_features, status");
+
+        if (allActiveSubs && finalDashData?.organizations) {
+          const subMap = new Map<string, any[]>();
+          allActiveSubs.forEach((s: any) => {
+            if (!subMap.has(s.org_id)) subMap.set(s.org_id, []);
+            subMap.get(s.org_id)!.push(s);
+          });
+
+          finalDashData = {
+            ...finalDashData,
+            organizations: finalDashData.organizations.map(o => {
+              const oSubs = subMap.get(o.id) || [];
+              const pName = (o.subscription?.plan_name || (o as any).subscription_plan || 'free').toLowerCase();
+              const isSuite = pName.includes('suite');
+              const isHr = pName.includes('hr');
+              const defaultEmp = (isSuite || isHr) ? 25 : 3;
+              const defaultPlat = isSuite ? 5 : 3;
+
+              const empLimit = Math.max(
+                defaultEmp,
+                o.subscription?.employee_limit || 0,
+                ...oSubs.map((s: any) => Number(s.employee_count || s.manual_override_features?.employee_limit) || 0)
+              );
+
+              const crmLimit = Math.max(
+                2,
+                ...oSubs.map((s: any) => Number(s.manual_override_features?.crm_team_limit) || 0)
+              );
+
+              const platLimit = Math.max(
+                defaultPlat,
+                ...oSubs.map((s: any) => Number(s.platform_employee_count || s.manual_override_features?.platform_user_limit) || 0)
+              );
+
+              return {
+                ...o,
+                custom_limits: {
+                  employee_limit: empLimit,
+                  crm_team_limit: crmLimit,
+                  platform_user_limit: platLimit,
+                }
+              };
+            })
+          };
+        }
+      } catch (subErr) {
+        console.warn("Could not augment orgs with subscription limits", subErr);
       }
 
       setDashData(finalDashData);
@@ -1061,6 +1128,102 @@ export default function PlatformAdminPage() {
     await fetchDashboardData(false);
   };
   
+  const handleOpenQuotaModal = (org: OrgData) => {
+    setSelectedOrgForQuota(org);
+    const pName = (org.subscription?.plan_name || (org as any).subscription_plan || 'free').toLowerCase();
+    const isSuite = pName.includes('suite');
+    const isHr = pName.includes('hr');
+    const defaultEmp = (isSuite || isHr) ? 25 : 3;
+    const defaultPlat = isSuite ? 5 : 3;
+
+    setQuotaEmpLimit(org.custom_limits?.employee_limit || defaultEmp);
+    setQuotaCrmLimit(org.custom_limits?.crm_team_limit || 2);
+    setQuotaPlatUserLimit(org.custom_limits?.platform_user_limit || defaultPlat);
+    setIsQuotaModalOpen(true);
+  };
+
+  const handleSaveQuotaLimits = async () => {
+    if (!selectedOrgForQuota) return;
+    setSavingQuota(true);
+    try {
+      const orgId = selectedOrgForQuota.id;
+      const { data: existingSubs } = await supabase
+        .from("subscriptions")
+        .select("id, manual_override_features")
+        .eq("org_id", orgId);
+
+      const overrideObj = {
+        ...(existingSubs?.[0]?.manual_override_features || {}),
+        employee_limit: quotaEmpLimit,
+        crm_team_limit: quotaCrmLimit,
+        platform_user_limit: quotaPlatUserLimit,
+      };
+
+      if (existingSubs && existingSubs.length > 0) {
+        const { error: updErr } = await supabase
+          .from("subscriptions")
+          .update({
+            employee_count: quotaEmpLimit,
+            platform_employee_count: quotaPlatUserLimit,
+            manual_override_features: overrideObj,
+          })
+          .eq("org_id", orgId);
+
+        if (updErr) throw updErr;
+      } else {
+        const { data: plans } = await supabase.from("plans").select("id, name");
+        const suitePlan = plans?.find(p => p.name === 'suite') || plans?.[0];
+        if (suitePlan) {
+          await supabase.from("subscriptions").insert({
+            org_id: orgId,
+            plan_id: suitePlan.id,
+            status: 'active',
+            billing_cycle: 'monthly',
+            employee_count: quotaEmpLimit,
+            platform_employee_count: quotaPlatUserLimit,
+            manual_override_features: overrideObj,
+          });
+        }
+      }
+
+      setDashData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          organizations: prev.organizations.map(o => {
+            if (o.id === orgId) {
+              return {
+                ...o,
+                custom_limits: {
+                  employee_limit: quotaEmpLimit,
+                  crm_team_limit: quotaCrmLimit,
+                  platform_user_limit: quotaPlatUserLimit,
+                }
+              };
+            }
+            return o;
+          })
+        };
+      });
+
+      toast({
+        title: "Capacity Limits Updated",
+        description: `Limits updated for ${selectedOrgForQuota.name}: ${quotaEmpLimit} Staff, ${quotaCrmLimit} CRM Logins, ${quotaPlatUserLimit} Admin Users.`,
+      });
+      setIsQuotaModalOpen(false);
+      fetchDashboardData(false);
+    } catch (err: any) {
+      console.error("Failed to update quota limits:", err);
+      toast({
+        title: "Failed to Update Limits",
+        description: err.message || "An error occurred while saving quota limits.",
+        variant: "destructive"
+      });
+    } finally {
+      setSavingQuota(false);
+    }
+  };
+
   const availablePlans = [
     { id: "free", label: "🆓 Business Starter (Free Base Plan)" },
     { id: "accounting", label: "📦 Business Accounting (₹599)" },
@@ -1817,8 +1980,8 @@ export default function PlatformAdminPage() {
                               </span>
                             )}
                           </div>
-                          {/* Stats row */}
-                          <div className="flex gap-4 mt-3">
+                          {/* Stats row with Quota Badges */}
+                          <div className="flex flex-wrap gap-2.5 mt-3">
                             <div className="px-3 py-1 rounded bg-slate-100 border border-slate-200/50 text-center">
                               <p className="text-lg font-bold text-indigo-600">{org.member_count}</p>
                               <p className="text-[10px] text-slate-500">Users</p>
@@ -1833,12 +1996,35 @@ export default function PlatformAdminPage() {
                               </p>
                               <p className="text-[10px] text-slate-500">Features</p>
                             </div>
+
+                            {/* Active Custom Capacity Quota Badges */}
+                            <div className="px-3 py-1 rounded bg-indigo-50/80 border border-indigo-200/70 text-center">
+                              <p className="text-lg font-bold text-indigo-700">{org.custom_limits?.employee_limit || 25}</p>
+                              <p className="text-[10px] text-indigo-600 font-medium">HR Staff Limit</p>
+                            </div>
+                            <div className="px-3 py-1 rounded bg-emerald-50/80 border border-emerald-200/70 text-center">
+                              <p className="text-lg font-bold text-emerald-700">{org.custom_limits?.crm_team_limit || 2}</p>
+                              <p className="text-[10px] text-emerald-600 font-medium">CRM Logins</p>
+                            </div>
+                            <div className="px-3 py-1 rounded bg-amber-50/80 border border-amber-200/70 text-center">
+                              <p className="text-lg font-bold text-amber-700">{org.custom_limits?.platform_user_limit || 5}</p>
+                              <p className="text-[10px] text-amber-600 font-medium">Admin Users</p>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Plan selector */}
+                      {/* Plan selector & Quota Management */}
                       <div className="flex flex-col items-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenQuotaModal(org)}
+                          className="w-[180px] justify-center bg-indigo-50/90 border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-semibold shadow-2xs h-9 text-xs flex items-center gap-1.5"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
+                          Adjust Limits & Quota
+                        </Button>
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button variant="outline" className="w-[180px] justify-between bg-white border-slate-300 text-slate-700 hover:bg-slate-50">
@@ -3977,6 +4163,263 @@ export default function PlatformAdminPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ── Manage Capacity & Quota Limits Modal ── */}
+      <Dialog open={isQuotaModalOpen} onOpenChange={setIsQuotaModalOpen}>
+        <DialogContent className="max-w-xl bg-white border-slate-200 text-slate-800 shadow-2xl p-6 z-[9999]">
+          <DialogHeader className="border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white shadow-md">
+                <SlidersHorizontal className="w-5 h-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold text-slate-900">
+                  Business Quota & Capacity Limits
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  Configure employee staff capacity, CRM sales team member logins, and platform admin user seats for <strong className="text-slate-800 font-semibold">{selectedOrgForQuota?.name}</strong>.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* 1. Business HR / Staff Capacity */}
+            <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/40 space-y-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-indigo-100 text-indigo-700">
+                    <Users2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">Business HR & Suite Staff Limit</h4>
+                    <p className="text-[11px] text-slate-500">Max salaried employees & daily wage workers allowed in the staff portal</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg border-slate-200"
+                    onClick={() => setQuotaEmpLimit(prev => Math.max(1, prev - 1))}
+                  >
+                    -
+                  </Button>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={quotaEmpLimit}
+                    onChange={(e) => setQuotaEmpLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-16 h-8 text-center font-bold text-indigo-700 bg-white"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg border-slate-200"
+                    onClick={() => setQuotaEmpLimit(prev => prev + 1)}
+                  >
+                    +
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[10px] text-slate-500 font-medium">Quick Presets:</span>
+                {[10, 25, 50, 100].map(val => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setQuotaEmpLimit(val)}
+                    className={`text-[10px] px-2 py-0.5 rounded border font-medium transition-colors ${
+                      quotaEmpLimit === val
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                    }`}
+                  >
+                    {val} Staff
+                  </button>
+                ))}
+                {[+5, +10, +25].map(inc => (
+                  <button
+                    key={inc}
+                    type="button"
+                    onClick={() => setQuotaEmpLimit(prev => prev + inc)}
+                    className="text-[10px] px-2 py-0.5 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  >
+                    +{inc}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. CRM Sales Team Member Logins */}
+            <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/40 space-y-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+                    <Shield className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">CRM Sales Team Members (Logins)</h4>
+                    <p className="text-[11px] text-slate-500">Official sales executive portal login accounts in Business CRM (/crm-team)</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg border-slate-200"
+                    onClick={() => setQuotaCrmLimit(prev => Math.max(1, prev - 1))}
+                  >
+                    -
+                  </Button>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={quotaCrmLimit}
+                    onChange={(e) => setQuotaCrmLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-16 h-8 text-center font-bold text-emerald-700 bg-white"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg border-slate-200"
+                    onClick={() => setQuotaCrmLimit(prev => prev + 1)}
+                  >
+                    +
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[10px] text-slate-500 font-medium">Quick Presets:</span>
+                {[2, 5, 10, 20].map(val => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setQuotaCrmLimit(val)}
+                    className={`text-[10px] px-2 py-0.5 rounded border font-medium transition-colors ${
+                      quotaCrmLimit === val
+                        ? "bg-emerald-600 text-white border-emerald-600"
+                        : "bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                    }`}
+                  >
+                    {val} Logins
+                  </button>
+                ))}
+                {[+1, +2, +5].map(inc => (
+                  <button
+                    key={inc}
+                    type="button"
+                    onClick={() => setQuotaCrmLimit(prev => prev + inc)}
+                    className="text-[10px] px-2 py-0.5 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  >
+                    +{inc}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. Extra Admin / Platform Users */}
+            <div className="p-4 rounded-xl border border-amber-100 bg-amber-50/40 space-y-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700">
+                    <UserPlus className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">Admin & Platform Users Limit</h4>
+                    <p className="text-[11px] text-slate-500">Number of platform workspace invitations allowed in Admin Panel</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg border-slate-200"
+                    onClick={() => setQuotaPlatUserLimit(prev => Math.max(1, prev - 1))}
+                  >
+                    -
+                  </Button>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={quotaPlatUserLimit}
+                    onChange={(e) => setQuotaPlatUserLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-16 h-8 text-center font-bold text-amber-700 bg-white"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg border-slate-200"
+                    onClick={() => setQuotaPlatUserLimit(prev => prev + 1)}
+                  >
+                    +
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[10px] text-slate-500 font-medium">Quick Presets:</span>
+                {[3, 5, 10, 25].map(val => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setQuotaPlatUserLimit(val)}
+                    className={`text-[10px] px-2 py-0.5 rounded border font-medium transition-colors ${
+                      quotaPlatUserLimit === val
+                        ? "bg-amber-600 text-white border-amber-600"
+                        : "bg-white text-amber-700 border-amber-200 hover:bg-amber-50"
+                    }`}
+                  >
+                    {val} Users
+                  </button>
+                ))}
+                {[+1, +3, +5].map(inc => (
+                  <button
+                    key={inc}
+                    type="button"
+                    onClick={() => setQuotaPlatUserLimit(prev => prev + inc)}
+                    className="text-[10px] px-2 py-0.5 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  >
+                    +{inc}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="border-t border-slate-100 pt-3 flex items-center justify-between sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsQuotaModalOpen(false)}
+              disabled={savingQuota}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveQuotaLimits}
+              disabled={savingQuota}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+            >
+              {savingQuota ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving Limits...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 mr-1.5" /> Save & Apply Quotas
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

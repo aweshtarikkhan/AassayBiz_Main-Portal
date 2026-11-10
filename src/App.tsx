@@ -37,6 +37,7 @@ const PaymentsPage = lazy(() => import("./pages/PaymentsPage"));
 const RecordPaymentPage = lazy(() => import("./pages/RecordPaymentPage"));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const ComingSoonPage = lazy(() => import("./pages/ComingSoonPage"));
 const CrmIntegrationsPage = lazy(() => import("./pages/CrmIntegrationsPage"));
 const SupportTicketsPage = lazy(() => import("./pages/SupportTicketsPage"));
@@ -87,7 +88,9 @@ const BankAccountsPage = lazy(() => import("./pages/BankAccountsPage"));
 const BankAccountDetailPage = lazy(() => import("./pages/BankAccountDetailPage"));
 const CashFlowPage = lazy(() => import("./pages/CashFlowPage"));
 const ShiftsPage = lazy(() => import("./pages/ShiftsPage"));
+const TasksPage = lazy(() => import("./pages/TasksPage"));
 const LeavesPage = lazy(() => import("./pages/LeavesPage"));
+const HRExpensesPage = lazy(() => import("./pages/HRExpensesPage"));
 const EmployeeDocumentsPage = lazy(() => import("./pages/EmployeeDocumentsPage"));
 const PayrollPage = lazy(() => import("./pages/PayrollPage"));
 const PayrollRunDetailPage = lazy(() => import("./pages/PayrollRunDetailPage"));
@@ -245,8 +248,11 @@ const App = () => (
               <Route element={<FeatureGuard featureKey="people" featureName="Business HR" />}>
                 <Route path="/employees" element={<EmployeesPage />} />
                 <Route path="/attendance" element={<AttendancePage />} />
+                <Route path="/tasks" element={<TasksPage />} />
                 <Route path="/shifts" element={<ShiftsPage />} />
                 <Route path="/leaves" element={<LeavesPage />} />
+                <Route path="/employee-expenses" element={<HRExpensesPage />} />
+                <Route path="/hr-expenses" element={<HRExpensesPage />} />
                 <Route path="/employees/:id/documents" element={<EmployeeDocumentsPage />} />
                 <Route path="/employee-documents" element={<EmployeeDocumentsPage />} />
                 <Route path="/payroll" element={<PayrollPage />} />
@@ -342,6 +348,7 @@ const App = () => (
                 <Route path="/message-logs" element={<MessageLogsPage />} />
               </Route>
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/support" element={<Navigate to="/settings?tab=support" replace />} />
               <Route path="/admin" element={<AdminPanelPage />} />
                 <Route path="/feedback" element={<ComingSoonPage title="Business Feedback" description="Collect, manage, and analyze customer feedback and satisfaction ratings." />} />

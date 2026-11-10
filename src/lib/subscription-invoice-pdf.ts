@@ -15,6 +15,7 @@ export interface SubscriptionInvoiceData {
   customerPhone?: string;
   organizationName: string;
   customerGstin?: string;
+  customerState?: string;
   billingAddress?: string;
   totalAmount: number; // Total amount paid in INR (inclusive of GST)
   subtotal?: number;   // Taxable amount before GST
@@ -103,6 +104,13 @@ export function generateSubscriptionInvoicePDF(data: SubscriptionInvoiceData): j
   const cgst = Math.round((totalGst / 2) * 100) / 100;
   const sgst = Math.round((totalGst - cgst) * 100) / 100;
 
+  // Supplier is in Madhya Pradesh (Code 23). Inter-state supplies get IGST; Intra-state (MP) get CGST + SGST.
+  const isCustomerMp = Boolean(
+    (data.customerState && (data.customerState.toLowerCase().includes("madhya pradesh") || data.customerState.toLowerCase() === "mp")) ||
+    (data.customerGstin && data.customerGstin.trim().startsWith("23")) ||
+    (data.billingAddress && (data.billingAddress.toLowerCase().includes("madhya pradesh") || data.billingAddress.toLowerCase().includes("mp")))
+  );
+
   // -------------------------------------------------------------
   // 1. TOP CORPORATE HEADER (Deep Navy Banner)
   // -------------------------------------------------------------
@@ -143,7 +151,7 @@ export function generateSubscriptionInvoicePDF(data: SubscriptionInvoiceData): j
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(203, 213, 225); // slate-300
-  doc.text("India's Smartest Business Operating & GST Billing Platform", margin, 27);
+  doc.setFontSize(7.0); doc.text("India's Smartest Business Operating & GST Billing Platform - Everything you need. One smart platform", margin, 27);
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184); // slate-400
   doc.text("Emerging Thoughts Pvt. Ltd. (CIN - U73200MP2025PTC074472)", margin, 33);
@@ -208,7 +216,7 @@ export function generateSubscriptionInvoicePDF(data: SubscriptionInvoiceData): j
 
   // Column 1: Billed By (Assay Biz)
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(margin, y, colWidth, 42, 2, 2, "FD");
+  doc.roundedRect(margin, y, colWidth, 48, 2, 2, "FD");
 
   // Col 1 Header Tab
   doc.setFillColor(241, 245, 249);
@@ -236,12 +244,14 @@ export function generateSubscriptionInvoicePDF(data: SubscriptionInvoiceData): j
   byY += 4.5;
   doc.text("Website - www.aassaybiz.com", margin + 4, byY);
   byY += 4.5;
-  doc.text("address - Indore, Madhya Pradesh", margin + 4, byY);
+  doc.text("State - Madhya Pradesh (Code: 23)", margin + 4, byY);
+  byY += 4.5;
+  doc.text("Address - Indore, Madhya Pradesh, India", margin + 4, byY);
 
   // Column 2: Billed To (Customer)
   const toX = margin + colWidth + 6;
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(toX, y, colWidth, 42, 2, 2, "FD");
+  doc.roundedRect(toX, y, colWidth, 48, 2, 2, "FD");
 
   // Col 2 Header Tab
   doc.setFillColor(241, 245, 249);
@@ -255,27 +265,64 @@ export function generateSubscriptionInvoicePDF(data: SubscriptionInvoiceData): j
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(15, 23, 42);
-  const custBusinessName = data.organizationName || data.customerName || "Subscribed Business";
-  doc.text(custBusinessName.slice(0, 36), toX + 4, toY);
+  const custBusinessName = data.organizationName || "Subscribed Business";
+  doc.text(custBusinessName.slice(0, 38), toX + 4, toY);
   toY += 5;
 
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(71, 85, 105);
-  doc.text(`Contact: ${data.customerName || "Account Administrator"}`, toX + 4, toY);
-  toY += 4.5;
+
+  // Customer Contact Name (cleanly distinguish real human personal names vs duplicate/corporate company entity names)
+  const isCorporateEntityName = (name: string): boolean => {
+    if (!name) return false;
+    return /\b(pvt|ltd|limited|private|llp|corp|corporation|inc|incorporated|tech|technologies|technology|infratech|infra|enterprises|enterprise|solutions|solution|services|service|co|company|holdings|agency|studio|industries|industry|firm)\b/i.test(name);
+  };
+
+  const rawCustName = (data.customerName || "").trim();
+  const rawBizName = (custBusinessName || "").trim();
+  const isCorporateOrDuplicate =
+    !rawCustName ||
+    rawCustName.toLowerCase() === rawBizName.toLowerCase() ||
+    rawBizName.toLowerCase().includes(rawCustName.toLowerCase()) ||
+    rawCustName.toLowerCase().includes(rawBizName.toLowerCase()) ||
+    isCorporateEntityName(rawCustName);
+
+  let contactLine = "";
+  if (!isCorporateOrDuplicate) {
+    contactLine = data.customerPhone 
+      ? `Contact: ${rawCustName} (${data.customerPhone})` 
+      : `Contact: ${rawCustName}`;
+  } else if (data.customerPhone) {
+    contactLine = `Contact / Mobile: ${data.customerPhone}`;
+  }
+  
+  if (contactLine) {
+    doc.text(contactLine.slice(0, 44), toX + 4, toY);
+    toY += 4.5;
+  }
+
   doc.text(`Email: ${data.customerEmail}`, toX + 4, toY);
   toY += 4.5;
+
   if (data.customerGstin) {
-    doc.text(`GSTIN / PAN: ${data.customerGstin}`, toX + 4, toY);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text(`GSTIN: ${data.customerGstin}`, toX + 4, toY);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    toY += 4.5;
+    doc.text("Customer Type: Registered Business (B2B)", toX + 4, toY);
     toY += 4.5;
   } else {
     doc.text("Customer Type: Consumer / Unregistered Business", toX + 4, toY);
     toY += 4.5;
   }
-  doc.text(`Address: ${(data.billingAddress || "India").slice(0, 48)}`, toX + 4, toY);
+  
+  const customerAddressLine = data.billingAddress || (data.customerState ? `${data.customerState}, India` : "India");
+  doc.text(`Address: ${customerAddressLine.slice(0, 48)}`, toX + 4, toY);
 
-  y += 48;
+  y += 54;
 
   // -------------------------------------------------------------
   // 4. SUBSCRIPTION SERVICE ITEMS TABLE
@@ -422,8 +469,12 @@ export function generateSubscriptionInvoicePDF(data: SubscriptionInvoiceData): j
   if (data.discount) {
     drawSummaryRow("Coupon Discount:", `- ${formatINR(data.discount)}`);
   }
-  drawSummaryRow("CGST (9%):", formatINR(cgst));
-  drawSummaryRow("SGST (9%):", formatINR(sgst));
+  if (isCustomerMp) {
+    drawSummaryRow("CGST (9%):", formatINR(cgst));
+    drawSummaryRow("SGST (9%):", formatINR(sgst));
+  } else {
+    drawSummaryRow("IGST (18%):", formatINR(totalGst));
+  }
 
   // Divider Line
   doc.setDrawColor(226, 232, 240);

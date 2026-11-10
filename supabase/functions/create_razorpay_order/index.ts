@@ -158,7 +158,7 @@ serve(async (req) => {
       // Server-side safety guard: employee_count must respect plan tier limits
       let finalEmpCount = Number(employee_count || 0);
       const isSuiteOrHr = targetPlans.includes("suite") || targetPlans.includes("hr");
-      const targetBase = isSuiteOrHr ? 25 : 3;
+      const targetBase = isSuiteOrHr ? 10 : 3;
 
       if (!isSuiteOrHr) {
         // Business Accounting, Free, CRM, Promotion: strictly capped at 3 employees (no add-on allowed)

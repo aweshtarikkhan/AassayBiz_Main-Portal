@@ -119,12 +119,11 @@ export default function AdminPanelPage() {
   // - Any plan + 99rs add-on: base + purchased extra slots
   const getMaxUsers = (plan: string | null, extraSlots: number, dbLimit: number | null): number => {
     const p = (plan || 'free').toLowerCase();
-    if (p === 'free') return 0;
-    let base = 3;
-    if (p.includes('suite')) base = 5;
-    // If DB has a platform_employee_limit set (from 99rs add-on purchases), use it
-    if (dbLimit && dbLimit > base) return dbLimit;
-    return base + extraSlots;
+    let base = p === 'free' ? 0 : (p.includes('suite') ? 5 : 3);
+    // If DB / Platform Admin has set an explicit platform user limit, respect it
+    if (dbLimit && dbLimit > 0) return Math.max(base, dbLimit);
+    if (extraSlots > 0) return base + extraSlots;
+    return base;
   };
 
   const targetTeamOrgId = selectedTeamOrgId || currentOrgId;
@@ -190,6 +189,17 @@ export default function AdminPanelPage() {
         if (orgData?.subscription_plan) {
           setSelectedOrgPlan(orgData.subscription_plan);
         }
+        try {
+          const { data: subQuota } = await supabase
+            .from('subscriptions')
+            .select('platform_employee_count, manual_override_features')
+            .eq('org_id', targetOrgId)
+            .eq('status', 'active');
+          const maxCustomPlat = Math.max(0, ...(subQuota || []).map((s: any) => Number(s.platform_employee_count || s.manual_override_features?.platform_user_limit) || 0));
+          if (maxCustomPlat > 0) {
+            useFeatureStore.setState({ platformEmployeeLimit: maxCustomPlat, platformEmployeeCount: maxCustomPlat });
+          }
+        } catch {}
       } catch (err) {
         console.error("Failed to fetch features for org:", err);
         setSelectedOrgFeatures([]);

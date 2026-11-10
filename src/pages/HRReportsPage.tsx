@@ -11,6 +11,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/currency";
 import { format } from "date-fns";
+import { isAutoClockOut } from "@/lib/salary-calculator";
 
 function computeShiftStatus(clockInTime: string, shift: any): string {
   if (!clockInTime) return "absent";

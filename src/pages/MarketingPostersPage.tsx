@@ -111,6 +111,115 @@ const FONT_FAMILIES = [
   { value: "'Courier New', monospace", label: "Typewriter" }
 ];
 
+/**
+ * Dynamic Festival Calendar & Auto-Ordering System:
+ * Major Indian and global festivals mapped across 2024–2030+.
+ * Dynamically computes upcoming occurrences relative to today's date.
+ * If a festival has recently passed (>2 days grace period), it rolls over to next year,
+ * ensuring the closest upcoming festivals are always at the top (e.g. Diwali -> Christmas -> New Year -> Makar Sankranti).
+ */
+export const FESTIVAL_CALENDAR: Record<string, Record<number, [number, number]> | [number, number]> = {
+  "Diwali": {
+    2024: [11, 1],
+    2025: [10, 20],
+    2026: [11, 8],
+    2027: [10, 29],
+    2028: [10, 17],
+    2029: [11, 5],
+    2030: [10, 26],
+  },
+  "Christmas": [12, 25],
+  "New Year": [1, 1],
+  "Makar Sankranti": [1, 14],
+  "Republic Day": [1, 26],
+  "Holi": {
+    2024: [3, 25],
+    2025: [3, 14],
+    2026: [3, 4],
+    2027: [3, 22],
+    2028: [3, 11],
+    2029: [2, 28],
+    2030: [3, 19],
+  },
+  "Eid": {
+    2024: [4, 11],
+    2025: [3, 31],
+    2026: [3, 20],
+    2027: [3, 10],
+    2028: [2, 27],
+    2029: [2, 15],
+    2030: [2, 5],
+  },
+  "Independence Day": [8, 15],
+  "Raksha Bandhan": {
+    2024: [8, 19],
+    2025: [8, 9],
+    2026: [8, 28],
+    2027: [8, 17],
+    2028: [8, 5],
+    2029: [8, 24],
+    2030: [8, 13],
+  },
+  "Ganesh Chaturthi": {
+    2024: [9, 7],
+    2025: [8, 27],
+    2026: [9, 14],
+    2027: [9, 4],
+    2028: [8, 24],
+    2029: [9, 11],
+    2030: [9, 1],
+  },
+  "Navratri": {
+    2024: [10, 3],
+    2025: [9, 22],
+    2026: [10, 11],
+    2027: [9, 30],
+    2028: [9, 19],
+    2029: [10, 8],
+    2030: [9, 28],
+  },
+  "Dussehra": {
+    2024: [10, 12],
+    2025: [10, 2],
+    2026: [10, 20],
+    2027: [10, 9],
+    2028: [9, 28],
+    2029: [10, 17],
+    2030: [10, 6],
+  },
+};
+
+export function getFestivalNextDate(festival: string, refDate: Date = new Date()): Date {
+  const currentYear = refDate.getFullYear();
+  const cal = FESTIVAL_CALENDAR[festival];
+
+  const getDateForYear = (y: number): Date => {
+    if (!cal) return new Date(y, 11, 31);
+    if (Array.isArray(cal)) {
+      return new Date(y, cal[0] - 1, cal[1]);
+    }
+    const tuple = (cal as Record<number, [number, number]>)[y] || (cal as Record<number, [number, number]>)[2026] || [10, 15];
+    return new Date(y, tuple[0] - 1, tuple[1]);
+  };
+
+  let festivalDate = getDateForYear(currentYear);
+  // Grace period: allow 2 days after the festival date before rolling over to next year
+  const diffDays = Math.ceil((festivalDate.getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays < -2) {
+    festivalDate = getDateForYear(currentYear + 1);
+  }
+  return festivalDate;
+}
+
+export function getUpcomingFestivalOrder(refDate: Date = new Date()): string[] {
+  const festivalNames = Object.keys(FESTIVAL_CALENDAR);
+  return [...festivalNames].sort((a, b) => {
+    const diffA = getFestivalNextDate(a, refDate).getTime() - refDate.getTime();
+    const diffB = getFestivalNextDate(b, refDate).getTime() - refDate.getTime();
+    return diffA - diffB;
+  });
+}
+
 export default function MarketingPostersPage() {
   const org = useAppStore((s) => s.organization);
   const plan = org?.subscription_plan || 'free';
@@ -265,8 +374,8 @@ export default function MarketingPostersPage() {
     processedData = processedData.filter(t => !festivalsWithLocalPosters.has(t.festival_name));
     processedData = [...processedData, ...dynamicTemplates];
 
-    const FESTIVAL_ORDER = ["Raksha Bandhan", "Ganesh Chaturthi", "Dussehra", "Navratri", "Diwali", "Christmas", "New Year", "Makar Sankranti", "Republic Day", "Holi", "Eid", "Independence Day"];
-    const missingFestivals = FESTIVAL_ORDER.filter(f => !processedData.some((p: any) => p.festival_name === f));
+    const upcomingFestivalOrder = getUpcomingFestivalOrder();
+    const missingFestivals = upcomingFestivalOrder.filter(f => !processedData.some((p: any) => p.festival_name === f));
     missingFestivals.forEach(f => {
        processedData.push({
           id: `temp_${f}`,
@@ -308,10 +417,29 @@ export default function MarketingPostersPage() {
     
     // Ultra-thin, elegant footer strip at the absolute bottom
     const defaultFooterColor = FOOTER_COLOR_MAP[t.festival_name] || "#0f172a";
-    initialElements.push({ id: "footer-box", type: "shape", width: 400, height: 34, bgColor: defaultFooterColor, opacity: 100, borderRadius: 0, x: 0, y: 466, zIndex: 20 });
+    initialElements.push({ id: "footer-box", type: "shape", width: 400, height: 38, bgColor: defaultFooterColor, opacity: 100, borderRadius: 0, x: 0, y: 462, zIndex: 20 });
 
-    // Business Name (Floating beautifully above the footer strip)
-    initialElements.push({ id: "biz-name", type: "text", text: bizName.toUpperCase(), color: "#ffffff", fontSize: 18, fontFamily: "'Montserrat', sans-serif", fontWeight: 800, x: 200, y: 436, zIndex: 21, maxWidth: 360 });
+    // Business Name (Clean single-line font, deep black/slate, auto-scaled to prevent wrapping)
+    const upperBiz = bizName.trim().toUpperCase();
+    let nameFontSize = 16;
+    if (upperBiz.length > 34) nameFontSize = 10.5;
+    else if (upperBiz.length > 26) nameFontSize = 12;
+    else if (upperBiz.length > 20) nameFontSize = 13.5;
+    else if (upperBiz.length > 14) nameFontSize = 15;
+
+    initialElements.push({ 
+      id: "biz-name", 
+      type: "text", 
+      text: upperBiz, 
+      color: "#0f172a", 
+      fontSize: nameFontSize, 
+      fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", 
+      fontWeight: 800, 
+      x: 200, 
+      y: 430, 
+      zIndex: 21, 
+      maxWidth: 385 
+    });
     
     // Contact Info (Phone + Email + Web + Address in one line, Centered perfectly INSIDE the footer)
     const contactParts = [];
@@ -327,11 +455,24 @@ export default function MarketingPostersPage() {
     const contactText = contactParts.join("   |   ");
     
     if (contactText) {
-      let fSize = 8.5;
-      if (contactText.length > 80) fSize = 6.5;
-      else if (contactText.length > 60) fSize = 7.5;
+      // Font size increased by +3 for clear legibility
+      let fSize = 11.5;
+      if (contactText.length > 80) fSize = 9.5;
+      else if (contactText.length > 60) fSize = 10.5;
       
-      initialElements.push({ id: "biz-contact", type: "text", text: contactText, color: "#ffffff", fontSize: fSize, fontFamily: "system-ui, sans-serif", fontWeight: 500, x: 200, y: 473, zIndex: 21, maxWidth: 395 });
+      initialElements.push({ 
+        id: "biz-contact", 
+        type: "text", 
+        text: contactText, 
+        color: "#ffffff", 
+        fontSize: fSize, 
+        fontFamily: "'Inter', system-ui, sans-serif", 
+        fontWeight: 600, 
+        x: 200, 
+        y: 471, 
+        zIndex: 21, 
+        maxWidth: 395 
+      });
     }
 
     // Logo (Top Right corner - professional standard)
@@ -784,9 +925,10 @@ Only output the raw JSON or the ERROR string, no markdown, no other text.`;
   // ─────────────────────────────────────────────────────────────────
   if (view === "categories") {
     const customCount = templates.filter(t => t.festival_name === "Custom Posts").length;
+    const upcomingFestivalOrder = getUpcomingFestivalOrder();
     const FESTIVAL_ORDER = [
       ...(customCount > 0 ? ["Custom Posts"] : []),
-      "Raksha Bandhan", "Ganesh Chaturthi", "Dussehra", "Navratri", "Diwali", "Christmas", "New Year", "Makar Sankranti", "Republic Day", "Holi", "Eid", "Independence Day"
+      ...upcomingFestivalOrder
     ];
     const existingCats = Array.from(new Set(templates.map(t => t.festival_name)));
     const categories = Array.from(new Set([...FESTIVAL_ORDER, ...existingCats])).sort((a, b) => {
@@ -831,11 +973,14 @@ Only output the raw JSON or the ERROR string, no markdown, no other text.`;
           </div>
           */}
 
-          {categories.map((category) => {
+          {categories.map((category, index) => {
             const count = templates.filter(t => t.festival_name === category).length;
             const categoryTemplate = templates.find(t => t.festival_name === category);
             const isCustom = category === "Custom Posts";
             const isLocked = !hasFullMarketing && !FESTIVAL_ORDER.includes(category);
+            const nextDate = FESTIVAL_CALENDAR[category] ? getFestivalNextDate(category) : null;
+            const daysUntil = nextDate ? Math.ceil((nextDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+            const isFirstUpcoming = index === (customCount > 0 ? 1 : 0) && !isCustom;
             
             return (
               <div
@@ -867,6 +1012,23 @@ Only output the raw JSON or the ERROR string, no markdown, no other text.`;
                     />
                   )}
                   <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/80 to-transparent" />
+                  {/* Upcoming festival date badge */}
+                  {nextDate && !isCustom && (
+                    <div className="absolute top-3 right-3 z-20">
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide shadow-md backdrop-blur-md flex items-center gap-1.5 transition-all ${
+                        isFirstUpcoming || (daysUntil !== null && daysUntil >= -2 && daysUntil <= 7)
+                          ? "bg-amber-500 text-white ring-2 ring-amber-300/60 shadow-amber-500/30"
+                          : "bg-slate-900/70 text-white/95 border border-white/20"
+                      }`}>
+                        <Sparkles className="w-3 h-3 text-amber-200" />
+                        <span>{nextDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+                        {isFirstUpcoming && (
+                          <span className="bg-white/25 px-1 rounded text-[9px] uppercase tracking-wider">Next</span>
+                        )}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="relative z-10">
                     <h3 className="font-bold text-2xl text-white mb-2 tracking-wide drop-shadow-md flex items-center gap-2">
                       {category}
@@ -1003,6 +1165,7 @@ Only output the raw JSON or the ERROR string, no markdown, no other text.`;
         
         if (el.type === "text") {
           const isContact = el.id === "biz-contact";
+          const isBizName = el.id === "biz-name";
           return (
             <div
               key={el.id}
@@ -1015,18 +1178,21 @@ Only output the raw JSON or the ERROR string, no markdown, no other text.`;
                 fontSize: el.fontSize,
                 fontFamily: el.fontFamily,
                 fontWeight: el.fontWeight,
-                lineHeight: isContact ? 1.25 : 1.35,
+                lineHeight: isContact ? 1.2 : 1.3,
                 cursor: view === "editor" ? (draggingId === el.id ? 'grabbing' : 'grab') : 'default',
                 zIndex: el.zIndex,
                 textAlign: 'center',
-                whiteSpace: isContact ? 'nowrap' : 'pre-wrap',
-                textShadow: isContact ? "none" : "2px 2px 6px rgba(0,0,0,0.7)",
+                whiteSpace: (isContact || isBizName) ? 'nowrap' : 'pre-wrap',
+                textShadow: (isContact || isBizName) ? "none" : "2px 2px 6px rgba(0,0,0,0.7)",
                 border: borderStyle,
                 outline: outlineStyle,
-                padding: isContact ? "2px 6px" : "4px 8px",
+                padding: isContact ? "2px 4px" : "3px 6px",
                 borderRadius: 4,
-                width: isContact ? "390px" : "max-content",
-                maxWidth: el.maxWidth ? `${el.maxWidth}px` : "100%",
+                width: isContact ? "394px" : "max-content",
+                maxWidth: isBizName ? "385px" : (el.maxWidth ? `${el.maxWidth}px` : "100%"),
+                overflow: isBizName ? "hidden" : undefined,
+                textOverflow: isBizName ? "ellipsis" : undefined,
+                letterSpacing: isBizName ? "0.03em" : undefined,
                 display: isContact ? 'flex' : undefined,
                 alignItems: isContact ? 'center' : undefined,
                 justifyContent: isContact ? 'center' : undefined,
@@ -1104,6 +1270,16 @@ Only output the raw JSON or the ERROR string, no markdown, no other text.`;
         }
         return null;
       })}
+
+      {/* 10% subtle unifying grey palette overlay layer */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          zIndex: 35,
+          backgroundColor: "rgba(100, 116, 139, 0.10)",
+          borderRadius: "inherit"
+        }}
+      />
     </div>
   );
 
@@ -1116,7 +1292,27 @@ Only output the raw JSON or the ERROR string, no markdown, no other text.`;
     const bizAddressEl = elements.find(e => e.id === "biz-address");
 
     const handleQuickTextChange = (id: string, val: string) => {
-      setElements(prev => prev.map(e => e.id === id ? { ...e, text: val } : e));
+      setElements(prev => prev.map(e => {
+        if (e.id === id) {
+          if (id === "biz-name") {
+            const up = val.toUpperCase();
+            let newSize = 16;
+            if (up.length > 34) newSize = 10.5;
+            else if (up.length > 26) newSize = 12;
+            else if (up.length > 20) newSize = 13.5;
+            else if (up.length > 14) newSize = 15;
+            return { ...e, text: up, fontSize: newSize };
+          }
+          if (id === "biz-contact") {
+            let fSize = 11.5;
+            if (val.length > 80) fSize = 9.5;
+            else if (val.length > 60) fSize = 10.5;
+            return { ...e, text: val, fontSize: fSize };
+          }
+          return { ...e, text: val };
+        }
+        return e;
+      }));
     };
 
     const handleQuickLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1142,12 +1338,12 @@ Only output the raw JSON or the ERROR string, no markdown, no other text.`;
     };
 
     const updateFooterPosition = (pos: string) => {
-      const boxY = pos === "bottom" ? 466 : (pos === "top" ? 0 : -1000);
-      const contactY = pos === "bottom" ? 473 : (pos === "top" ? 6 : -1000);
-      const nameY = pos === "bottom" ? 436 : (pos === "top" ? 40 : -1000);
+      const boxY = pos === "bottom" ? 462 : (pos === "top" ? 0 : -1000);
+      const contactY = pos === "bottom" ? 471 : (pos === "top" ? 9 : -1000);
+      const nameY = pos === "bottom" ? 430 : (pos === "top" ? 44 : -1000);
       
       setElements(prev => prev.map(e => {
-        if (e.id === "footer-box") return { ...e, y: boxY, height: 34, opacity: pos === "hidden" ? 0 : (showFooterBox ? 100 : 0) };
+        if (e.id === "footer-box") return { ...e, y: boxY, height: 38, opacity: pos === "hidden" ? 0 : (showFooterBox ? 100 : 0) };
         if (e.id === "biz-name") return { ...e, y: nameY, opacity: pos === "hidden" ? 0 : 100 };
         if (e.id === "biz-contact") return { ...e, y: contactY, opacity: pos === "hidden" ? 0 : 100 };
         return e;
@@ -1223,7 +1419,21 @@ Only output the raw JSON or the ERROR string, no markdown, no other text.`;
                 <div className="space-y-3">
                   <Label className="text-xs font-semibold uppercase text-muted-foreground">Company Details</Label>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground mb-1 block">Business Name</Label>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label className="text-[10px] text-muted-foreground block">Business Name</Label>
+                      <div className="flex items-center gap-1.5">
+                        <Label className="text-[10px] text-muted-foreground">Color:</Label>
+                        <input 
+                          type="color" 
+                          value={bizNameEl?.color || "#0f172a"}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setElements(prev => prev.map(el => el.id === "biz-name" ? { ...el, color: val } : el));
+                          }}
+                          className="h-5 w-6 cursor-pointer p-0 bg-transparent border rounded" 
+                        />
+                      </div>
+                    </div>
                     <Input 
                       value={bizNameEl?.text || ""} 
                       onChange={e => handleQuickTextChange("biz-name", e.target.value)} 

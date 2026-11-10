@@ -76,13 +76,13 @@ export function hasModuleAccess(plan: string = 'free', module: ModuleType): bool
  *    - Business Accounting: 3 employees
  *    - Business CRM: 3 employees
  *    - Business Promotion: 3 employees
- *    - Business HR: 25 employees (expandable via add-on)
- *    - Business Suite: 25 employees (expandable via add-on)
+ *    - Business HR: 10 employees (expandable via add-on)
+ *    - Business Suite: 10 employees (expandable via add-on)
  * 
  * 2. No Accidental Summing:
  *    Even if multiple plans are active (or Business Suite is active),
  *    limits are NOT summed up.
- *    The highest base limit among active tiers applies (25 for Suite/HR).
+ *    The highest base limit among active tiers applies (10 for Suite/HR).
  * 
  * 3. Dynamic Capacity Expansion:
  *    Extra employee capacity can be purchased/applied
@@ -93,18 +93,18 @@ export function calculateEmployeeLimit(planStr: string = 'free', purchasedLimit?
   const p = normalizePlanKey(planStr);
 
   // Base employee limits:
-  // Business Suite & Business HR: 25 base employees
+  // Business Suite & Business HR: 10 base employees
   // Business Accounting, Starter, CRM, Promotion: 3 base employees
   let baseLimit = 3;
   if (p === 'suite' || p === 'hr') {
-    baseLimit = 25;
+    baseLimit = 10;
   } else {
     baseLimit = 3;
   }
 
   // Self-heal: If plan was marked 'free' but has purchased capacity (>4), it's Suite/HR scale
   if (p === 'free' && typeof purchasedLimit === 'number' && purchasedLimit > 4) {
-    baseLimit = 25;
+    baseLimit = 10;
   }
 
   // Extra employee capacity add-ons or purchased limits:

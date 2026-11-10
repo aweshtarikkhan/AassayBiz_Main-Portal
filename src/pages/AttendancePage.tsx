@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from "date-fns";
 import { formatCurrency } from "@/lib/currency";
-import { ChevronLeft, ChevronRight, Save, Send, MapPin, Clock, MessageSquare, UserCircle2, Calculator, Edit3, Sparkles, HardHat } from "lucide-react";
+import { ChevronLeft, ChevronRight, Save, Send, MapPin, Clock, MessageSquare, UserCircle2, Calculator, Edit3, Sparkles, HardHat, Laptop } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { SalariesTab } from "@/components/payroll/SalariesTab";
 import { calculateHoursLoginToShiftEnd, isAutoClockOut } from "@/lib/salary-calculator";
@@ -103,6 +103,8 @@ export default function AttendancePage() {
 
   // approved leaves per employee per date: empId|date -> leaveType
   const [approvedLeaveMap, setApprovedLeaveMap] = useState<Record<string, string>>({});
+  // approved regularizations per employee per date: empId|date -> reg
+  const [approvedRegMap, setApprovedRegMap] = useState<Record<string, any>>({});
   // employee shifts: empId -> shift
   const [empShiftMap, setEmpShiftMap] = useState<Record<string, any>>({});
   // organization default shift
@@ -227,13 +229,31 @@ export default function AttendancePage() {
               employee_id: targetEmpId,
               org_id: r.org_id,
               date: dateStr,
-              clock_in_time: existing.clock_in_time || (r.requested_clock_in ? `${dateStr}T${r.requested_clock_in}` : `${dateStr}T09:30:00`),
-              clock_out_time: existing.clock_out_time || (r.requested_clock_out ? `${dateStr}T${r.requested_clock_out}` : `${dateStr}T18:30:00`),
+              clock_in_time: existing.clock_in_time || (r.requested_clock_in ? (r.requested_clock_in.includes('T') ? r.requested_clock_in : `${dateStr}T${r.requested_clock_in}`) : `${dateStr}T09:30:00`),
+              clock_out_time: existing.clock_out_time || (r.requested_clock_out ? (r.requested_clock_out.includes('T') ? r.requested_clock_out : `${dateStr}T${r.requested_clock_out}`) : `${dateStr}T18:30:00`),
               status: "present",
               is_regularized: true,
             };
           }
         });
+
+        if (regRes && regRes.length > 0) {
+          setApprovedRegMap((prev) => {
+            const next = { ...prev };
+            (regRes || []).forEach((r: any) => {
+              const regDate = (r.date || r.attendance_date || '').slice(0, 10);
+              if (regDate) {
+                next[`${r.employee_id}|${regDate}`] = r;
+                const empMatch = employees.find((e: any) => e.id === r.employee_id || e.auth_user_id === r.employee_id);
+                if (empMatch) {
+                  next[`${empMatch.id}|${regDate}`] = r;
+                  if (empMatch.auth_user_id) next[`${empMatch.auth_user_id}|${regDate}`] = r;
+                }
+              }
+            });
+            return next;
+          });
+        }
       } catch (regErr) {
         console.warn("fetchDailyLogs regularizations query error:", regErr);
       }
@@ -421,11 +441,18 @@ export default function AttendancePage() {
     }));
     setRegularizations(resolvedRegs);
 
-    const approvedRegMap: Record<string, any> = {};
+    const localApprovedRegMap: Record<string, any> = {};
     resolvedRegs.filter((r: any) => r.status === "approved").forEach((r: any) => {
-      const regDate = r.date || r.attendance_date;
+      const regDate = (r.date || r.attendance_date || '').slice(0, 10);
       if (regDate) {
-        approvedRegMap[`${r.employee_id}|${regDate}`] = r;
+        localApprovedRegMap[`${r.employee_id}|${regDate}`] = r;
+        if (r.employees?.id) localApprovedRegMap[`${r.employees.id}|${regDate}`] = r;
+        if (r.employees?.auth_user_id) localApprovedRegMap[`${r.employees.auth_user_id}|${regDate}`] = r;
+        const matched = empList.find((e: any) => e.id === r.employee_id || e.auth_user_id === r.employee_id);
+        if (matched) {
+          localApprovedRegMap[`${matched.id}|${regDate}`] = r;
+          if (matched.auth_user_id) localApprovedRegMap[`${matched.auth_user_id}|${regDate}`] = r;
+        }
       }
     });
 
@@ -436,17 +463,20 @@ export default function AttendancePage() {
 
     const clkMap: Record<string, any> = {};
     (clockins?.data || []).forEach((r: any) => { clkMap[`${r.employee_id}|${r.date}`] = r; });
-    Object.entries(approvedRegMap).forEach(([k, reg]) => {
-      if (!clkMap[k]) {
-        clkMap[k] = {
-          employee_id: reg.employee_id,
-          date: reg.date || reg.attendance_date,
-          clock_in_time: reg.requested_clock_in ? `${reg.date}T${reg.requested_clock_in}` : `${reg.date}T09:30:00`,
-          clock_out_time: reg.requested_clock_out ? `${reg.date}T${reg.requested_clock_out}` : `${reg.date}T18:30:00`,
-          status: 'present',
-          is_regularized: true,
-        };
-      }
+    Object.entries(localApprovedRegMap).forEach(([k, reg]) => {
+      const rDate = (reg.date || reg.attendance_date || '').slice(0, 10);
+      const regClkIn = reg.requested_clock_in ? (reg.requested_clock_in.includes('T') ? reg.requested_clock_in : `${rDate}T${reg.requested_clock_in}`) : (clkMap[k]?.clock_in_time || `${rDate}T09:30:00`);
+      const regClkOut = reg.requested_clock_out ? (reg.requested_clock_out.includes('T') ? reg.requested_clock_out : `${rDate}T${reg.requested_clock_out}`) : (clkMap[k]?.clock_out_time || `${rDate}T18:30:00`);
+      clkMap[k] = {
+        ...(clkMap[k] || {}),
+        employee_id: reg.employee_id,
+        date: rDate,
+        clock_in_time: regClkIn,
+        clock_out_time: regClkOut,
+        status: 'present',
+        computed_status: 'present',
+        is_regularized: true,
+      };
     });
 
     // HR manually set records
@@ -458,7 +488,7 @@ export default function AttendancePage() {
       map[key] = statusVal;
 
       // If approved regularization exists, it is Present - NEVER treat as absent!
-      if (approvedRegMap[key]) {
+      if (localApprovedRegMap[key]) {
         map[key] = "present";
         return;
       }
@@ -507,12 +537,9 @@ export default function AttendancePage() {
         const ds = format(d, "yyyy-MM-dd");
         const key = `${emp.id}|${ds}`;
 
-        // 0. Approved Regularization
-        if (approvedRegMap[key]) {
-          const reg = approvedRegMap[key];
-          const shift = shiftMap[emp.id] || orgDefaultShift;
-          const clkIn = reg.requested_clock_in || clkMap[key]?.clock_in_time;
-          map[key] = clkIn ? computeShiftStatus(clkIn, shift, orgDefaultShift) : "present";
+        // 0. Approved Regularization: Once approved by HR, status is always Present (regularized)
+        if (localApprovedRegMap[key] || clkMap[key]?.is_regularized) {
+          map[key] = "present";
           return;
         }
 
@@ -540,6 +567,11 @@ export default function AttendancePage() {
         // 3. Actual clock-in from attendances table (daily clock records)
         const clk = clkMap[key];
         if (clk) {
+          if (clk.is_regularized || localApprovedRegMap[key]) {
+            map[key] = "present";
+            newAutoKeys.add(key);
+            return;
+          }
           if (clk.clock_in_time) {
             const shift = shiftMap[emp.id] || orgDefaultShift;
             const computedSt = computeShiftStatus(clk.clock_in_time, shift, orgDefaultShift);
@@ -588,6 +620,7 @@ export default function AttendancePage() {
     setLeaves(leavesData?.data || []);
     setHolidays(holsRes?.data || []);
     setApprovedLeaveMap(alvMap);
+    setApprovedRegMap(localApprovedRegMap);
     setEmpShiftMap(shiftMap);
     setLoading(false);
   };
@@ -1423,7 +1456,8 @@ export default function AttendancePage() {
           date: regDate,
           clock_in_time: clkIn,
           clock_out_time: clkOut,
-          status: 'present'
+          status: 'present',
+          is_regularized: true,
         }, { onConflict: 'employee_id,date' });
 
         // Upsert attendance table (HR monthly calendar record)
@@ -1433,10 +1467,11 @@ export default function AttendancePage() {
           attendance_date: regDate,
           status: 'present',
           override_status: 'present',
+          is_regularized: true,
           clock_in_time: clkIn,
           clock_out_time: clkOut,
-          hr_note: null,
-          notes: null,
+          hr_note: 'hr_override',
+          notes: 'regularization_approved',
         }, { onConflict: 'employee_id,attendance_date' });
       }
 
@@ -1647,6 +1682,14 @@ export default function AttendancePage() {
     }
 
     const rawAddress = parsed.address || parsed.name || parsed.formatted_address;
+    if (rawAddress && (rawAddress.toLowerCase().includes("laptop") || rawAddress.toLowerCase().includes("desktop") || parsed.source === "laptop" || parsed.device === "Laptop/Desktop")) {
+      return (
+        <div className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+          <Laptop className="w-3.5 h-3.5 text-indigo-600" />
+          <span>Login from Laptop/Desktop</span>
+        </div>
+      );
+    }
     const isErroneousForeign = rawAddress && (
       rawAddress.toLowerCase().includes("russia") ||
       rawAddress.toLowerCase().includes("moscow")
@@ -2227,10 +2270,7 @@ export default function AttendancePage() {
                         const shift = empShiftMap[emp.id] || orgDefaultShift || null;
 
                         const computeStatus = (): { label: string; cls: string } => {
-                          if (log?.is_regularized) {
-                            const computed = log.clock_in_time ? computeShiftStatus(log.clock_in_time, shift, orgDefaultShift) : "present";
-                            if (computed === "late") return { label: "Late (Regularized)", cls: "bg-amber-100 text-amber-800 border-amber-300" };
-                            if (computed === "half_day") return { label: "Half Day (Regularized)", cls: "bg-orange-100 text-orange-800 border-orange-300" };
+                          if (log?.is_regularized || approvedRegMap?.[`${emp.id}|${dailyDate}`]) {
                             return { label: "Present (Regularized)", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" };
                           }
 

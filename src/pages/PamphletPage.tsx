@@ -10,7 +10,7 @@ import {
   FileText, Package, ShoppingCart, Landmark, Users, BarChart3,
   Share2, Sparkles, Phone, Mail, Globe, Check, Star,
   QrCode, Award, Layers, ArrowRight, Smartphone, Monitor,
-  Plus, Minus,
+  Plus, Minus, Download,
 } from "lucide-react";
 import { AassayBizBrand } from "@/components/shared/AassayBizBrand";
 
@@ -495,7 +495,7 @@ export default function PamphletPage() {
                     <div className="bg-white border border-slate-200 rounded p-2 text-center">
                       <span className="font-bold text-slate-800 block">Business HR</span>
                       <span className="text-indigo-600 font-extrabold text-xs">₹599/mo</span>
-                      <span className="text-[10px] text-slate-500 block">25 Staff included (+₹29/extra)</span>
+                      <span className="text-[10px] text-slate-500 block">10 Staff included (+₹49/extra)</span>
                     </div>
                     <div className="bg-white border border-slate-200 rounded p-2 text-center">
                       <span className="font-bold text-slate-800 block">Business CRM</span>
@@ -693,7 +693,7 @@ export default function PamphletPage() {
               {/* Add-ons mini strip */}
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 mb-4 flex items-center justify-between text-[10px]">
                 <span className="font-bold text-slate-700">Modular Add-ons:</span>
-                <span className="text-slate-600"><strong>Business HR:</strong> ₹599/mo (25 staff)</span>
+                <span className="text-slate-600"><strong>Business HR:</strong> ₹599/mo (10 staff)</span>
                 <span>•</span>
                 <span className="text-slate-600"><strong>Business CRM:</strong> ₹599/mo</span>
                 <span>•</span>
