@@ -625,7 +625,7 @@ IMPORTANT CONTACT RULES:
   * File size limit: Maximum 2 MB per receipt document.
   * Date validation: Future dates are strictly disallowed (date pickers enforce max=today, and submissions for future dates are blocked).
 - Mobile Responsiveness & Navigation Shortcuts:
-  * Mobile Dashboard Quick Access Grid: Directly below the attendance punch widget, a hero 2x2 grid features rich cards for Tasks (with pending count), Expenses (Bike KM & Bills), Leaves (with live balance), and History (Punches & Logs), followed by a 5-icon shortcut bar for Chat, Documents, Holidays, Settings, and an "All Pages" menu trigger.
+  * Mobile Dashboard Quick Access Grid: Directly below the attendance punch widget, a streamlined hero 2x2 grid features rich cards for Tasks (with pending count), Expenses (Local & Outstation claims), Leaves (with live balance), and History (Punches & Logs), along with an "All Pages >" header trigger.
   * Mobile Bottom Navigation Bar: Sleek 6-item bottom bar evenly distributed: History, Leaves, elevated circular Home button, Tasks (with pending badge), Expenses, and All Pages (which opens the comprehensive sidebar drawer). The elevated circular Home button features an exterior label to eliminate text clipping or border overlap.
   * Mobile Floating Action Button (FAB): In the Expenses page, a prominent orange "+ Claim" floating button stays visible while scrolling for effortless 1-tap claim submission.
   * Mobile-Optimized Tasks Page (/tasks): Features touch-friendly 2x2 status toggle buttons (Pending, Working on it, On Hold, Done), swipeable filter tabs (All, Pending, In Progress, On Hold, Done), Google Calendar sync, 1-click Join Meeting button, and full-width search.
