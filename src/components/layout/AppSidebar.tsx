@@ -180,7 +180,6 @@ export function AppSidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const { t } = useLanguage();
-  const [unreadHrChatCount, setUnreadHrChatCount] = useState(0);
   const [pendingRegularizationsCount, setPendingRegularizationsCount] = useState(0);
   const [pendingLeavesCount, setPendingLeavesCount] = useState(0);
   const [pendingExpensesCount, setPendingExpensesCount] = useState(0);
@@ -191,43 +190,6 @@ export function AppSidebar() {
     let isMounted = true;
     const fetchCounts = async () => {
       try {
-        // 1. HR Chat unread: Resolve all potential HR/Admin IDs (employees + org owner + current user)
-        const hrIdSet = new Set<string>();
-        if (session?.user?.id) hrIdSet.add(session.user.id);
-        if (org.owner_id) hrIdSet.add(org.owner_id);
-
-        const { data: hrEmps } = await (supabase as any)
-          .from("employees")
-          .select("id, auth_user_id, designation")
-          .eq("org_id", org.id)
-          .or("designation.ilike.%hr%,designation.ilike.%admin%,designation.ilike.%owner%");
-
-        (hrEmps || []).forEach((e: any) => {
-          if (e.id) hrIdSet.add(e.id);
-          if (e.auth_user_id) hrIdSet.add(e.auth_user_id);
-        });
-
-        const targetHrIds = Array.from(hrIdSet);
-        if (targetHrIds.length > 0 && isMounted) {
-          // Query unread messages sent to any HR ID
-          const currentUserId = session?.user?.id;
-          let chatQuery = (supabase as any)
-            .from("chat_messages")
-            .select("id, status, is_read, sender_id", { count: "exact", head: false })
-            .eq("org_id", org.id)
-            .in("receiver_id", targetHrIds);
-
-          const { data: unreadRows } = await chatQuery;
-          if (isMounted && unreadRows) {
-            // Count messages that are unread (status === 'sent' or is_read === false) and not sent by current user
-            const unreadCount = unreadRows.filter((m: any) => 
-              (m.status === "sent" || m.is_read === false) &&
-              m.sender_id !== currentUserId &&
-              !targetHrIds.includes(m.sender_id)
-            ).length;
-            setUnreadHrChatCount(unreadCount);
-          }
-        }
 
         // 2. Pending Regularizations
         const { count: regCount } = await (supabase as any)
@@ -258,23 +220,13 @@ export function AppSidebar() {
     };
 
     fetchCounts();
-
-    const handleUnreadEvent = (e: any) => {
-      if (isMounted) setUnreadHrChatCount(e.detail?.count ?? 0);
-    };
     const handleActionUpdate = () => {
       fetchCounts();
     };
-    window.addEventListener("hr-chat-unread", handleUnreadEvent);
     window.addEventListener("hr-action-updated", handleActionUpdate);
 
     const channel = supabase
       .channel(`sidebar-hr-notifications-${org.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "chat_messages" },
-        () => { fetchCounts(); }
-      )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "attendance_regularizations" },
@@ -296,7 +248,6 @@ export function AppSidebar() {
 
     return () => {
       isMounted = false;
-      window.removeEventListener("hr-chat-unread", handleUnreadEvent);
       window.removeEventListener("hr-action-updated", handleActionUpdate);
       supabase.removeChannel(channel);
       clearInterval(interval);
@@ -640,7 +591,7 @@ export function AppSidebar() {
                       {g.key === "people" && (
                         <div className="relative flex items-center justify-center shrink-0">
                           <UserCog className="h-5 w-5 opacity-70 group-hover/groupbtn:opacity-100 shrink-0" />
-                          {collapsed && (unreadHrChatCount > 0 || pendingRegularizationsCount > 0 || pendingLeavesCount > 0 || pendingExpensesCount > 0) && (
+                          {collapsed && (pendingRegularizationsCount > 0 || pendingLeavesCount > 0 || pendingExpensesCount > 0) && (
                             <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
@@ -659,7 +610,7 @@ export function AppSidebar() {
                         <div className="flex-1 flex items-center justify-between pr-2 ml-2 min-w-0">
                             <span className="font-medium text-slate-300 group-hover/groupbtn:text-white tracking-wide text-sm truncate flex items-center">
                               {t(g.label)}
-                              {g.key === "people" && (unreadHrChatCount > 0 || pendingRegularizationsCount > 0 || pendingLeavesCount > 0 || pendingExpensesCount > 0) && (
+                              {g.key === "people" && (pendingRegularizationsCount > 0 || pendingLeavesCount > 0 || pendingExpensesCount > 0) && (
                                 <span className="relative flex h-2 w-2 ml-1.5" title="New action or message pending">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                                   <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
@@ -707,16 +658,11 @@ export function AppSidebar() {
                               {isItemLocked(item.url) && (
                                 <Lock className="h-3 w-3 text-amber-500 ml-auto shrink-0" title="Locked - Upgrade Plan" />
                               )}
-                              {item.url === "/attendance" && (unreadHrChatCount > 0 || pendingRegularizationsCount > 0) && (
+                              {item.url === "/attendance" && (pendingRegularizationsCount > 0) && (
                                 <div className="flex items-center gap-1.5 ml-auto shrink-0">
                                   {pendingRegularizationsCount > 0 && (
                                     <span className="px-1.5 py-0.2 text-[9px] font-bold bg-amber-500 text-white rounded-full" title={`${pendingRegularizationsCount} pending regularizations`}>
                                       {pendingRegularizationsCount}
-                                    </span>
-                                  )}
-                                  {unreadHrChatCount > 0 && (
-                                    <span className="px-1.5 py-0.2 text-[9px] font-bold bg-blue-500 text-white rounded-full" title={`${unreadHrChatCount} new HR chat messages`}>
-                                      {unreadHrChatCount > 9 ? "9+" : unreadHrChatCount}
                                     </span>
                                   )}
                                   <span className="relative flex h-2 w-2">

@@ -40,7 +40,7 @@ export function useSubscription() {
   const hrmsExtraEmployeeCost = (count: number) => {
     if (!employeeLimit) return 0;
     const extra = Math.max(0, count - employeeLimit);
-    return extra * 29; // ?29 per extra employee
+    return extra * 49; // ₹49 per extra employee
   };
 
   return {

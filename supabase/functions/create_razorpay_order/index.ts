@@ -119,6 +119,10 @@ serve(async (req) => {
         plan_names,
         billing_cycle,
         employee_count,
+        is_addon_only,
+        extra_employees,
+        extra_platform_users,
+        extra_crm_members,
         customer_email,
         customer_name,
         total_amount,
@@ -156,12 +160,17 @@ serve(async (req) => {
       const targetPlans = Array.isArray(plan_names) && plan_names.length > 0 ? plan_names : ["suite"];
 
       // Server-side safety guard: employee_count must respect plan tier limits
+      const isAddonOnly = Boolean(is_addon_only);
+      const extraEmp = Math.max(0, Number(extra_employees || 0));
+      const extraPlat = Math.max(0, Number(extra_platform_users || 0));
+      const extraCrm = Math.max(0, Number(extra_crm_members || 0));
+
       let finalEmpCount = Number(employee_count || 0);
       const isSuiteOrHr = targetPlans.includes("suite") || targetPlans.includes("hr");
       const targetBase = isSuiteOrHr ? 10 : 3;
 
-      if (!isSuiteOrHr) {
-        // Business Accounting, Free, CRM, Promotion: strictly capped at 3 employees (no add-on allowed)
+      if (!isSuiteOrHr && !isAddonOnly) {
+        // Business Accounting, Free, CRM, Promotion: strictly capped at 3 employees unless HR/Suite active
         finalEmpCount = 3;
       } else {
         if (finalEmpCount <= 0) {
@@ -177,7 +186,7 @@ serve(async (req) => {
             .limit(1)
             .maybeSingle();
 
-          // If remaining on Suite/HR, ensure capacity never regresses below previous purchased count
+          // Ensure capacity never regresses below previous purchased count
           if (existingSub?.employee_count && existingSub.employee_count > finalEmpCount) {
             finalEmpCount = existingSub.employee_count;
           }
@@ -189,11 +198,15 @@ serve(async (req) => {
       const { data: actData, error: actError } = await supabase.rpc("activate_org_plans", {
         p_org_id: org_id,
         p_plan_names: targetPlans,
-        p_billing_cycle: billing_cycle || "monthly",
+        p_billing_cycle: billing_cycle || "yearly",
         p_razorpay_order_id: razorpay_order_id,
         p_razorpay_payment_id: razorpay_payment_id,
         p_employee_count: finalEmpCount,
-        p_coupon_code: coupon_code ? String(coupon_code).trim().toUpperCase() : null
+        p_coupon_code: coupon_code ? String(coupon_code).trim().toUpperCase() : null,
+        p_is_addon_only: isAddonOnly,
+        p_extra_employees: extraEmp,
+        p_extra_platform_users: extraPlat,
+        p_extra_crm_members: extraCrm
       });
 
       if (actError) {

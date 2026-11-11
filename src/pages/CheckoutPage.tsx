@@ -66,6 +66,9 @@ export interface CheckoutPayload {
   finalAmountRupees: number;
   finalAmountPaise: number;
   isOnlyAddingExtraEmployees?: boolean;
+  isAddonOnlyPurchase?: boolean;
+  addonBillingMonths?: number;
+  syncedPeriodEnd?: string | null;
 }
 
 const safeStr = (val: any): string => {
@@ -494,6 +497,10 @@ export default function CheckoutPage() {
                 plan_names: checkoutData.targetPlanNames,
                 billing_cycle: checkoutData.billingCycle,
                 employee_count: checkoutData.totalEmployeesToSend,
+                is_addon_only: Boolean(checkoutData.isAddonOnlyPurchase),
+                extra_employees: checkoutData.extraEmployeesToAdd || 0,
+                extra_platform_users: checkoutData.extraPlatformEmployeesToAdd || 0,
+                extra_crm_members: checkoutData.extraCrmMembersToAdd || 0,
                 customer_email: cleanEmail,
                 customer_name: cleanFullName,
                 total_amount: amountInRupees,
@@ -553,19 +560,27 @@ export default function CheckoutPage() {
               console.warn("Consent audit log notice:", noteErr);
             }
 
-            // D. Refresh local features in state store
+            // D. Refresh local features & subscription meta in state store
             if (verifyData?.result?.features && Array.isArray(verifyData.result.features)) {
               useFeatureStore.getState().setOrgFeatures(orgId, verifyData.result.features);
             }
 
+            const syncedEndIso = verifyData?.result?.current_period_end || checkoutData.syncedPeriodEnd || null;
+
             // E. Build official Tax Invoice Payload
             const now = new Date();
-            const periodEnd = new Date(now);
-            if (checkoutData.billingCycle === "yearly") {
-              periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-            } else {
-              periodEnd.setMonth(periodEnd.getMonth() + 1);
-            }
+            const periodEnd =
+              checkoutData.isAddonOnlyPurchase && syncedEndIso
+                ? new Date(syncedEndIso)
+                : (() => {
+                    const end = new Date(now);
+                    if (checkoutData.billingCycle === "yearly") {
+                      end.setFullYear(end.getFullYear() + 1);
+                    } else {
+                      end.setMonth(end.getMonth() + 1);
+                    }
+                    return end;
+                  })();
 
             const formatDateStr = (d: Date) =>
               d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -596,7 +611,11 @@ export default function CheckoutPage() {
               paymentMethod: "Razorpay (Cards / UPI / NetBanking)",
               razorpayPaymentId: response.razorpay_payment_id,
               razorpayOrderId: response.razorpay_order_id,
-              employeeCount: checkoutData.totalEmployeesToSend
+              employeeCount: checkoutData.totalEmployeesToSend,
+              extraPlatformEmployees: checkoutData.extraPlatformEmployeesToAdd,
+              extraCrmMembers: checkoutData.extraCrmMembersToAdd,
+              addonBillingMonths: checkoutData.isAddonOnlyPurchase ? checkoutData.addonBillingMonths : undefined,
+              isAddonOnly: Boolean(checkoutData.isAddonOnlyPurchase),
             };
 
             setCompletedInvoice(invoicePayload);
@@ -1088,7 +1107,11 @@ export default function CheckoutPage() {
                     Order Summary
                   </CardTitle>
                   <Badge className="bg-[#e77817] text-white font-bold uppercase text-[10px] tracking-wide border-0">
-                    {checkoutData.billingCycle === "yearly" ? "Annual Plan (Save 20%)" : "Monthly Plan"}
+                    {checkoutData.isAddonOnlyPurchase && checkoutData.addonBillingMonths
+                      ? `Synced Add-on (${checkoutData.addonBillingMonths} mo)`
+                      : checkoutData.billingCycle === "yearly"
+                      ? "Annual Plan"
+                      : "Monthly Plan"}
                   </Badge>
                 </div>
                 <CardDescription className="text-xs text-indigo-200 mt-1">
@@ -1101,11 +1124,18 @@ export default function CheckoutPage() {
                 {/* Plan Name & Scope */}
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
                   <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    {checkoutData.isOnlyAddingExtraEmployees ? "Capacity Add-on" : "Selected Plan"}
+                    {checkoutData.isAddonOnlyPurchase || checkoutData.isOnlyAddingExtraEmployees ? "Capacity Add-on" : "Selected Plan"}
                   </div>
                   <div className="text-base font-extrabold text-[#28166f] mt-0.5">
                     {checkoutData.planDisplayName || checkoutData.targetPlanNames.join(" + ").toUpperCase()}
                   </div>
+
+                  {checkoutData.isAddonOnlyPurchase && checkoutData.syncedPeriodEnd && (
+                    <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-[11px] font-medium text-amber-900">
+                      Prorated for <strong>{checkoutData.addonBillingMonths || (checkoutData.billingCycle === "yearly" ? 12 : 1)} month(s)</strong> · Expires with main plan on{" "}
+                      <strong>{new Date(checkoutData.syncedPeriodEnd).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</strong>
+                    </div>
+                  )}
                   
                   {checkoutData.extraEmployeesToAdd > 0 && (
                     <div className="text-xs text-slate-600 mt-1 flex items-center gap-1.5 font-medium">

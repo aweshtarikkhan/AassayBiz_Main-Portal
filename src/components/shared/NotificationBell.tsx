@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bell,
-  MessageSquare,
   Calendar,
   Clock,
   Trash2,
@@ -25,7 +24,7 @@ import { formatDistanceToNow } from "date-fns";
 
 export interface NotificationItem {
   id: string;
-  source: "notification" | "leave" | "regularization" | "chat";
+  source: "notification" | "leave" | "regularization";
   title: string;
   message: string;
   time: string;
@@ -66,24 +65,7 @@ export function NotificationBell() {
     const dismissed = getDismissedIds();
 
     try {
-      // Resolve all potential HR/Admin IDs for the organization
-      const hrIdSet = new Set<string>();
-      if (user?.id) hrIdSet.add(user.id);
-      if (org.owner_id) hrIdSet.add(org.owner_id);
-
-      const { data: hrEmps } = await (supabase as any)
-        .from("employees")
-        .select("id, auth_user_id, designation")
-        .eq("org_id", org.id)
-        .or("designation.ilike.%hr%,designation.ilike.%admin%,designation.ilike.%owner%");
-
-      (hrEmps || []).forEach((e: any) => {
-        if (e.id) hrIdSet.add(e.id);
-        if (e.auth_user_id) hrIdSet.add(e.auth_user_id);
-      });
-      const targetHrIds = Array.from(hrIdSet);
-
-      const [leavesRes, regRes, chatRes, notifsRes, allEmpsRes] = await Promise.allSettled([
+      const [leavesRes, regRes, notifsRes] = await Promise.allSettled([
         // 1. Pending Leaves (Leave ka msg)
         supabase
           .from("leaves")
@@ -102,22 +84,6 @@ export function NotificationBell() {
           .order("created_at", { ascending: false })
           .limit(10),
 
-        // 3. Unread Chat Messages (Chat ka msg - directed to any HR identity or unread in org)
-        targetHrIds.length > 0
-          ? (supabase as any)
-              .from("chat_messages")
-              .select("id, sender_id, receiver_id, message, is_read, status, created_at")
-              .eq("org_id", org.id)
-              .in("receiver_id", targetHrIds)
-              .order("created_at", { ascending: false })
-              .limit(20)
-          : (supabase as any)
-              .from("chat_messages")
-              .select("id, sender_id, receiver_id, message, is_read, status, created_at")
-              .eq("org_id", org.id)
-              .order("created_at", { ascending: false })
-              .limit(20),
-
         // 4. Notifications Table
         supabase
           .from("notifications")
@@ -125,22 +91,9 @@ export function NotificationBell() {
           .eq("org_id", org.id)
           .order("created_at", { ascending: false })
           .limit(15),
-
-        // 5. Employees list for resolving names
-        supabase
-          .from("employees")
-          .select("id, name, auth_user_id")
-          .eq("org_id", org.id),
       ]);
 
       const items: NotificationItem[] = [];
-
-      const empList: any[] = allEmpsRes.status === "fulfilled" && allEmpsRes.value.data ? allEmpsRes.value.data : [];
-      const empNameMap = new Map<string, string>();
-      for (const e of empList) {
-        if (e.id && e.name) empNameMap.set(e.id, e.name);
-        if (e.auth_user_id && e.name) empNameMap.set(e.auth_user_id, e.name);
-      }
 
       // Process Leaves
       if (leavesRes.status === "fulfilled" && leavesRes.value.data) {
@@ -176,25 +129,6 @@ export function NotificationBell() {
         }
       }
 
-      // Process Chats
-      if (chatRes.status === "fulfilled" && chatRes.value.data) {
-        for (const c of chatRes.value.data) {
-          const isUnread = c.status === "sent" || c.is_read === false;
-          const isFromSelf = c.sender_id === user?.id || targetHrIds.includes(c.sender_id);
-          if (isUnread && !isFromSelf && !dismissed.has(`chat-${c.id}`)) {
-            const senderName = empNameMap.get(c.sender_id) || "Employee";
-            items.push({
-              id: `chat-${c.id}`,
-              source: "chat",
-              title: `New Message from ${senderName}`,
-              message: c.message?.slice(0, 100) || "You have a new message",
-              time: c.created_at || new Date().toISOString(),
-              route: "/attendance?tab=hr-chat",
-            });
-          }
-        }
-      }
-
       // Process Notifications table
       if (notifsRes.status === "fulfilled" && notifsRes.value.data) {
         for (const n of notifsRes.value.data) {
@@ -202,7 +136,6 @@ export function NotificationBell() {
             let route = "/dashboard";
             if (n.type?.includes("leave")) route = "/leaves";
             else if (n.type?.includes("attendance")) route = "/attendance";
-            else if (n.type?.includes("chat")) route = "/attendance?tab=hr-chat";
             else if (n.type?.includes("invoice")) route = "/invoices";
 
             items.push({
@@ -225,7 +158,7 @@ export function NotificationBell() {
     } finally {
       setLoading(false);
     }
-  }, [org?.id, org?.owner_id, user?.id, getDismissedIds]);
+  }, [org?.id, getDismissedIds]);
 
   useEffect(() => {
     loadNotifications();
@@ -233,9 +166,6 @@ export function NotificationBell() {
 
     const channel = supabase
       .channel(`notification-bell-${org?.id || "default"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages" }, () => {
-        loadNotifications();
-      })
       .on("postgres_changes", { event: "*", schema: "public", table: "attendance_regularizations" }, () => {
         loadNotifications();
       })
@@ -264,9 +194,6 @@ export function NotificationBell() {
       if (item.source === "notification") {
         const rawId = item.id.replace("notif-", "");
         await supabase.from("notifications").delete().eq("id", rawId);
-      } else if (item.source === "chat") {
-        const rawId = item.id.replace("chat-", "");
-        await (supabase as any).from("chat_messages").update({ status: "read", is_read: true }).eq("id", rawId);
       }
     } catch (e) {
       console.error("Failed to auto-delete notification from backend:", e);
@@ -287,7 +214,6 @@ export function NotificationBell() {
       if (org?.id) {
         await Promise.allSettled([
           supabase.from("notifications").delete().eq("org_id", org.id),
-          (supabase as any).from("chat_messages").update({ status: "read", is_read: true }).eq("org_id", org.id),
         ]);
       }
     } catch (e) {
@@ -301,8 +227,6 @@ export function NotificationBell() {
         return <Calendar className="h-4 w-4 text-emerald-500" />;
       case "regularization":
         return <Clock className="h-4 w-4 text-amber-500" />;
-      case "chat":
-        return <MessageSquare className="h-4 w-4 text-blue-500" />;
       default:
         return <Bell className="h-4 w-4 text-purple-500" />;
     }

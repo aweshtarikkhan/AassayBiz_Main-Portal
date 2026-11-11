@@ -40,7 +40,12 @@ import {
   MapPin,
   Check,
   X,
-  CreditCard
+  CreditCard,
+  Tag,
+  History,
+  Navigation,
+  Search,
+  Hash
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -48,6 +53,7 @@ export interface ExpenseItem {
   id: string;
   org_id: string;
   employee_id: string;
+  claim_number?: string | null;
   category_id?: string;
   category_name: string;
   expense_type: string; // 'travel_km', 'manual', 'ticket'
@@ -62,6 +68,7 @@ export interface ExpenseItem {
   trip_start_date?: string;
   trip_end_date?: string;
   outstation_details?: any;
+  entries?: any[];
   description?: string;
   merchant_name?: string;
   invoice_number?: string;
@@ -74,6 +81,8 @@ export interface ExpenseItem {
   payment_method?: string;
   payment_ref_no?: string;
   created_at: string;
+  updated_at?: string;
+  activity_history?: Array<{ at: string; actor: string; role: string; action: string; details?: string }>;
   employees?: {
     id: string;
     name: string;
@@ -119,6 +128,7 @@ export default function HRExpensesPage() {
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Dialogs
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(null);
@@ -186,7 +196,7 @@ export default function HRExpensesPage() {
         setVehicleRates(rateMap);
       }
 
-      // 3. Fetch Expenses
+      // 3. Fetch Expenses (exclude employee unsent daily drafts)
       let expList: any[] = [];
       const { data: expData, error: expErr } = await supabase
         .from("employee_expenses")
@@ -201,6 +211,7 @@ export default function HRExpensesPage() {
           )
         `)
         .eq("org_id", currentOrg.id)
+        .neq("status", "draft")
         .order("expense_date", { ascending: false });
 
       if (expErr || !expData) {
@@ -209,6 +220,7 @@ export default function HRExpensesPage() {
           .from("employee_expenses")
           .select("*")
           .eq("org_id", currentOrg.id)
+          .neq("status", "draft")
           .order("expense_date", { ascending: false });
         if (fbErr) throw fbErr;
         expList = fallbackData || [];
@@ -283,18 +295,87 @@ export default function HRExpensesPage() {
     }
   };
 
+  const getExpenseTimeline = (exp: ExpenseItem) => {
+    if (Array.isArray(exp.activity_history) && exp.activity_history.length > 0) {
+      return exp.activity_history;
+    }
+    const items: Array<{ at: string; actor: string; role: string; action: string; details?: string }> = [];
+    if (exp.created_at) {
+      items.push({
+        at: exp.created_at,
+        actor: exp.employees?.name || "Employee",
+        role: "employee",
+        action: "Claim Submitted",
+        details: `${exp.expense_type === "outstation" ? "Outstation Tour" : exp.expense_type === "travel_km" ? "Local Travel" : exp.category_name || "Expense"} • ₹${Number(exp.amount || 0).toLocaleString("en-IN")}`,
+      });
+    }
+    if (exp.updated_at && exp.updated_at !== exp.created_at && !exp.reviewed_at) {
+      items.push({
+        at: exp.updated_at,
+        actor: exp.employees?.name || "Employee",
+        role: "employee",
+        action: "Edited Before Approval",
+        details: `Updated claim amount ₹${Number(exp.amount || 0).toLocaleString("en-IN")}`,
+      });
+    }
+    if (exp.reviewed_at) {
+      if (exp.status === "rejected") {
+        items.push({
+          at: exp.reviewed_at,
+          actor: "Business HR",
+          role: "hr",
+          action: "Rejected by HR",
+          details: exp.rejection_reason || "Claim rejected",
+        });
+      } else {
+        const isPartial = exp.approved_amount != null && Number(exp.approved_amount) < Number(exp.amount);
+        items.push({
+          at: exp.reviewed_at,
+          actor: "Business HR",
+          role: "hr",
+          action: isPartial ? "Partially Approved by HR" : "Approved by HR",
+          details: `Approved ₹${Number(exp.approved_amount ?? exp.amount).toLocaleString("en-IN")} of ₹${Number(exp.amount).toLocaleString("en-IN")}`,
+        });
+      }
+    }
+    if (exp.paid_at) {
+      items.push({
+        at: exp.paid_at,
+        actor: "Business HR",
+        role: "hr",
+        action: "Paid / Settled",
+        details: [exp.payment_method, exp.payment_ref_no ? `Ref: ${exp.payment_ref_no}` : ""].filter(Boolean).join(" • ") || "Reimbursement settled",
+      });
+    }
+    return items;
+  };
+
   // Approve single expense
   const handleApprove = async (exp: ExpenseItem, approvedAmt?: number) => {
     setActionLoading(true);
     try {
       const finalAmt = approvedAmt !== undefined ? approvedAmt : exp.amount;
+      const nowIso = new Date().toISOString();
+      const isPartial = Number(finalAmt) < Number(exp.amount);
+      const nextHistory = [
+        ...getExpenseTimeline(exp),
+        {
+          at: nowIso,
+          actor: "Business HR",
+          role: "hr",
+          action: isPartial ? "Partially Approved by HR" : "Approved by HR",
+          details: `Approved ₹${Number(finalAmt).toLocaleString("en-IN")} of ₹${Number(exp.amount).toLocaleString("en-IN")}`,
+        },
+      ];
       const { error } = await supabase
         .from("employee_expenses")
         .update({
           status: "approved",
           approved_amount: finalAmt,
-          reviewed_at: new Date().toISOString(),
-        })
+          reviewed_at: nowIso,
+          updated_at: nowIso,
+          activity_history: nextHistory,
+        } as any)
         .eq("id", exp.id);
 
       if (error) throw error;
@@ -308,9 +389,14 @@ export default function HRExpensesPage() {
       setExpenses((prev) =>
         prev.map((item) =>
           item.id === exp.id
-            ? { ...item, status: "approved", approved_amount: finalAmt, reviewed_at: new Date().toISOString() }
+            ? { ...item, status: "approved", approved_amount: finalAmt, reviewed_at: nowIso, updated_at: nowIso, activity_history: nextHistory }
             : item
         )
+      );
+      setSelectedOutstationItem((prev) =>
+        prev && prev.id === exp.id
+          ? { ...prev, status: "approved", approved_amount: finalAmt, reviewed_at: nowIso, updated_at: nowIso, activity_history: nextHistory }
+          : prev
       );
       setPartialApproveOpen(false);
       setSelectedExpense(null);
@@ -339,13 +425,27 @@ export default function HRExpensesPage() {
 
     setActionLoading(true);
     try {
+      const nowIso = new Date().toISOString();
+      const reason = rejectReason.trim();
+      const nextHistory = [
+        ...getExpenseTimeline(selectedExpense),
+        {
+          at: nowIso,
+          actor: "Business HR",
+          role: "hr",
+          action: "Rejected by HR",
+          details: reason,
+        },
+      ];
       const { error } = await supabase
         .from("employee_expenses")
         .update({
           status: "rejected",
-          rejection_reason: rejectReason.trim(),
-          reviewed_at: new Date().toISOString(),
-        })
+          rejection_reason: reason,
+          reviewed_at: nowIso,
+          updated_at: nowIso,
+          activity_history: nextHistory,
+        } as any)
         .eq("id", selectedExpense.id);
 
       if (error) throw error;
@@ -358,9 +458,14 @@ export default function HRExpensesPage() {
       setExpenses((prev) =>
         prev.map((item) =>
           item.id === selectedExpense.id
-            ? { ...item, status: "rejected", rejection_reason: rejectReason.trim(), reviewed_at: new Date().toISOString() }
+            ? { ...item, status: "rejected", rejection_reason: reason, reviewed_at: nowIso, updated_at: nowIso, activity_history: nextHistory }
             : item
         )
+      );
+      setSelectedOutstationItem((prev) =>
+        prev && prev.id === selectedExpense.id
+          ? { ...prev, status: "rejected", rejection_reason: reason, reviewed_at: nowIso, updated_at: nowIso, activity_history: nextHistory }
+          : prev
       );
       setRejectModalOpen(false);
       setSelectedExpense(null);
@@ -381,14 +486,28 @@ export default function HRExpensesPage() {
     if (!selectedExpense) return;
     setActionLoading(true);
     try {
+      const nowIso = new Date().toISOString();
+      const refNo = payoutRef.trim() || null;
+      const nextHistory = [
+        ...getExpenseTimeline(selectedExpense),
+        {
+          at: nowIso,
+          actor: "Business HR",
+          role: "hr",
+          action: "Paid / Settled",
+          details: [payoutMethod, refNo ? `Ref: ${refNo}` : ""].filter(Boolean).join(" • ") || "Reimbursement settled",
+        },
+      ];
       const { error } = await supabase
         .from("employee_expenses")
         .update({
           status: "paid",
-          paid_at: new Date().toISOString(),
+          paid_at: nowIso,
+          updated_at: nowIso,
           payment_method: payoutMethod,
-          payment_ref_no: payoutRef.trim() || null,
-        })
+          payment_ref_no: refNo,
+          activity_history: nextHistory,
+        } as any)
         .eq("id", selectedExpense.id);
 
       if (error) throw error;
@@ -404,12 +523,27 @@ export default function HRExpensesPage() {
             ? {
                 ...item,
                 status: "paid",
-                paid_at: new Date().toISOString(),
+                paid_at: nowIso,
+                updated_at: nowIso,
                 payment_method: payoutMethod,
-                payment_ref_no: payoutRef.trim() || undefined,
+                payment_ref_no: refNo || undefined,
+                activity_history: nextHistory,
               }
             : item
         )
+      );
+      setSelectedOutstationItem((prev) =>
+        prev && prev.id === selectedExpense.id
+          ? {
+              ...prev,
+              status: "paid",
+              paid_at: nowIso,
+              updated_at: nowIso,
+              payment_method: payoutMethod,
+              payment_ref_no: refNo || undefined,
+              activity_history: nextHistory,
+            }
+          : prev
       );
       setPayoutModalOpen(false);
       setSelectedExpense(null);
@@ -434,14 +568,35 @@ export default function HRExpensesPage() {
 
     setActionLoading(true);
     try {
+      const nowIso = new Date().toISOString();
       const ids = pendingList.map((e) => e.id);
-      const { error } = await supabase
-        .from("employee_expenses")
-        .update({
-          status: "approved",
-          reviewed_at: new Date().toISOString(),
+      const nextHistMap: Record<string, any[]> = {};
+      const results = await Promise.all(
+        pendingList.map((exp) => {
+          const hist = [
+            ...getExpenseTimeline(exp),
+            {
+              at: nowIso,
+              actor: "Business HR",
+              role: "hr",
+              action: "Approved by HR",
+              details: `Bulk approved ₹${Number(exp.amount).toLocaleString("en-IN")}`,
+            },
+          ];
+          nextHistMap[exp.id] = hist;
+          return supabase
+            .from("employee_expenses")
+            .update({
+              status: "approved",
+              approved_amount: exp.amount,
+              reviewed_at: nowIso,
+              updated_at: nowIso,
+              activity_history: hist,
+            } as any)
+            .eq("id", exp.id);
         })
-        .in("id", ids);
+      );
+      const error = results.find((r) => r.error)?.error;
 
       if (error) throw error;
 
@@ -453,7 +608,7 @@ export default function HRExpensesPage() {
       setExpenses((prev) =>
         prev.map((item) =>
           ids.includes(item.id)
-            ? { ...item, status: "approved", approved_amount: item.amount, reviewed_at: new Date().toISOString() }
+            ? { ...item, status: "approved", approved_amount: item.amount, reviewed_at: nowIso, updated_at: nowIso, activity_history: nextHistMap[item.id] }
             : item
         )
       );
@@ -471,6 +626,7 @@ export default function HRExpensesPage() {
   // Export to CSV
   const handleExportCSV = () => {
     const headers = [
+      "Claim No",
       "Date",
       "Employee Name",
       "Designation",
@@ -487,7 +643,8 @@ export default function HRExpensesPage() {
       "Payment Ref",
     ];
 
-    const rows = filteredExpenses.map((e) => [
+    const rows = searchedLedgerExpenses.map((e) => [
+      e.claim_number || "",
       e.expense_date,
       `"${e.employees?.name || ""}"`,
       `"${e.employees?.designation || ""}"`,
@@ -508,14 +665,65 @@ export default function HRExpensesPage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Expenses_Report_${selectedMonth}.csv`);
+    link.setAttribute("download", `Expenses_Report_${selectedMonth || "all"}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Filter Logic
-  const filteredExpenses = expenses.filter((e) => {
+  // Normalize sub-entries inside a monthly Local or Outstation card (with legacy 1-entry fallback)
+  const getNormalizedEntries = (exp: ExpenseItem | null | undefined): any[] => {
+    if (!exp) return [];
+    if (Array.isArray(exp.entries) && exp.entries.length > 0) return exp.entries;
+    return [
+      {
+        id: `legacy_${exp.id}`,
+        expense_date: exp.expense_date,
+        vehicle_type: exp.vehicle_type,
+        distance_km: exp.distance_km,
+        rate_per_km: exp.rate_per_km,
+        travel_from: exp.travel_from,
+        travel_to: exp.travel_to,
+        trip_start_date: exp.trip_start_date,
+        trip_end_date: exp.trip_end_date,
+        amount: exp.amount,
+        description: exp.description,
+        receipt_url: exp.receipt_url,
+        receipt_mime_type: exp.receipt_mime_type,
+        outstation_details: exp.outstation_details,
+      },
+    ];
+  };
+
+  // Search helper (supports Claim # like 185412 or #185412, employee name, route, description, and sub-entries)
+  const normalizedSearch = searchQuery.trim().toLowerCase().replace(/^#/, "");
+  const matchesSearch = (e: ExpenseItem) => {
+    if (!normalizedSearch) return true;
+    const directMatch =
+      (e.claim_number || "").toLowerCase().includes(normalizedSearch) ||
+      (e.employees?.name || "").toLowerCase().includes(normalizedSearch) ||
+      (e.category_name || "").toLowerCase().includes(normalizedSearch) ||
+      (e.travel_from || "").toLowerCase().includes(normalizedSearch) ||
+      (e.travel_to || "").toLowerCase().includes(normalizedSearch) ||
+      (e.outstation_details?.trip_from || "").toLowerCase().includes(normalizedSearch) ||
+      (e.outstation_details?.trip_to || "").toLowerCase().includes(normalizedSearch) ||
+      (e.description || "").toLowerCase().includes(normalizedSearch);
+    if (directMatch) return true;
+    return getNormalizedEntries(e).some(
+      (sub: any) =>
+        (sub.travel_from || "").toLowerCase().includes(normalizedSearch) ||
+        (sub.travel_to || "").toLowerCase().includes(normalizedSearch) ||
+        (sub.description || "").toLowerCase().includes(normalizedSearch) ||
+        (sub.vehicle_type || "").toLowerCase().includes(normalizedSearch) ||
+        (sub.outstation_details?.trip_from || "").toLowerCase().includes(normalizedSearch) ||
+        (sub.outstation_details?.trip_to || "").toLowerCase().includes(normalizedSearch) ||
+        (sub.outstation_details?.purpose || "").toLowerCase().includes(normalizedSearch)
+    );
+  };
+
+  // Filter Logic (always ignore unsent employee drafts)
+  const submittedOnlyExpenses = expenses.filter((e) => e.status !== "draft");
+  const filteredExpenses = submittedOnlyExpenses.filter((e) => {
     // Month filter
     if (selectedMonth && !e.expense_date.startsWith(selectedMonth)) return false;
     // Employee filter
@@ -527,7 +735,9 @@ export default function HRExpensesPage() {
     return true;
   });
 
-  const pendingExpenses = expenses.filter((e) => e.status === "submitted");
+  const searchedLedgerExpenses = filteredExpenses.filter(matchesSearch);
+  const pendingExpenses = submittedOnlyExpenses.filter((e) => e.status === "submitted");
+  const searchedPendingExpenses = pendingExpenses.filter(matchesSearch);
 
   // Summary Metrics
   const totalClaimed = filteredExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
@@ -667,35 +877,52 @@ export default function HRExpensesPage() {
         {/* TAB 1: PENDING APPROVALS */}
         <TabsContent value="pending" className="space-y-4">
           <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="p-5 border-b flex flex-row items-center justify-between">
+            <CardHeader className="p-5 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-lg font-semibold text-slate-900">Pending Expense Claims</CardTitle>
                 <CardDescription>
-                  Review submitted bills, travel distances, and approve or reject with comments.
+                  Review submitted bills, 6-digit claim tracking numbers, travel distances, and approve or reject.
                 </CardDescription>
               </div>
-              {pendingExpenses.length > 0 && (
-                <Button 
-                  onClick={handleBulkApprove} 
-                  disabled={actionLoading}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm"
-                >
-                  <Check className="h-4 w-4" /> Approve All ({pendingExpenses.length})
-                </Button>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative w-64">
+                  <Search className="h-4 w-4 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search Claim # or employee..."
+                    className="pl-8 h-9 text-xs bg-white"
+                  />
+                </div>
+                {pendingExpenses.length > 0 && (
+                  <Button 
+                    onClick={handleBulkApprove} 
+                    disabled={actionLoading}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm h-9"
+                  >
+                    <Check className="h-4 w-4" /> Approve All ({pendingExpenses.length})
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-0">
-              {pendingExpenses.length === 0 ? (
+              {searchedPendingExpenses.length === 0 ? (
                 <div className="py-16 text-center text-slate-500">
                   <CheckCircle2 className="h-12 w-12 text-emerald-400 mx-auto mb-3" />
-                  <h4 className="text-base font-semibold text-slate-700">All Caught Up!</h4>
-                  <p className="text-sm text-slate-500">There are no pending expense claims awaiting HR review.</p>
+                  <h4 className="text-base font-semibold text-slate-700">
+                    {normalizedSearch ? "No Matching Pending Claims" : "All Caught Up!"}
+                  </h4>
+                  <p className="text-sm text-slate-500">
+                    {normalizedSearch
+                      ? `No pending claims match "${searchQuery}". Try clearing the search filter.`
+                      : "There are no pending expense claims awaiting HR review."}
+                  </p>
                 </div>
               ) : (
                 <Table>
                   <TableHeader className="bg-slate-50">
                     <TableRow>
-                      <TableHead className="w-28">Date</TableHead>
+                      <TableHead className="w-32">Date / Claim #</TableHead>
                       <TableHead>Employee</TableHead>
                       <TableHead>Type & Category</TableHead>
                       <TableHead>Claim Details</TableHead>
@@ -705,29 +932,42 @@ export default function HRExpensesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pendingExpenses.map((exp) => (
-                      <TableRow key={exp.id} className="hover:bg-slate-50/70">
+                    {searchedPendingExpenses.map((exp) => {
+                      const rowEntries = getNormalizedEntries(exp);
+                      const entryCount = rowEntries.length;
+                      return (
+                      <TableRow key={exp.id} onClick={() => setSelectedOutstationItem(exp)} className="hover:bg-slate-50/70 cursor-pointer" title="Click to view all entries, details & history">
                         <TableCell className="font-medium text-xs text-slate-600">
-                          {format(parseISO(exp.expense_date), "dd MMM yyyy")}
+                          <div>{format(parseISO(exp.expense_date), "dd MMM yyyy")}</div>
+                          {exp.claim_number && (
+                            <span className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800 font-mono text-[11px] font-bold">
+                              #{exp.claim_number}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="font-semibold text-slate-900 text-sm">{exp.employees?.name}</div>
                           <div className="text-xs text-slate-500">{exp.employees?.designation || "Staff"}</div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1.5 font-medium text-slate-800 text-sm">
+                          <div className="flex items-center gap-1.5 flex-wrap font-medium text-slate-800 text-sm">
                             {exp.expense_type === "outstation" ? (
                               <Badge variant="outline" className="gap-1 border-indigo-300 text-indigo-800 bg-indigo-50 font-semibold text-xs">
-                                <Plane className="h-3 w-3" /> Outstation Trip
+                                <Plane className="h-3 w-3" /> Outstation {entryCount > 1 ? "Monthly" : "Trip"}
                               </Badge>
                             ) : exp.expense_type === "travel_km" ? (
                               <Badge variant="outline" className="gap-1 border-amber-300 text-amber-800 bg-amber-50 font-semibold text-xs">
                                 {exp.vehicle_type === 'car' ? <Car className="h-3 w-3" /> : exp.vehicle_type === 'auto' ? <Bus className="h-3 w-3" /> : <Bike className="h-3 w-3" />}
-                                Local ({exp.vehicle_type === 'car' ? 'Car' : exp.vehicle_type === 'auto' ? 'Cab/Auto' : 'Bike'})
+                                {entryCount > 1 ? "Local Monthly" : `Local (${exp.vehicle_type === 'car' ? 'Car' : exp.vehicle_type === 'auto' ? 'Cab/Auto' : 'Bike'})`}
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="border-slate-300">
                                 {exp.category_name}
+                              </Badge>
+                            )}
+                            {entryCount > 1 && (
+                              <Badge className="bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-100 text-[10px] font-bold">
+                                {entryCount} {exp.expense_type === "outstation" ? "Trips" : "Daily Entries"}
                               </Badge>
                             )}
                           </div>
@@ -738,11 +978,15 @@ export default function HRExpensesPage() {
                         <TableCell className="max-w-xs">
                           {exp.expense_type === "outstation" ? (
                             <div className="text-xs space-y-1">
-                              <div className="font-semibold text-slate-900 flex items-center gap-1">
+                              <div className="font-semibold text-slate-900 flex items-center gap-1 flex-wrap">
                                 <MapPin className="h-3 w-3 shrink-0 text-indigo-500" />
-                                <span>{exp.outstation_details?.trip_from || exp.travel_from} → {exp.outstation_details?.trip_to || exp.travel_to}</span>
+                                <span>
+                                  {entryCount > 1
+                                    ? `${rowEntries[0]?.travel_from || exp.travel_from} → ${rowEntries[0]?.travel_to || exp.travel_to} + ${entryCount - 1} more`
+                                    : `${exp.outstation_details?.trip_from || exp.travel_from} → ${exp.outstation_details?.trip_to || exp.travel_to}`}
+                                </span>
                                 <Badge className="bg-indigo-100 text-indigo-700 text-[10px] px-1 py-0 hover:bg-indigo-100 ml-1">
-                                  {exp.outstation_details?.trip_days || 1} Days
+                                  {entryCount > 1 ? `${entryCount} Trips` : `${exp.outstation_details?.trip_days || 1} Days`}
                                 </Badge>
                               </div>
                               <div className="text-slate-500 line-clamp-1 text-[11px]">
@@ -751,22 +995,34 @@ export default function HRExpensesPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setSelectedOutstationItem(exp)}
+                                onClick={(e) => { e.stopPropagation(); setSelectedOutstationItem(exp); }}
                                 className="h-6 text-[11px] px-2 gap-1 text-indigo-700 border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100"
                               >
-                                <Eye className="h-3 w-3" /> View Tour Breakdown
+                                <Eye className="h-3 w-3" /> {entryCount > 1 ? `View All Trips (${entryCount})` : "View Tour Breakdown"}
                               </Button>
                             </div>
                           ) : exp.expense_type === "travel_km" ? (
-                            <div className="text-xs space-y-0.5">
-                              <span className="font-semibold text-slate-800">
-                                {exp.distance_km} KM @ ₹{exp.rate_per_km}/KM ({exp.vehicle_type?.toUpperCase()})
+                            <div className="text-xs space-y-1">
+                              <span className="font-semibold text-slate-800 block">
+                                {entryCount > 1
+                                  ? `Total ${exp.distance_km} KM across ${entryCount} daily entries`
+                                  : `${exp.distance_km} KM @ ₹${exp.rate_per_km}/KM (${exp.vehicle_type?.toUpperCase()})`}
                               </span>
-                              {exp.travel_from && exp.travel_to && (
+                              {exp.travel_from && exp.travel_to && entryCount <= 1 && (
                                 <div className="text-slate-500 flex items-center gap-1 truncate">
                                   <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
                                   <span>{exp.travel_from} → {exp.travel_to}</span>
                                 </div>
+                              )}
+                              {entryCount > 1 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => { e.stopPropagation(); setSelectedOutstationItem(exp); }}
+                                  className="h-6 text-[11px] px-2 gap-1 text-amber-800 border-amber-200 bg-amber-50/70 hover:bg-amber-100"
+                                >
+                                  <Eye className="h-3 w-3" /> View All Entries ({entryCount})
+                                </Button>
                               )}
                             </div>
                           ) : (
@@ -783,7 +1039,7 @@ export default function HRExpensesPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => setReceiptModalUrl(exp.receipt_url!)}
+                              onClick={(e) => { e.stopPropagation(); setReceiptModalUrl(exp.receipt_url!); }}
                               className="h-8 w-8 p-0 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
                               title="View uploaded receipt / bill"
                             >
@@ -797,7 +1053,7 @@ export default function HRExpensesPage() {
                           <div className="flex items-center justify-end gap-1.5">
                             <Button
                               size="sm"
-                              onClick={() => handleApprove(exp)}
+                              onClick={(e) => { e.stopPropagation(); handleApprove(exp); }}
                               disabled={actionLoading}
                               className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 gap-1"
                               title="Full Approve"
@@ -807,7 +1063,8 @@ export default function HRExpensesPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setSelectedExpense(exp);
                                 setCustomApprovedAmount(String(exp.amount));
                                 setPartialApproveOpen(true);
@@ -820,7 +1077,8 @@ export default function HRExpensesPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setSelectedExpense(exp);
                                 setRejectModalOpen(true);
                               }}
@@ -832,7 +1090,8 @@ export default function HRExpensesPage() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
@@ -850,8 +1109,18 @@ export default function HRExpensesPage() {
                   <span className="text-xs font-semibold text-slate-600 uppercase">Filters:</span>
                 </div>
 
+                <div className="relative w-64">
+                  <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search Claim # (e.g. 185412), name..."
+                    className="pl-8 h-8 text-xs bg-white"
+                  />
+                </div>
+
                 <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-                  <SelectTrigger className="w-48 h-8 text-xs bg-white">
+                  <SelectTrigger className="w-44 h-8 text-xs bg-white">
                     <SelectValue placeholder="All Employees" />
                   </SelectTrigger>
                   <SelectContent>
@@ -876,20 +1145,20 @@ export default function HRExpensesPage() {
                 </Select>
 
                 <div className="ml-auto text-xs text-slate-500">
-                  Showing <b>{filteredExpenses.length}</b> records
+                  Showing <b>{searchedLedgerExpenses.length}</b> records
                 </div>
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              {filteredExpenses.length === 0 ? (
+              {searchedLedgerExpenses.length === 0 ? (
                 <div className="py-16 text-center text-slate-500">
-                  <p className="text-sm">No expense records found matching selected filters.</p>
+                  <p className="text-sm">No expense records found matching selected filters or Claim #.</p>
                 </div>
               ) : (
                 <Table>
                   <TableHeader className="bg-slate-50">
                     <TableRow>
-                      <TableHead className="w-28">Date</TableHead>
+                      <TableHead className="w-32">Date / Claim #</TableHead>
                       <TableHead>Employee</TableHead>
                       <TableHead>Category / Type</TableHead>
                       <TableHead>Description / Trip</TableHead>
@@ -901,10 +1170,18 @@ export default function HRExpensesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredExpenses.map((exp) => (
-                      <TableRow key={exp.id} className="hover:bg-slate-50/70">
+                    {searchedLedgerExpenses.map((exp) => {
+                      const rowEntries = getNormalizedEntries(exp);
+                      const entryCount = rowEntries.length;
+                      return (
+                      <TableRow key={exp.id} onClick={() => setSelectedOutstationItem(exp)} className="hover:bg-slate-50/70 cursor-pointer" title="Click to view all entries, details & history">
                         <TableCell className="font-medium text-xs text-slate-600">
-                          {format(parseISO(exp.expense_date), "dd MMM yyyy")}
+                          <div>{format(parseISO(exp.expense_date), "dd MMM yyyy")}</div>
+                          {exp.claim_number && (
+                            <span className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800 font-mono text-[11px] font-bold">
+                              #{exp.claim_number}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="font-semibold text-slate-900 text-sm">{exp.employees?.name}</div>
@@ -912,18 +1189,34 @@ export default function HRExpensesPage() {
                         </TableCell>
                         <TableCell>
                           {exp.expense_type === "outstation" ? (
-                            <div>
+                            <div className="flex items-center gap-1 flex-wrap">
                               <Badge variant="outline" className="gap-1 border-indigo-300 text-indigo-800 bg-indigo-50 font-semibold text-xs">
                                 <Plane className="h-3 w-3" /> Outstation
                               </Badge>
+                              {entryCount > 1 && (
+                                <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold">
+                                  {entryCount} Trips
+                                </Badge>
+                              )}
                             </div>
                           ) : exp.expense_type === "travel_km" ? (
                             <div>
-                              <span className="text-xs font-semibold text-slate-800">
-                                Local ({exp.vehicle_type === 'car' ? 'Car' : exp.vehicle_type === 'auto' ? 'Cab/Auto' : 'Bike'})
-                              </span>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="text-xs font-semibold text-slate-800">
+                                  {entryCount > 1
+                                    ? "Local Monthly"
+                                    : `Local (${exp.vehicle_type === 'car' ? 'Car' : exp.vehicle_type === 'auto' ? 'Cab/Auto' : 'Bike'})`}
+                                </span>
+                                {entryCount > 1 && (
+                                  <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold">
+                                    {entryCount} Entries
+                                  </Badge>
+                                )}
+                              </div>
                               <span className="block text-[11px] text-amber-700 font-medium">
-                                {exp.distance_km} KM @ ₹{exp.rate_per_km}/KM
+                                {entryCount > 1
+                                  ? `Total ${exp.distance_km} KM logged`
+                                  : `${exp.distance_km} KM @ ₹${exp.rate_per_km}/KM`}
                               </span>
                             </div>
                           ) : (
@@ -933,24 +1226,44 @@ export default function HRExpensesPage() {
                         <TableCell className="max-w-xs text-xs text-slate-600">
                           {exp.expense_type === "outstation" ? (
                             <div className="space-y-1">
-                              <div className="font-semibold text-slate-900 flex items-center gap-1">
+                              <div className="font-semibold text-slate-900 flex items-center gap-1 flex-wrap">
                                 <MapPin className="h-3 w-3 shrink-0 text-indigo-500" />
-                                <span>{exp.outstation_details?.trip_from || exp.travel_from} → {exp.outstation_details?.trip_to || exp.travel_to}</span>
+                                <span>
+                                  {entryCount > 1
+                                    ? `${rowEntries[0]?.travel_from || exp.travel_from} → ${rowEntries[0]?.travel_to || exp.travel_to} + ${entryCount - 1} more`
+                                    : `${exp.outstation_details?.trip_from || exp.travel_from} → ${exp.outstation_details?.trip_to || exp.travel_to}`}
+                                </span>
                                 <Badge className="bg-indigo-100 text-indigo-700 text-[10px] px-1 py-0 hover:bg-indigo-100 ml-1">
-                                  {exp.outstation_details?.trip_days || 1} Days
+                                  {entryCount > 1 ? `${entryCount} Trips` : `${exp.outstation_details?.trip_days || 1} Days`}
                                 </Badge>
                               </div>
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setSelectedOutstationItem(exp)}
+                                onClick={(e) => { e.stopPropagation(); setSelectedOutstationItem(exp); }}
                                 className="h-6 text-[11px] px-2 gap-1 text-indigo-700 border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100"
                               >
-                                <Eye className="h-3 w-3" /> View Tour Breakdown
+                                <Eye className="h-3 w-3" /> {entryCount > 1 ? `View All Trips (${entryCount})` : "View Tour Breakdown"}
                               </Button>
                             </div>
                           ) : exp.expense_type === "travel_km" ? (
-                            <span>{exp.travel_from} → {exp.travel_to}</span>
+                            <div className="space-y-1">
+                              <span className="block truncate">
+                                {entryCount > 1
+                                  ? `${rowEntries[0]?.travel_from || 'Start'} → ${rowEntries[0]?.travel_to || 'End'} + ${entryCount - 1} more`
+                                  : `${exp.travel_from} → ${exp.travel_to}`}
+                              </span>
+                              {entryCount > 1 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => { e.stopPropagation(); setSelectedOutstationItem(exp); }}
+                                  className="h-6 text-[11px] px-2 gap-1 text-amber-800 border-amber-200 bg-amber-50/70 hover:bg-amber-100"
+                                >
+                                  <Eye className="h-3 w-3" /> View All Entries ({entryCount})
+                                </Button>
+                              )}
+                            </div>
                           ) : (
                             <span className="truncate block">{exp.description || exp.merchant_name || "—"}</span>
                           )}
@@ -978,7 +1291,7 @@ export default function HRExpensesPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => setReceiptModalUrl(exp.receipt_url!)}
+                              onClick={(e) => { e.stopPropagation(); setReceiptModalUrl(exp.receipt_url!); }}
                               className="h-7 w-7 p-0 text-indigo-600 hover:text-indigo-800"
                             >
                               <Eye className="h-4 w-4" />
@@ -991,7 +1304,8 @@ export default function HRExpensesPage() {
                           {exp.status === "approved" ? (
                             <Button
                               size="sm"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setSelectedExpense(exp);
                                 setPayoutModalOpen(true);
                               }}
@@ -1008,7 +1322,8 @@ export default function HRExpensesPage() {
                           )}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
@@ -1257,207 +1572,402 @@ export default function HRExpensesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* MODAL 5: OUTSTATION TOUR CLAIM BREAKDOWN & HR APPROVAL */}
+      {/* MODAL 5: UNIFIED CLAIM DETAILS, BREAKDOWN & ACTIVITY HISTORY */}
       <Dialog open={!!selectedOutstationItem} onOpenChange={(open) => !open && setSelectedOutstationItem(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2 text-indigo-950">
-              <Plane className="h-5 w-5 text-indigo-600" /> Outstation Tour Claim Breakdown
+              {selectedOutstationItem?.expense_type === "outstation" ? (
+                <Plane className="h-5 w-5 text-indigo-600" />
+              ) : selectedOutstationItem?.expense_type === "travel_km" ? (
+                <Navigation className="h-5 w-5 text-amber-600" />
+              ) : (
+                <Receipt className="h-5 w-5 text-slate-700" />
+              )}
+              {selectedOutstationItem?.expense_type === "outstation"
+                ? "Outstation Monthly Card & History"
+                : selectedOutstationItem?.expense_type === "travel_km"
+                ? "Local Monthly Card & History"
+                : "Expense Claim Details & History"}
             </DialogTitle>
             <DialogDescription>
-              Review itemized travel, lodging, food, incidental costs, and daily allowance (DA).
+              Full claim particulars, itemized entries/trips, attached receipts, HR status, and activity history timeline.
             </DialogDescription>
           </DialogHeader>
 
-          {selectedOutstationItem && (
+          {selectedOutstationItem && (() => {
+            const modalEntries = getNormalizedEntries(selectedOutstationItem);
+            return (
             <div className="space-y-4 pt-2">
-              {/* Employee & Route Summary */}
+              {/* Employee Summary */}
               <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <h4 className="font-bold text-slate-900 text-sm">{selectedOutstationItem.employees?.name || "Employee"}</h4>
-                    <p className="text-xs text-slate-500">{selectedOutstationItem.employees?.designation || "Staff"} • {selectedOutstationItem.employees?.email}</p>
+                    <p className="text-xs text-slate-500">
+                      {selectedOutstationItem.employees?.designation || "Staff"} • Latest Date:{" "}
+                      {selectedOutstationItem.expense_date ? format(parseISO(selectedOutstationItem.expense_date), "dd MMM yyyy") : "—"}
+                    </p>
                   </div>
-                  <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge className="bg-white text-slate-800 border border-slate-200 hover:bg-white text-xs font-bold">
+                      {modalEntries.length} {selectedOutstationItem.expense_type === "outstation" ? (modalEntries.length === 1 ? "Trip" : "Trips") : (modalEntries.length === 1 ? "Entry" : "Entries")}
+                    </Badge>
+                    {selectedOutstationItem.claim_number && (
+                      <Badge className="bg-slate-900 text-white hover:bg-slate-900 font-mono text-xs px-2.5 py-0.5 tracking-wider gap-1">
+                        <Hash className="h-3 w-3" /> {selectedOutstationItem.claim_number}
+                      </Badge>
+                    )}
                     {getStatusBadge(selectedOutstationItem.status)}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-indigo-100 text-xs">
                   <div>
-                    <span className="text-slate-500 block">Route (सफर):</span>
-                    <span className="font-bold text-slate-800">
-                      {selectedOutstationItem.outstation_details?.trip_from || selectedOutstationItem.travel_from} → {selectedOutstationItem.outstation_details?.trip_to || selectedOutstationItem.travel_to}
+                    <span className="text-slate-500 block">Total Claimed Amount:</span>
+                    <span className="font-bold text-slate-900 text-sm">
+                      ₹{Number(selectedOutstationItem.amount || 0).toLocaleString("en-IN")}
                     </span>
                   </div>
+                  {selectedOutstationItem.expense_type === "travel_km" && (
+                    <div>
+                      <span className="text-slate-500 block">Total Distance Logged:</span>
+                      <span className="font-bold text-slate-800">
+                        {selectedOutstationItem.distance_km || 0} KM
+                      </span>
+                    </div>
+                  )}
                   <div>
-                    <span className="text-slate-500 block">Duration (दिन):</span>
+                    <span className="text-slate-500 block">Card Type:</span>
                     <span className="font-bold text-slate-800">
-                      {selectedOutstationItem.outstation_details?.trip_days || 1} Days
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Dates:</span>
-                    <span className="font-medium text-slate-800">
-                      {selectedOutstationItem.trip_start_date ? format(parseISO(selectedOutstationItem.trip_start_date), "dd MMM") : selectedOutstationItem.expense_date}
-                      {selectedOutstationItem.trip_end_date && ` - ${format(parseISO(selectedOutstationItem.trip_end_date), "dd MMM yyyy")}`}
-                    </span>
-                  </div>
-                </div>
-
-                {selectedOutstationItem.outstation_details?.purpose && (
-                  <div className="pt-1 border-t border-indigo-100 text-xs">
-                    <span className="text-slate-500 block">Trip Purpose:</span>
-                    <span className="font-medium text-slate-800">{selectedOutstationItem.outstation_details.purpose}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Itemized Table / Cards */}
-              <div className="space-y-2 text-xs">
-                {/* 1. Travel Fare */}
-                <div className="p-3 border rounded-xl bg-white flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-blue-50 text-blue-700 rounded-lg">
-                      <Plane className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-800">1. Travel Fare / Tickets (ट्रेवलिंग बिल)</span>
-                      <p className="text-[11px] text-slate-500">
-                        Mode: {selectedOutstationItem.outstation_details?.items?.travel?.mode || "Travel"}
-                        {selectedOutstationItem.outstation_details?.items?.travel?.booking_ref ? ` • Ref: ${selectedOutstationItem.outstation_details.items.travel.booking_ref}` : ""}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-slate-900 text-sm">
-                      ₹{(selectedOutstationItem.outstation_details?.items?.travel?.amount || 0).toLocaleString("en-IN")}
-                    </span>
-                    {selectedOutstationItem.outstation_details?.items?.travel?.receipt_url && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setReceiptModalUrl(selectedOutstationItem.outstation_details.items.travel.receipt_url)}
-                        className="h-7 text-xs px-2 gap-1 text-blue-700 border-blue-200 hover:bg-blue-50"
-                      >
-                        <Eye className="h-3 w-3" /> View Ticket
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 2. Hotel Lodging */}
-                <div className="p-3 border rounded-xl bg-white flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-purple-50 text-purple-700 rounded-lg">
-                      <Hotel className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-800">2. Hotel / Lodging (होटल बिल)</span>
-                      <p className="text-[11px] text-slate-500">
-                        {selectedOutstationItem.outstation_details?.items?.hotel?.hotel_name || "Hotel Stay"}
-                        {selectedOutstationItem.outstation_details?.items?.hotel?.nights ? ` • ${selectedOutstationItem.outstation_details.items.hotel.nights} Nights` : ""}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-slate-900 text-sm">
-                      ₹{(selectedOutstationItem.outstation_details?.items?.hotel?.amount || 0).toLocaleString("en-IN")}
-                    </span>
-                    {selectedOutstationItem.outstation_details?.items?.hotel?.receipt_url && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setReceiptModalUrl(selectedOutstationItem.outstation_details.items.hotel.receipt_url)}
-                        className="h-7 text-xs px-2 gap-1 text-purple-700 border-purple-200 hover:bg-purple-50"
-                      >
-                        <Eye className="h-3 w-3" /> View Bill
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 3. Food & Meals */}
-                <div className="p-3 border rounded-xl bg-white flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-emerald-50 text-emerald-700 rounded-lg">
-                      <Utensils className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-800">3. Food / Meals (फूड बिल)</span>
-                      <p className="text-[11px] text-slate-500">
-                        {selectedOutstationItem.outstation_details?.items?.food?.description || "Tour food & meals"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-slate-900 text-sm">
-                      ₹{(selectedOutstationItem.outstation_details?.items?.food?.amount || 0).toLocaleString("en-IN")}
-                    </span>
-                    {selectedOutstationItem.outstation_details?.items?.food?.receipt_url && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setReceiptModalUrl(selectedOutstationItem.outstation_details.items.food.receipt_url)}
-                        className="h-7 text-xs px-2 gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                      >
-                        <Eye className="h-3 w-3" /> View Bill
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 4. Other Expenses */}
-                <div className="p-3 border rounded-xl bg-white flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-cyan-50 text-cyan-700 rounded-lg">
-                      <Shirt className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-800">4. Other (लॉन्ड्री & अन्य खर्च)</span>
-                      <p className="text-[11px] text-slate-500">
-                        {selectedOutstationItem.outstation_details?.items?.other?.description || "Incidentals, laundry, transit"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-slate-900 text-sm">
-                      ₹{(selectedOutstationItem.outstation_details?.items?.other?.amount || 0).toLocaleString("en-IN")}
-                    </span>
-                    {selectedOutstationItem.outstation_details?.items?.other?.receipt_url && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setReceiptModalUrl(selectedOutstationItem.outstation_details.items.other.receipt_url)}
-                        className="h-7 text-xs px-2 gap-1 text-cyan-700 border-cyan-200 hover:bg-cyan-50"
-                      >
-                        <Eye className="h-3 w-3" /> View Bill
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 5. Daily Allowance (DA) */}
-                <div className="p-3 border rounded-xl bg-white flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-amber-50 text-amber-700 rounded-lg">
-                      <Coins className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-800">5. DA (Daily Allowance / दैनिक भत्ता)</span>
-                      <p className="text-[11px] text-slate-500">
-                        {selectedOutstationItem.outstation_details?.items?.da?.days || selectedOutstationItem.outstation_details?.trip_days || 1} Days
-                        {selectedOutstationItem.outstation_details?.items?.da?.daily_rate ? ` @ ₹${selectedOutstationItem.outstation_details.items.da.daily_rate}/day` : ""}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-slate-900 text-sm">
-                      ₹{(selectedOutstationItem.outstation_details?.items?.da?.amount || 0).toLocaleString("en-IN")}
+                      {selectedOutstationItem.expense_type === "outstation"
+                        ? "Outstation Monthly Card"
+                        : selectedOutstationItem.expense_type === "travel_km"
+                        ? "Local Travel Monthly Card"
+                        : selectedOutstationItem.category_name || "Expense"}
                     </span>
                   </div>
                 </div>
               </div>
+
+              {selectedOutstationItem.expense_type !== "outstation" ? (
+                <div className="space-y-2.5">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Daily Entries Inside Card ({modalEntries.length})
+                  </div>
+                  {modalEntries.map((entry: any, idx: number) => {
+                    const vLabel =
+                      entry.vehicle_type === "car"
+                        ? "Car"
+                        : entry.vehicle_type === "auto"
+                        ? "Cab / Auto"
+                        : "Bike (2-Wheeler)";
+                    return (
+                      <div key={entry.id || idx} className="p-3 border rounded-xl bg-white space-y-2 text-xs">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge className="bg-amber-50 text-amber-800 border-amber-200 font-bold text-[10px]">
+                              #{idx + 1} • {entry.expense_date ? format(parseISO(entry.expense_date), "dd MMM yyyy") : "—"}
+                            </Badge>
+                            {selectedOutstationItem.expense_type === "travel_km" && (
+                              <span className="font-semibold text-slate-800">
+                                {vLabel} • {entry.distance_km || 0} KM @ ₹{entry.rate_per_km || 0}/KM
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-sm">
+                              ₹{Number(entry.amount || 0).toLocaleString("en-IN")}
+                            </span>
+                            {entry.receipt_url && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setReceiptModalUrl(entry.receipt_url)}
+                                className="h-7 text-xs gap-1 text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                              >
+                                <Eye className="h-3.5 w-3.5" /> View Receipt
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        {(entry.travel_from || entry.travel_to) && (
+                          <div className="text-slate-700 font-medium flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                            <span>{entry.travel_from || "Start"} → {entry.travel_to || "End"}</span>
+                          </div>
+                        )}
+                        {entry.description && (
+                          <div className="bg-slate-50 p-2 rounded-lg border text-slate-700">
+                            <span className="font-semibold">Purpose / Description: </span>
+                            {entry.description}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-3 text-xs">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Outstation Trips Inside Card ({modalEntries.length})
+                  </div>
+                  {modalEntries.map((trip: any, tripIdx: number) => {
+                    const details = trip.outstation_details || {};
+                    const items = details.items || {};
+                    return (
+                      <div key={trip.id || tripIdx} className="p-3.5 border border-indigo-200 rounded-xl bg-indigo-50/20 space-y-2.5">
+                        <div className="flex items-start justify-between gap-2 pb-2 border-b border-indigo-100 flex-wrap">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge className="bg-indigo-600 text-white text-[10px] font-bold">
+                                Trip #{tripIdx + 1}
+                              </Badge>
+                              <span className="font-bold text-slate-900 text-sm">
+                                {details.trip_from || trip.travel_from || "Origin"} → {details.trip_to || trip.travel_to || "Destination"}
+                              </span>
+                              <Badge className="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0">
+                                {details.trip_days || 1} Days
+                              </Badge>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-1">
+                              {trip.trip_start_date ? format(parseISO(trip.trip_start_date), "dd MMM yyyy") : (trip.expense_date ? format(parseISO(trip.expense_date), "dd MMM yyyy") : "")}
+                              {trip.trip_end_date ? ` - ${format(parseISO(trip.trip_end_date), "dd MMM yyyy")}` : ""}
+                              {(details.purpose || trip.description) ? ` • ${details.purpose || trip.description}` : ""}
+                            </p>
+                          </div>
+                          <span className="font-bold text-indigo-950 text-base">
+                            ₹{Number(trip.amount || 0).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2">
+                          {/* 1. Travel Fare */}
+                          <div className="p-2.5 border rounded-xl bg-white flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <div className="p-2 bg-blue-50 text-blue-700 rounded-lg">
+                                <Plane className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-800">1. Travel Fare / Tickets (ट्रेवलिंग बिल)</span>
+                                <p className="text-[11px] text-slate-500">
+                                  Mode: {items?.travel?.mode || "Travel"}
+                                  {items?.travel?.booking_ref ? ` • Ref: ${items.travel.booking_ref}` : ""}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-bold text-slate-900 text-sm">
+                                ₹{(items?.travel?.amount || 0).toLocaleString("en-IN")}
+                              </span>
+                              {items?.travel?.receipt_url && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setReceiptModalUrl(items.travel.receipt_url)}
+                                  className="h-7 text-xs px-2 gap-1 text-blue-700 border-blue-200 hover:bg-blue-50"
+                                >
+                                  <Eye className="h-3 w-3" /> View Ticket
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 2. Hotel Lodging */}
+                          <div className="p-2.5 border rounded-xl bg-white flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <div className="p-2 bg-purple-50 text-purple-700 rounded-lg">
+                                <Hotel className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-800">2. Hotel / Lodging (होटल बिल)</span>
+                                <p className="text-[11px] text-slate-500">
+                                  {items?.hotel?.hotel_name || "Hotel Stay"}
+                                  {items?.hotel?.nights ? ` • ${items.hotel.nights} Nights` : ""}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-bold text-slate-900 text-sm">
+                                ₹{(items?.hotel?.amount || 0).toLocaleString("en-IN")}
+                              </span>
+                              {items?.hotel?.receipt_url && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setReceiptModalUrl(items.hotel.receipt_url)}
+                                  className="h-7 text-xs px-2 gap-1 text-purple-700 border-purple-200 hover:bg-purple-50"
+                                >
+                                  <Eye className="h-3 w-3" /> View Bill
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 3. Food & Meals */}
+                          <div className="p-2.5 border rounded-xl bg-white flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <div className="p-2 bg-emerald-50 text-emerald-700 rounded-lg">
+                                <Utensils className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-800">3. Food / Meals (फूड बिल)</span>
+                                <p className="text-[11px] text-slate-500">
+                                  {items?.food?.description || "Tour food & meals"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-bold text-slate-900 text-sm">
+                                ₹{(items?.food?.amount || 0).toLocaleString("en-IN")}
+                              </span>
+                              {items?.food?.receipt_url && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setReceiptModalUrl(items.food.receipt_url)}
+                                  className="h-7 text-xs px-2 gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                                >
+                                  <Eye className="h-3 w-3" /> View Bill
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 4. Other Expenses */}
+                          <div className="p-2.5 border rounded-xl bg-white flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <div className="p-2 bg-cyan-50 text-cyan-700 rounded-lg">
+                                <Shirt className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-800">4. Other (लॉन्ड्री & अन्य खर्च)</span>
+                                <p className="text-[11px] text-slate-500">
+                                  {items?.other?.description || "Incidentals, laundry, transit"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-bold text-slate-900 text-sm">
+                                ₹{(items?.other?.amount || 0).toLocaleString("en-IN")}
+                              </span>
+                              {items?.other?.receipt_url && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setReceiptModalUrl(items.other.receipt_url)}
+                                  className="h-7 text-xs px-2 gap-1 text-cyan-700 border-cyan-200 hover:bg-cyan-50"
+                                >
+                                  <Eye className="h-3 w-3" /> View Bill
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Custom Created Expense Items */}
+                          {Array.isArray(items?.custom_items) &&
+                            items.custom_items.map((cItem: any, idx: number) => (
+                              <div key={cItem.id || idx} className="p-2.5 border border-orange-200 rounded-xl bg-orange-50/40 flex items-center justify-between">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="p-2 bg-orange-100 text-orange-700 rounded-lg">
+                                    <Tag className="h-4 w-4" />
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-slate-800">{cItem.name}</span>
+                                    {cItem.description && (
+                                      <p className="text-[11px] text-slate-500">{cItem.description}</p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="font-bold text-slate-900 text-sm">
+                                    ₹{Number(cItem.amount || 0).toLocaleString("en-IN")}
+                                  </span>
+                                  {cItem.receipt_url && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setReceiptModalUrl(cItem.receipt_url)}
+                                      className="h-7 text-xs px-2 gap-1 text-orange-700 border-orange-200 hover:bg-orange-50"
+                                    >
+                                      <Eye className="h-3 w-3" /> View Bill
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+
+                          {/* 5. Daily Allowance (DA) */}
+                          <div className="p-2.5 border rounded-xl bg-white flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <div className="p-2 bg-amber-50 text-amber-700 rounded-lg">
+                                <Coins className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-800">5. DA (Daily Allowance / दैनिक भत्ता)</span>
+                                <p className="text-[11px] text-slate-500">
+                                  {items?.da?.days || details?.trip_days || 1} Days
+                                  {items?.da?.daily_rate ? ` @ ₹${items.da.daily_rate}/day` : ""}
+                                </p>
+                              </div>
+                            </div>
+                            <span className="font-bold text-slate-900 text-sm">
+                              ₹{(items?.da?.amount || 0).toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {selectedOutstationItem.rejection_reason && (
+                <div className="text-xs bg-rose-50 p-3 rounded-lg border border-rose-200 text-rose-700">
+                  <span className="font-semibold">Rejection Reason: </span>{selectedOutstationItem.rejection_reason}
+                </div>
+              )}
+
+              {selectedOutstationItem.status === "paid" && (
+                <div className="text-xs bg-blue-50 p-3 rounded-lg border border-blue-200 text-blue-800">
+                  <span className="font-semibold">Payout Details: </span>
+                  {selectedOutstationItem.payment_method || "Settled"}
+                  {selectedOutstationItem.payment_ref_no ? ` • Ref: ${selectedOutstationItem.payment_ref_no}` : ""}
+                </div>
+              )}
+
+              {/* Activity History Timeline */}
+              {(() => {
+                const timeline = getExpenseTimeline(selectedOutstationItem);
+                return (
+                  <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-600">
+                      <History className="h-3.5 w-3.5 text-indigo-600" />
+                      Claim Activity History ({timeline.length})
+                    </div>
+                    {timeline.length === 0 ? (
+                      <div className="text-xs text-slate-400">No history events recorded yet.</div>
+                    ) : (
+                      <div className="space-y-2.5 border-l-2 border-slate-200 pl-3 ml-1">
+                        {timeline.map((ev, idx) => (
+                          <div key={idx} className="relative text-xs">
+                            <span className="absolute -left-[17px] top-1 h-2.5 w-2.5 rounded-full bg-indigo-500 ring-2 ring-white" />
+                            <div className="flex flex-wrap items-center justify-between gap-1">
+                              <span className="font-semibold text-slate-800">{ev.action}</span>
+                              <span className="text-[11px] text-slate-400">
+                                {ev.at ? format(parseISO(ev.at), "dd MMM yyyy, hh:mm a") : ""}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              By {ev.actor}{ev.details ? ` — ${ev.details}` : ""}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Total & Action Footer */}
               <div className="p-4 bg-slate-900 text-white rounded-xl flex items-center justify-between">
@@ -1517,7 +2027,8 @@ export default function HRExpensesPage() {
                 ) : null}
               </div>
             </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

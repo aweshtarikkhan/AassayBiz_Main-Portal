@@ -19,7 +19,8 @@ import {
   HelpCircle, ArrowUpDown, MoreHorizontal, User, ShieldAlert, X,
   Video,
   Link2,
-  ExternalLink
+  ExternalLink,
+  History,
 } from "lucide-react";
 import { format, isPast, isToday, parseISO } from "date-fns";
 import { sendTaskCalendarInvites } from "@/lib/task-calendar-service";
@@ -69,6 +70,7 @@ export interface EmployeeTask {
     designation: string | null;
     avatar_url?: string | null;
   }>;
+  activity_history?: Array<{ at: string; actor: string; role: string; action: string; details?: string }> | null;
 }
 
 const DEFAULT_STATUS_LIST = [
@@ -116,6 +118,51 @@ export default function TasksPage() {
   // Task Create / Edit Dialog
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<EmployeeTask | null>(null);
+  const [viewingTask, setViewingTask] = useState<EmployeeTask | null>(null);
+
+  const getTaskTimeline = (task: EmployeeTask) => {
+    if (Array.isArray(task.activity_history) && task.activity_history.length > 0) {
+      return task.activity_history;
+    }
+    const items: Array<{ at: string; actor: string; role: string; action: string; details?: string }> = [];
+    if (task.created_at) {
+      items.push({
+        at: task.created_at,
+        actor: task.assigned_by_name || "Business HR",
+        role: "hr",
+        action: "Task Assigned",
+        details: `Priority: ${task.priority || "Medium"} • Initial Status: ${task.status || "Pending"}`,
+      });
+    }
+    if (task.updated_at && task.updated_at !== task.created_at) {
+      items.push({
+        at: task.updated_at,
+        actor: "Business HR / Team",
+        role: "hr",
+        action: "Task Updated",
+        details: `Current Status: ${task.status}`,
+      });
+    }
+    if (task.notes) {
+      items.push({
+        at: task.updated_at || task.created_at,
+        actor: task.assignees?.[0]?.name || "Employee",
+        role: "employee",
+        action: "Employee Work Note",
+        details: task.notes,
+      });
+    }
+    if (task.completed_at) {
+      items.push({
+        at: task.completed_at,
+        actor: "Team / HR",
+        role: "employee",
+        action: "Task Completed",
+        details: `Marked ${task.status}`,
+      });
+    }
+    return items;
+  };
   const [taskForm, setTaskForm] = useState<{
     title: string;
     description: string;
@@ -309,6 +356,39 @@ export default function TasksPage() {
       const selectedEmps = employees.filter((e) => taskForm.employee_ids.includes(e.id));
       const selectedNames = selectedEmps.map((e) => e.name);
 
+            const nowIso = new Date().toISOString();
+      let nextTaskHistory: any[] = [];
+      if (editingTask) {
+        const changes: string[] = [];
+        if (editingTask.title !== taskForm.title.trim()) changes.push(`Title → "${taskForm.title.trim()}"`);
+        if (editingTask.priority !== taskForm.priority) changes.push(`Priority: ${editingTask.priority} → ${taskForm.priority}`);
+        if (editingTask.status !== taskForm.status) changes.push(`Status: ${editingTask.status} → ${taskForm.status}`);
+        if ((editingTask.due_date || "") !== (taskForm.due_date || "")) changes.push(`Due Date: ${taskForm.due_date || "Cleared"}`);
+        if (((editingTask as any).meeting_link || "") !== (taskForm.meeting_link?.trim() || "")) changes.push("Meeting link updated");
+        const prevCount = editingTask.assignees?.length || (editingTask.employee_id ? 1 : 0);
+        if (prevCount !== selectedEmps.length) changes.push(`Assignees (${selectedEmps.length})`);
+        nextTaskHistory = [
+          ...getTaskTimeline(editingTask),
+          {
+            at: nowIso,
+            actor: "Business HR",
+            role: "hr",
+            action: "Edited by HR",
+            details: changes.length > 0 ? changes.join(" • ") : "Updated task details",
+          },
+        ];
+      } else {
+        nextTaskHistory = [
+          {
+            at: nowIso,
+            actor: "Business HR",
+            role: "hr",
+            action: "Task Assigned",
+            details: `Assigned to ${selectedNames.join(", ") || "Team"} • Priority: ${taskForm.priority} • Status: ${taskForm.status}`,
+          },
+        ];
+      }
+
       const payload: any = {
         org_id: org.id,
         employee_id: primaryEmployeeId,
@@ -324,6 +404,8 @@ export default function TasksPage() {
         due_date: taskForm.due_date || null,
         due_time: taskForm.due_time || null,
         completed_at: isCompleted ? (editingTask?.completed_at || new Date().toISOString()) : null,
+        updated_at: nowIso,
+        activity_history: nextTaskHistory,
       };
 
       let savedTaskId = editingTask?.id || null;
@@ -418,16 +500,33 @@ export default function TasksPage() {
       const statusObj = statuses.find((s) => s.name.toLowerCase() === newStatusName.toLowerCase());
       const isCompleted = statusObj?.is_completed || newStatusName.toLowerCase() === "done" || newStatusName.toLowerCase() === "completed";
 
+      const nowIso = new Date().toISOString();
+      const existingTask = tasks.find((t) => t.id === taskId);
+      const nextHistory = existingTask
+        ? [
+            ...getTaskTimeline(existingTask),
+            {
+              at: nowIso,
+              actor: "Business HR",
+              role: "hr",
+              action: "Status Updated by HR",
+              details: `${existingTask.status} → ${newStatusName}`,
+            },
+          ]
+        : undefined;
       const updateData: any = {
         status: newStatusName,
         status_id: statusObj?.id || null,
         completed_at: isCompleted ? new Date().toISOString() : null,
+        updated_at: nowIso,
+        ...(nextHistory ? { activity_history: nextHistory } : {}),
       };
 
       // Optimistic update
       setTasks((prev) =>
         prev.map((t) => (t.id === taskId ? { ...t, ...updateData } : t))
       );
+      setViewingTask((prev) => (prev && prev.id === taskId ? { ...prev, ...updateData } : prev));
 
       const { error } = await supabase
         .from("employee_tasks")
@@ -797,7 +896,7 @@ export default function TasksPage() {
                   const priorityInfo = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.Medium;
 
                   return (
-                    <TableRow key={task.id} className="hover:bg-slate-50/60 transition-colors">
+                    <TableRow key={task.id} onClick={() => setViewingTask(task)} className="hover:bg-slate-50/60 transition-colors cursor-pointer" title="Click to inspect full task & history">
                       {/* Title & Description */}
                       <TableCell className="align-top py-3">
                         <div className="space-y-1">
@@ -816,6 +915,7 @@ export default function TasksPage() {
                             <div className="pt-0.5">
                               <a
                                 href={task.meeting_link}
+                                onClick={(e) => e.stopPropagation()}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors shadow-2xs"
@@ -940,7 +1040,7 @@ export default function TasksPage() {
                       </TableCell>
 
                       {/* Status Dropdown */}
-                      <TableCell className="align-top py-3">
+                      <TableCell onClick={(e) => e.stopPropagation()} className="align-top py-3">
                         <Select
                           value={task.status}
                           onValueChange={(val) => handleQuickStatusChange(task.id, val)}
@@ -967,7 +1067,7 @@ export default function TasksPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleOpenEditTask(task)}
+                            onClick={(e) => { e.stopPropagation(); handleOpenEditTask(task); }}
                             className="h-8 w-8 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
                             title="Edit Task"
                           >
@@ -976,7 +1076,7 @@ export default function TasksPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDeleteTask(task.id, task.title)}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id, task.title); }}
                             className="h-8 w-8 text-slate-500 hover:text-rose-600 hover:bg-rose-50"
                             title="Delete Task"
                           >
@@ -1029,7 +1129,9 @@ export default function TasksPage() {
                       return (
                         <Card
                           key={task.id}
-                          className="p-3 bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all space-y-2"
+                          onClick={() => setViewingTask(task)}
+                          title="Click to inspect full task & history"
+                          className="p-3 bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all space-y-2 cursor-pointer"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <h4 className="font-semibold text-slate-900 text-xs leading-snug line-clamp-2">
@@ -1038,14 +1140,14 @@ export default function TasksPage() {
                             <div className="flex items-center gap-0.5 shrink-0">
                               <button
                                 type="button"
-                                onClick={() => handleOpenEditTask(task)}
+                                onClick={(e) => { e.stopPropagation(); handleOpenEditTask(task); }}
                                 className="p-1 text-slate-400 hover:text-indigo-600 rounded"
                               >
                                 <Edit2 className="w-3 h-3" />
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleDeleteTask(task.id, task.title)}
+                                onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id, task.title); }}
                                 className="p-1 text-slate-400 hover:text-rose-600 rounded"
                               >
                                 <Trash2 className="w-3 h-3" />
@@ -1111,7 +1213,7 @@ export default function TasksPage() {
                           )}
 
                           {/* Quick move dropdown */}
-                          <div className="pt-1.5">
+                          <div onClick={(e) => e.stopPropagation()} className="pt-1.5">
                             <Select
                               value={task.status}
                               onValueChange={(val) => handleQuickStatusChange(task.id, val)}
@@ -1757,6 +1859,161 @@ export default function TasksPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Task Detail & Activity History Modal */}
+      <Dialog open={!!viewingTask} onOpenChange={(open) => !open && setViewingTask(null)}>
+        <DialogContent className="max-w-xl max-h-[88vh] overflow-y-auto bg-white border-slate-200 text-slate-900">
+          {viewingTask && (() => {
+            const timeline = getTaskTimeline(viewingTask);
+            const pInfo = PRIORITY_CONFIG[viewingTask.priority] || PRIORITY_CONFIG.Medium;
+            const sMatch = statuses.find((s) => s.name.toLowerCase() === viewingTask.status.toLowerCase());
+            const sConfig = STATUS_COLORS[sMatch?.color || "blue"] || STATUS_COLORS.blue;
+            return (
+              <>
+                <DialogHeader className="border-b border-slate-100 pb-3">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <Badge variant="outline" className={`text-[11px] font-semibold ${pInfo.badge}`}>
+                      {viewingTask.priority} Priority
+                    </Badge>
+                    <Badge variant="outline" className={`text-[11px] font-semibold ${sConfig.bg} ${sConfig.text} ${sConfig.border}`}>
+                      {viewingTask.status}
+                    </Badge>
+                    {(viewingTask.task_type === "group" || (viewingTask.assignees && viewingTask.assignees.length > 1)) && (
+                      <Badge variant="outline" className="text-[11px] bg-indigo-50 text-indigo-700 border-indigo-200">
+                        <Users className="w-3 h-3 mr-1" /> Group Task
+                      </Badge>
+                    )}
+                  </div>
+                  <DialogTitle className="text-lg font-bold text-slate-900">
+                    {viewingTask.title}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500">
+                    Assigned by {viewingTask.assigned_by_name || "Business HR"}
+                    {viewingTask.due_date
+                      ? ` • Due: ${format(parseISO(viewingTask.due_date), "dd MMM yyyy")}${viewingTask.due_time ? ` at ${viewingTask.due_time}` : ""}`
+                      : ""}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-2">
+                  {viewingTask.description && (
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+                      {viewingTask.description}
+                    </div>
+                  )}
+
+                  <div className="text-xs space-y-1.5">
+                    <span className="font-semibold text-slate-600 block">Assigned Employee(s):</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {viewingTask.assignees && viewingTask.assignees.length > 0 ? (
+                        viewingTask.assignees.map((a, idx) => (
+                          <span key={a.id || idx} className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 font-medium text-[11px]">
+                            {a.name}{a.designation ? ` (${a.designation})` : ""}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 font-medium text-[11px]">
+                          {viewingTask.employee?.name || "Assigned Employee"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {(viewingTask as any).meeting_link && (
+                    <div>
+                      <a
+                        href={(viewingTask as any).meeting_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700"
+                      >
+                        Join Scheduled Meeting
+                      </a>
+                    </div>
+                  )}
+
+                  {viewingTask.notes && (
+                    <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-xs text-amber-950">
+                      <span className="font-bold block mb-0.5">Employee Work Note:</span>
+                      {viewingTask.notes}
+                    </div>
+                  )}
+
+                  {/* Quick HR Status Update */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Update Status</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(statuses.length > 0 ? statuses.map((s) => s.name) : ["Pending", "Working on it", "On Hold", "Done"]).map((stName) => {
+                        const active = viewingTask.status.toLowerCase() === stName.toLowerCase();
+                        return (
+                          <button
+                            key={stName}
+                            type="button"
+                            onClick={() => handleQuickStatusChange(viewingTask.id, stName)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                              active
+                                ? "bg-slate-900 text-white border-slate-900"
+                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                            }`}
+                          >
+                            {stName}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Activity History Timeline */}
+                  <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-600">
+                      <History className="w-3.5 h-3.5 text-indigo-600" />
+                      Task Activity History ({timeline.length})
+                    </div>
+                    {timeline.length === 0 ? (
+                      <p className="text-xs text-slate-400">No history events recorded yet.</p>
+                    ) : (
+                      <div className="space-y-2.5 border-l-2 border-slate-200 pl-3 ml-1">
+                        {timeline.map((ev, idx) => (
+                          <div key={idx} className="relative text-xs">
+                            <span className="absolute -left-[17px] top-1 h-2.5 w-2.5 rounded-full bg-indigo-500 ring-2 ring-white" />
+                            <div className="flex flex-wrap items-center justify-between gap-1">
+                              <span className="font-semibold text-slate-800">{ev.action}</span>
+                              <span className="text-[11px] text-slate-400">
+                                {ev.at ? format(parseISO(ev.at), "dd MMM yyyy, hh:mm a") : ""}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              By {ev.actor}{ev.details ? ` — ${ev.details}` : ""}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <DialogFooter className="border-t border-slate-100 pt-3 flex items-center justify-between gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      const target = viewingTask;
+                      setViewingTask(null);
+                      handleOpenEditTask(target);
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs gap-1.5"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> Edit Task
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setViewingTask(null)} className="text-xs">
+                    Close
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

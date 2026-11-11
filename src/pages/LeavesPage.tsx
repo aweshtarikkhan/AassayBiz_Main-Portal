@@ -73,7 +73,8 @@ export default function LeavesPage() {
   const [balances, setBalances] = useState<any[]>([]);
 
     const submitAdjust = async () => {
-      if (!adjustForm.employee_id || !adjustForm.amount || !adjustForm.leave_type || !adjustForm.transaction_type) {
+      const amt = Number(adjustForm.amount);
+      if (!adjustForm.employee_id || !amt || amt <= 0 || !adjustForm.leave_type || !adjustForm.transaction_type) {
         toast({ title: "Fill all required fields", variant: "destructive" }); return;
       }
       
@@ -83,24 +84,28 @@ export default function LeavesPage() {
           org_id: org?.id,
           employee_id: adjustForm.employee_id,
           leave_type: adjustForm.leave_type,
-          amount: adjustForm.amount,
+          amount: amt,
           transaction_type: adjustForm.transaction_type,
           description: adjustForm.description,
           expiry_date: adjustForm.expiry_date || null
         });
         if (txError) throw txError;
         
-        // Update balance
+        // Update balance across all leave types (policy base + accrued delta)
         const empBals = balances.find(b => b.employee_id === adjustForm.employee_id && b.leave_type === adjustForm.leave_type);
-        const currentAccrued = empBals?.accrued ?? 0;
-        const newAccrued = adjustForm.transaction_type === 'credit' ? currentAccrued + Number(adjustForm.amount) : Math.max(0, currentAccrued - Number(adjustForm.amount));
+        const pol = policies.find((p: any) => p.leave_type === adjustForm.leave_type);
+        const baseAnnual = Number(pol?.annual_limit ?? LEAVE_TYPES.find((t) => t.v === adjustForm.leave_type)?.annual ?? 0);
+        const currentAccrued = Number(empBals?.accrued ?? 0);
+        const newAccrued = adjustForm.transaction_type === 'credit'
+          ? currentAccrued + amt
+          : Math.max(-baseAnnual, currentAccrued - amt);
         
         const { error: balError } = await (supabase as any).from("employee_leave_balances").upsert({
           org_id: org?.id,
           employee_id: adjustForm.employee_id,
           leave_type: adjustForm.leave_type,
           accrued: newAccrued,
-          used: empBals?.used ?? 0
+          used: Number(empBals?.used ?? 0)
         }, { onConflict: "employee_id,leave_type" });
         if (balError) throw balError;
         
@@ -377,11 +382,10 @@ export default function LeavesPage() {
 
   const getBalance = (byType: Record<string, any>, type: string) => {
     const pol = policies.find((p: any) => p.leave_type === type);
-    const isManualType = type === "comp_off" || type === "el_pl";
-    const annual = isManualType
-      ? (byType[type]?.accrued ?? 0)
-      : (pol?.annual_limit ?? LEAVE_TYPES.find((t) => t.v === type)?.annual ?? 0);
-    const used = byType[type]?.used ?? 0;
+    const baseAnnual = Number(pol?.annual_limit ?? LEAVE_TYPES.find((t) => t.v === type)?.annual ?? 0);
+    const accrued = Number(byType[type]?.accrued ?? 0);
+    const annual = Math.max(0, baseAnnual + accrued);
+    const used = Number(byType[type]?.used ?? 0);
     const remaining = Math.max(0, annual - used);
     return { annual, used, remaining };
   };
@@ -403,21 +407,25 @@ export default function LeavesPage() {
               for (const emp of employees) {
                 for (const t of ["casual", "sick", "el_pl", "comp_off"]) {
                   const policy = policies.find(p => p.leave_type === t);
-                  if (!policy || policy.monthly_accrual <= 0) continue;
+                  const monthlyAccrual = Number(policy?.monthly_accrual ?? 0);
+                  if (!policy || monthlyAccrual <= 0) continue;
                   
-                  const { data: bData } = await (supabase as any).from('employee_leave_balances')
-                    .select('id, accrued')
+                  const { data: bData, error: bFetchErr } = await (supabase as any).from('employee_leave_balances')
+                    .select('id, accrued, used')
                     .eq('employee_id', emp.id)
                     .eq('leave_type', t)
                     .maybeSingle();
+                  if (bFetchErr) throw bFetchErr;
                     
-                  const currentAccrued = bData?.accrued || 0;
-                  await (supabase as any).from('employee_leave_balances').upsert({
+                  const currentAccrued = Number(bData?.accrued ?? 0);
+                  const { error: upsertErr } = await (supabase as any).from('employee_leave_balances').upsert({
                     org_id: org.id,
                     employee_id: emp.id,
                     leave_type: t,
-                    accrued: currentAccrued + policy.monthly_accrual
+                    accrued: currentAccrued + monthlyAccrual,
+                    used: Number(bData?.used ?? 0)
                   }, { onConflict: 'employee_id,leave_type' });
+                  if (upsertErr) throw upsertErr;
                 }
               }
               toast({ title: "Monthly accrual completed successfully!" });

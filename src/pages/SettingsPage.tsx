@@ -1268,7 +1268,7 @@ export default function SettingsPage() {
         }}
       />
       <PlanSelectorModal 
-        isOpen={showUpgradeModal} 
+        open={showUpgradeModal} 
         onClose={() => setShowUpgradeModal(false)} 
         orgId={org?.id}
       />

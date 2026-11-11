@@ -251,16 +251,91 @@ export function canSendDirectEmailOrWhatsApp(planStr: string = '', activePlans: 
 
 
 /**
+ * Add-on Monthly Rates (Add-ons always bill at flat monthly rate × billing months;
+ * e.g. × 12 for a full yearly cycle, or prorated to remaining months mid-cycle)
+ */
+export const PLATFORM_ADDON_COST_PER_MONTH = 99;
+export const HR_EXTRA_EMPLOYEE_COST_PER_MONTH = 49;
+
+/**
  * CRM Portal Access Limits:
  * - Included in CRM / Suite plan: 2 Sales Team portal logins
- * - Additional Sales Team Member login: ₹999/month per member
+ * - Additional Sales Team Member login: ₹99/month per member (₹99 × 12 = ₹1,188/year)
  */
 export const CRM_BASE_PORTAL_USERS_LIMIT = 2;
-export const CRM_ADDITIONAL_USER_COST_PER_MONTH = 999;
+export const CRM_ADDITIONAL_USER_COST_PER_MONTH = 99;
 
 export function getCrmPortalUserLimit(purchasedCrmLimit?: number | null): number {
   if (typeof purchasedCrmLimit === 'number' && purchasedCrmLimit > CRM_BASE_PORTAL_USERS_LIMIT) {
     return purchasedCrmLimit;
   }
   return CRM_BASE_PORTAL_USERS_LIMIT;
+}
+
+function toLocalCalendarDate(input: string | Date): Date | null {
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+    if (dateOnly) {
+      return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
+    }
+  }
+  const parsed = new Date(input);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+}
+
+function addCalendarMonthsClamped(baseDate: Date, monthsToAdd: number): Date {
+  const targetMonthIndex = baseDate.getMonth() + monthsToAdd;
+  const targetYear = baseDate.getFullYear() + Math.floor(targetMonthIndex / 12);
+  const normalizedMonth = ((targetMonthIndex % 12) + 12) % 12;
+  const daysInTargetMonth = new Date(targetYear, normalizedMonth + 1, 0).getDate();
+  const clampedDay = Math.min(baseDate.getDate(), daysInTargetMonth);
+  return new Date(targetYear, normalizedMonth, clampedDay);
+}
+
+/**
+ * Calculates how many billing months remain until the main plan expires.
+ * Example: Plan bought 10 Oct 2026 expiring 09 Oct 2027 -> add-on bought 15 Nov 2026 -> 11 months.
+ */
+export function calculateRemainingAddonMonths(
+  periodEnd: string | Date | null | undefined,
+  billingCycle: 'monthly' | 'yearly',
+  referenceDate: string | Date = new Date()
+): number {
+  const maxMonths = billingCycle === 'monthly' ? 1 : 12;
+  if (!periodEnd) return maxMonths;
+
+  const endDay = toLocalCalendarDate(periodEnd);
+  const startDay = toLocalCalendarDate(referenceDate);
+  if (!endDay || !startDay) return maxMonths;
+
+  if (endDay.getTime() <= startDay.getTime()) {
+    return 1;
+  }
+
+  let fullMonths = 0;
+  while (fullMonths < maxMonths) {
+    const nextCursor = addCalendarMonthsClamped(startDay, fullMonths + 1);
+    if (nextCursor.getTime() <= endDay.getTime()) {
+      fullMonths += 1;
+    } else {
+      break;
+    }
+  }
+
+  const cursor = addCalendarMonthsClamped(startDay, fullMonths);
+  const hasPartialMonth = cursor.getTime() < endDay.getTime();
+  const computedMonths = hasPartialMonth ? fullMonths + 1 : fullMonths;
+
+  return Math.max(1, Math.min(maxMonths, computedMonths));
+}
+
+export function calculateAddonTotalCost(
+  count: number,
+  monthlyRate: number,
+  billingMonths: number
+): number {
+  if (!count || count <= 0) return 0;
+  return count * monthlyRate * Math.max(1, billingMonths);
 }

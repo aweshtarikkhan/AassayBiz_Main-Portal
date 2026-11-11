@@ -25,6 +25,10 @@ export interface SubscriptionInvoiceData {
   razorpayPaymentId: string;
   razorpayOrderId?: string;
   employeeCount?: number;
+  extraPlatformEmployees?: number;
+  extraCrmMembers?: number;
+  addonBillingMonths?: number;
+  isAddonOnly?: boolean;
 }
 
 // Helper to format currency (pure ASCII to avoid jsPDF unicode spacing bugs)
@@ -329,10 +333,14 @@ export function generateSubscriptionInvoicePDF(data: SubscriptionInvoiceData): j
   // -------------------------------------------------------------
   const tableRows: any[][] = [];
 
-  // Line 1: Main Plan Subscription
+  // Line 1: Main Plan Subscription or Add-on Synchronization
+  const serviceDetailLine = data.isAddonOnly
+    ? `Add-on Expansion (Synchronized with active plan · ${data.addonBillingMonths || (data.billingCycle === "yearly" ? 12 : 1)} month${(data.addonBillingMonths || (data.billingCycle === "yearly" ? 12 : 1)) > 1 ? "s" : ""})`
+    : "Includes GST Invoicing, Inventory, Analytics & Cloud Backup";
+
   tableRows.push([
     "1",
-    `${data.planDisplayName}\nIncludes GST Invoicing, Inventory, Analytics & Cloud Backup\nService Period: ${data.periodStart} to ${data.periodEnd}`,
+    `${data.planDisplayName}\n${serviceDetailLine}\nService Period: ${data.periodStart} to ${data.periodEnd}`,
     "998315",
     "1",
     formatINR(taxable),
@@ -342,13 +350,43 @@ export function generateSubscriptionInvoicePDF(data: SubscriptionInvoiceData): j
     formatINR(total),
   ]);
 
+  let nextSr = 2;
+
   // If extra employee capacity was added
   if (data.employeeCount && data.employeeCount > 0) {
     tableRows.push([
-      "2",
-      `Additional HRMS Staff Slots (${data.employeeCount} Total Employees Active)\nManaged under active subscription cycle`,
+      String(nextSr++),
+      `HRMS Staff Capacity (${data.employeeCount} Total Employees Active)\nValid until ${data.periodEnd}`,
       "998315",
       "1",
+      "Included",
+      formatINR(0),
+      "Included",
+      "18%",
+      "Included",
+    ]);
+  }
+
+  if (data.extraPlatformEmployees && data.extraPlatformEmployees > 0) {
+    tableRows.push([
+      String(nextSr++),
+      `Additional Platform Access (+${data.extraPlatformEmployees} Admin User Slot${data.extraPlatformEmployees > 1 ? "s" : ""})\nValid until ${data.periodEnd}`,
+      "998315",
+      String(data.extraPlatformEmployees),
+      "Included",
+      formatINR(0),
+      "Included",
+      "18%",
+      "Included",
+    ]);
+  }
+
+  if (data.extraCrmMembers && data.extraCrmMembers > 0) {
+    tableRows.push([
+      String(nextSr++),
+      `Additional CRM Sales Team (+${data.extraCrmMembers} Executive Login${data.extraCrmMembers > 1 ? "s" : ""})\nValid until ${data.periodEnd}`,
+      "998315",
+      String(data.extraCrmMembers),
       "Included",
       formatINR(0),
       "Included",

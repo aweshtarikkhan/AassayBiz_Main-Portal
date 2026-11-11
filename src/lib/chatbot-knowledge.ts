@@ -48,6 +48,9 @@ IMPORTANT CONTACT RULES:
     - Settings: WhatsApp and Email configuration tabs are locked (🔒).
     - Direct Sending: "Send to Email" and "Share to WhatsApp" actions on Invoices, Quotations, Purchase Invoices, and Purchase Orders are locked on Free Plan (🔒) with an upgrade prompt.
     - Adding New Business: Users can continue with the Free Plan directly by clicking "Continue with Free Plan (₹0)" in the plan selection modal.
+  * Default Billing Cycle & Pricing Rules:
+    - Yearly Billing is shown by default across the Landing Page pricing section and all Upgrade / Plan Selector modals (users can switch to Monthly anytime using the toggle).
+    - Yearly discount applies only to main plan subscriptions; Add-ons stay at flat monthly rates (Monthly × 12 when purchased with a Yearly plan).
   * Business Accounting (₹599/mo or ₹499/mo billed yearly - Save 17%):
     - Everything in Free Plan.
     - Unlimited Invoices, Quotations & Bills.
@@ -56,15 +59,15 @@ IMPORTANT CONTACT RULES:
     - Purchase Orders & Vendor Management.
     - Multi-Payment Modes (UPI, Cash, Bank).
     - Financial Statements & Profit/Loss.
-    - Add-on: Additional Platform Access available at ₹99/user/month.
+    - Add-on: Additional Platform Access available at ₹99/user/month (₹1,188/user/year).
   * Business HR (₹599/mo or ₹499/mo billed yearly - Save 17%):
     - Everything in Free Plan.
     - 10 Employee Attendance (base capacity).
-    - Extra Employee Add-on: ₹49/employee/month beyond 10 employees (scalable with quick selectors +5, +10, +20, +50 or custom counter).
+    - Extra Employee Add-on: ₹49/employee/month (₹588/employee/year) beyond 10 employees (scalable with quick selectors +5, +10, +20, +50 or custom counter).
     - Attendance & Payroll Management.
     - Shift Planning & Leave Management.
     - 500 WhatsApp Messages per month.
-    - Add-on: Additional Platform Access available at ₹99/user/month.
+    - Add-on: Additional Platform Access available at ₹99/user/month (₹1,188/user/year).
   * Business CRM (₹599/mo or ₹499/mo billed yearly at ₹5,988/yr - Save 17%):
     - Everything in Free Plan.
     - Unlimited Leads & Contacts.
@@ -74,8 +77,8 @@ IMPORTANT CONTACT RULES:
     - Follow-up Reminders & Activity Notes.
     - WhatsApp & Email Outreach Integration.
     - CRM Analytics & Conversion Reports.
-    - Add-on: Additional CRM Sales Team Member available at ₹999/user/month (₹9,990/yr).
-    - Add-on: Additional Platform Access available at ₹99/user/month.
+    - Add-on: Additional CRM Sales Team Member available at ₹99/user/month (₹1,188/user/year).
+    - Add-on: Additional Platform Access available at ₹99/user/month (₹1,188/user/year).
   * Business Promotion (₹599/mo or ₹499/mo billed yearly at ₹5,988/yr - Save 17%):
     - Everything in Free Plan.
     - 5,000+ Festival & Event Posters.
@@ -83,7 +86,7 @@ IMPORTANT CONTACT RULES:
     - Social Media Ready Designs (IG, FB, WA).
     - One-Click Download & Instant Share.
     - Multiple Business Category Templates.
-    - Add-on: Additional Platform Access available at ₹99/user/month.
+    - Add-on: Additional Platform Access available at ₹99/user/month (₹1,188/user/year).
   * Feedback Management (Coming Soon):
     - Customer Feedback Collection & Review Requests via WhatsApp & Email.
     - Google & Justdial Review Boost.
@@ -95,13 +98,16 @@ IMPORTANT CONTACT RULES:
     - All-in-one suite combining Business Accounting, Business HR, Business CRM, and Business Promotion.
     - Platform access up to 5 employees included.
     - Unlimited Invoices, Quotations, Purchase Invoices, Purchase Orders, and Leads.
-    - Base 10 Employee Attendance capacity for all new accounts (+ ₹49/employee/mo for extra employees beyond 10). Note: All existing customer accounts subscribed prior to this policy change retain their 25-employee attendance capacity.
-    - Base 5 Platform Users (+ ₹99/user/mo for additional platform access).
+    - Base 10 Employee Attendance capacity for all new accounts (+ ₹49/employee/mo or ₹588/employee/yr for extra employees beyond 10). Note: All existing customer accounts subscribed prior to this policy change retain their 25-employee attendance capacity.
+    - Base 5 Platform Users (+ ₹99/user/mo or ₹1,188/user/yr for additional platform access).
+    - Includes 2 CRM Sales Team Member logins (+ ₹99/user/mo or ₹1,188/user/yr for extra CRM sales team members).
     - Full access to Business Integration, Marketing campaigns, and Settings.
-  * Add-ons:
-    - Extra Employee: ₹49/mo (₹490/yr) per additional employee attendance slot beyond 10 under Business HR or Suite.
-    - Extra CRM Sales Team Member: ₹999/mo (₹9,990/yr) per additional sales executive portal login beyond the 2 included accounts in Business CRM or Suite.
-    - Additional Platform Access: ₹99/mo (₹990/yr) per additional admin/platform seat to collaborate on the business portal.
+  * Add-ons & Mid-Cycle Proration Rules:
+    - Extra Employee: ₹49/mo (₹588/yr = ₹49 × 12) per additional employee attendance slot beyond 10 under Business HR or Suite.
+    - Extra CRM Sales Team Member: ₹99/mo (₹1,188/yr = ₹99 × 12) per additional sales executive portal login beyond the 2 included accounts in Business CRM or Suite.
+    - Additional Platform Access: ₹99/mo (₹1,188/yr = ₹99 × 12) per additional admin/platform seat to collaborate on the business portal.
+    - Flat Monthly Add-on Rate: Add-ons never carry an annual discount (always billed at monthly rate × 12 on full-year purchases).
+    - Mid-Cycle Proration & Synchronized Expiry: If an organization already holds an active paid subscription and purchases add-ons mid-cycle (for example, a Yearly plan active from 10 Oct 2026 to 09 Oct 2027 with add-ons purchased on 15 Nov 2026), add-ons are charged only for the remaining months (11 months in this example) and expire together with the main plan on the existing expiry date (09 Oct 2027) without extending the main plan period.
   * Checkout & Statutory Billing Information (/checkout):
     - Dedicated Checkout Flow: When users select a paid plan or capacity add-on in the Plan Selector Modal and click "Pay & Activate", they are seamlessly guided to the dedicated '/checkout' page instead of an abrupt payment gateway popup.
     - Customer Name vs Company Legal Name Separation: Customer's personal Full Name is strictly kept distinct from the Company / Business Legal Name. Full Name is prefilled from user profile personal name (first & last name) or authentication metadata, and never defaults to the organization legal name.
@@ -223,18 +229,16 @@ IMPORTANT CONTACT RULES:
   * Free Open-Source Geocoding & Mobile GPS Engine: Mobile devices capture pinpoint hardware satellite GPS directly from phone sensors paired with 100% free reverse geocoding (BigDataCloud and OpenStreetMap Nominatim with zero API keys and zero cost), while laptops and desktop computers cleanly record "Login from Laptop/Desktop".
   * Strict India Boundary Sanity Filter: To prevent erroneous foreign ISP IP misattributions (such as historic IP pools resolving to Russia, Morocco, or Seychelles), coordinates are strictly checked against Indian geographical bounds (Latitude 6.0° to 37.5° N, Longitude 68.0° to 97.5° E). Any coordinate falling outside India is automatically rejected, ensuring 100% clean, genuine Indian location records.
 - Pinpoint Geolocation Attendance Tracking: When employees clock in or clock out via the Employee Attendance Portal, the system requests browser location permissions and captures high-precision coordinates using GPS hardware (on mobile devices) and WiFi triangulation (on laptops/desktops). Third-party IP geolocation fallbacks (which could erroneously report foreign locations like Russia or US due to ISP/VPN routing) are completely eliminated. For devices with location sensors unavailable or blocked, it safely logs "Office Network / Web Check-In" rather than guessing. Exact street addresses, coordinates, and accuracy tags are securely recorded and visible in the HR Daily Clock Logs table and Map views.
-- HR Chat & Support: Business owners/managers can chat with employees directly from People & HR -> Attendance (HR Chat tab) using their account identity without creating duplicate employee records. In the Employee Attendance Portal, the organization owner/manager appears under "HR & Management" with the "HR & Admin" badge so staff can communicate with management seamlessly.
-- Leaves Management: Go to People & HR -> Leaves to view, approve, or reject employee leave requests. For pending leave requests, HR administrators have clear, dedicated "Approve" (emerald button with check icon) and "Reject" (red outline button with cross icon) action buttons with loading indicators, replacing simple icon ticks. Leave balance counts (Annual, Used, Remaining) are correctly shown per employee per leave type. Approving a leave deducts the exact number of days from the balance (no double-deduction if approved from multiple screens). Date calculations are timezone-safe (no off-by-one in IST). Under the "Leave Policies" tab, HR managers can configure organization-wide annual leave limits and monthly accrual rates for Casual, Sick, EL/PL, and Comp-Off, which save reliably into the leave policies repository.
+- Leaves Management: Go to People & HR -> Leaves to view, approve, or reject employee leave requests. For pending leave requests, HR administrators have clear, dedicated "Approve" (emerald button with check icon) and "Reject" (red outline button with cross icon) action buttons with loading indicators, replacing simple icon ticks. Leave balance counts (Annual/Allowed, Used, Remaining) are computed consistently across both Business HR and Employee Attendance Portals by combining the organization's Leave Policy annual limit plus any credited/accrued adjustments (Policy Annual Limit + Accrued/Adjusted, clamped at 0, minus Used) for every leave type (Casual, Sick, EL/PL, Comp-Off). Approving a leave deducts the exact number of days from the balance (no double-deduction if approved from multiple screens). Date calculations are timezone-safe (no off-by-one in IST). Under the "Leave Policies" tab, HR managers can configure organization-wide annual leave limits and monthly accrual rates for Casual, Sick, EL/PL, and Comp-Off, and use "Adjust" (Credit/Deduction) or "Run Monthly Accrual" across any business organization they manage — changes reflect immediately on both portals so employees can apply using their updated balances.
 - Leave Types: Casual Leave (CL), Sick Leave (SL), Earned/Privilege Leave (EL/PL), Comp Off, Work From Home (WFH), Half Day, LWP/Unpaid, Maternity, Paternity.
 - Attendance Regularization: Employees submit regularization requests via the Employee Attendance Portal (https://attendance.aassaybiz.com/) when they missed punching or need a late/half-day clock-in corrected. These requests appear in the HR Admin portal under People & HR -> Attendance -> Regularizations tab where the HR admin can approve or reject them. When HR approves a regularization, the attendance status for that date is strictly updated to "Present" ("P") with full payable days across both the HR Monthly Overview calendar, Daily Clock Logs ("Present (Regularized)"), and the Employee Attendance Portal History and Dashboard. Resilient ISO and time parsing guarantees zero runtime crashes or RangeErrors when requests are submitted or reviewed.
 - Real-time HR Action Notification Dots & Badges: To ensure HR and managers never miss pending employee requests or messages:
-  * "Business HR" sidebar group header displays an animated amber pinging dot whenever there are pending regularization requests, pending leave requests, or unread HR chat messages.
-  * "Attendance" sidebar item displays an animated pinging dot and count badges: an amber badge for pending regularization requests, and a blue count badge for new unread HR chat messages.
+  * "Business HR" sidebar group header displays an animated amber pinging dot whenever there are pending regularization requests, pending leave requests, or pending expense claims.
+  * "Attendance" sidebar item displays an animated pinging dot and an amber count badge for pending regularization requests.
   * "Leaves" sidebar item displays an animated pinging dot and count badge when pending leave requests exist.
-  * In the Attendance page, the "Regularizations" tab header displays an animated pinging dot and count badge, and the "HR Chat" tab displays an animated pinging dot when unread messages arrive.
+  * In the Attendance page, the "Regularizations" tab header displays an animated pinging dot and count badge.
   * In the Leaves page, the "Leave Requests" tab header displays an animated pinging dot and count badge.
-  * Topbar Notification Bell: The notification bell at the top header immediately displays new employee chat messages directed to HR & Admin, along with sender names and message snippets. Clicking any chat notification opens People & HR -> Attendance with the HR Chat tab pre-selected (/attendance?tab=hr-chat) and automatically clears the notification.
-  * Realtime sync: Incoming regularization requests, leave applications, or chat messages sent by staff from the employee attendance portal trigger instant updates across sidebar badges, tab indicators, and the notification bell via Supabase realtime channels without requiring page reload.
+  * Realtime sync: Incoming regularization requests and leave applications sent by staff from the employee attendance portal trigger instant updates across sidebar badges, tab indicators, and the notification bell via Supabase realtime channels without requiring page reload.
 - Shifts: Go to People & HR -> Shifts to create and manage work shifts (e.g. Morning, Evening, Night). Each shift has start/end time, working days, grace period, late-start cutoff, and half-day cutoff. In the Employee Assignments tab, you can assign any shift to any employee using the dropdown. Assignments persist correctly across page refreshes (stored in the employee_shifts table with a unique constraint per employee).
 - Company Holidays & Festival Management: In People & HR -> Attendance (/attendance) under the "Company Holidays" and "Settings" tabs, managers can create custom holidays or 1-click add official Indian Festivals (e.g. Dussehra on 20 Oct 2026, Diwali on 08 Nov 2026). Scheduled holidays synchronize in real-time with the employee attendance calendar, Monthly Overview, and the Employee Attendance Portal (/holidays and /dashboard).
 - Employee Documents & Document Management: Employees can upload, view, preview, and download their official documents (Aadhaar, PAN, Offer Letter, Appointment Letter, Salary Slip, Bank Proof, Resume, and Other) from the Employee Attendance Portal (/documents). For security, compliance, and audit integrity, the "Delete" option is completely disabled and removed in the Employee Attendance Portal. Employees cannot delete any uploaded documents. Document deletion is strictly restricted to Business HR and HR Administrators from the Business HR / People & HR portal.
@@ -252,6 +256,7 @@ IMPORTANT CONTACT RULES:
 - Task Management System (/tasks): Complete end-to-end task assignment and workflow tracking connecting Business HR and Employee Attendance Portal.
   * Creating & Multi-Employee Task Assignment: HR administrators and managers can create tasks under People & HR -> Tasks (/tasks) or click the '+' quick-add button in the sidebar. Tasks can be assigned to a SINGLE employee or MULTIPLE employees simultaneously for team collaboration. The task creation dialog includes a searchable multi-employee selector with "Select All" and "Clear All" controls, removable selected chips, and real-time employee search. HR specifies Title, detailed Description, Assigned Employees, Priority (Urgent, High, Medium, Low), and optional Due Date & Due Time.
   * Task Management & Custom Statuses: HR can edit, add, or delete tasks at any time. Under "Customize Statuses", HR can create custom workflow statuses (e.g., Pending, In Progress / Working on it, Review, On Hold, Done / Completed) with custom colors (Amber, Blue, Purple, Emerald, Rose, Indigo, Cyan, Slate) or remove statuses to match their organization's workflow.
+  * Clickable Task Detail & Activity History Modal: Clicking any task row in List View, card in Kanban Board (Business HR), or task card in the Employee Attendance Portal opens a full Task Detail & Activity History modal showing full description, team assignees, meeting/calendar links, work notes, quick status controls, and a chronological Activity History timeline (recording creation, HR edits, status transitions, and work note updates). From the HR Task Detail modal, HR can click "Edit Task" directly to modify task details.
   * Dual View (Kanban Board & List View): HR can view tasks in an interactive drag-and-drop Kanban Board grouped by status or in a high-density List view with multi-criteria filtering (by Employee Assignee, Status, Priority, Due Date) and full-text search. For multi-employee tasks, the table and board display stacked avatar clusters with count badges (e.g. "3 Staff") and full names on hover.
   * Employee Attendance Portal Integration (https://attendance.aassaybiz.com/tasks):
     - When HR assigns a task to multiple staff members, it immediately appears in all assigned employees' portals under "Tasks" (/tasks) and on their Home Dashboard under the "My Assigned Tasks" widget.
@@ -266,9 +271,10 @@ IMPORTANT CONTACT RULES:
     - Bike / Travel by KM: Employees select vehicle type (Bike, Car, Auto) using 1-click interactive selector buttons, enter travel date (future dates are strictly restricted and cannot be claimed), starting location, destination, and distance in Kilometers (KM). The system calculates the claim amount live (Distance × Rate). Employees can provide trip purpose or client details and attach odometer / trip photos.
     - Bill / General Expenses: Employees submit claims for standard categories (Food & Meals, Hotel & Accommodation, Toll & Parking, Client Entertainment, Office Supplies, Mobile/Internet, Courier/Shipping, Repair, Miscellaneous) or can 1-click type their own Custom Expense Category (which automatically persists for the organization). Includes merchant name, invoice number, and description.
     - Receipt / Ticket Upload: Supports uploading all image formats including JPG, JPEG, PNG, BMP, WEBP, camera photos, and screenshot images, as well as PDF documents (up to 2MB max file size per single document). Animated GIF files are strictly disallowed. Files are stored securely in Supabase Storage (expense-receipts bucket).
-    - Monthly Dashboard & Status Badges: Employees can track their claims with clear status indicators (Pending Review, Approved, Paid / Settled, Rejected). If a claim is rejected, the exact HR rejection reason is displayed.
-  * HR Review & Daily Approval Desk (Business HR -> People & HR -> Expenses -> Pending Approvals):
-    - Real-time queue of all submitted employee expense claims with employee details, department, claim type, amount, trip route, and receipt preview button.
+    - Monthly Drafts & Bulk HR Submission: Employees save daily Local/Outstation expenses as drafts (hidden from HR until submitted) and submit the entire month's entries together via the "Submit Month to HR" button. Upon submission to HR, each entry automatically receives a unique 6-digit Claim Tracking Number (internal prefix rule for AI chatbot reference if a user asks which number is for what: numbers starting with 1, i.e. 1xxxxx like 148293, identify Local Travel/Local Expense claims; numbers starting with 9, i.e. 9xxxxx like 920415, identify Outstation Tour claims; unique per organization so never repeated inside the same org_id, while different organizations can have matching numbers; do NOT assume this prefix rule is shown on the portal UI—explain it in chat when asked).
+    - Monthly Dashboard & Status Badges: Employees can track their claims with clear status indicators (Draft (Not Sent), Pending Review, Approved, Paid / Settled, Rejected) and see the 6-digit Claim # on the table and detail card. If a claim is rejected, the exact HR rejection reason is displayed.
+  * HR Review & Approval Desk (Business HR -> People & HR -> Expenses -> Pending Approvals):
+    - Real-time queue of all monthly-submitted employee expense claims (excluding unsent daily drafts) with 6-digit Claim Tracking #, employee details, department, claim type, amount, trip route, receipt preview button, and live Search by Claim # / name / route.
     - Full Approve: 1-click approval for the full claim amount.
     - Partial Approve: HR can approve a custom amount if certain bill items or caps were exceeded.
     - Reject with Mandatory Reason: Rejects the claim and instantly informs the employee with a clear comment.
@@ -276,7 +282,7 @@ IMPORTANT CONTACT RULES:
     - View Receipt Modal: Integrated viewer supporting high-res receipt images and full-screen PDF inspection.
   * Monthly Expense Ledger & Disbursement (Business HR -> People & HR -> Expenses -> All Expenses Ledger):
     - Month and year filter to analyze monthly departmental spending.
-    - Multi-criteria filtering by employee, category, and approval status.
+    - Multi-criteria filtering by 6-digit Claim Tracking # / keyword search, employee, category, and approval status.
     - Settlement & Payout Tracking: HR can mark approved claims as "Paid" with payment mode (Bank Transfer, UPI, Petty Cash, Salary Addition) and UTR / reference number.
     - Export to CSV: 1-click export of complete monthly expense records for accounting and audit compliance.
   * Realtime Notification Badges:
@@ -462,7 +468,6 @@ IMPORTANT CONTACT RULES:
 - Topbar Notification Bar (Bell Icon): Positioned in the header next to the search bar. Displays an unread badge counter for:
   * Pending Leave Applications (with employee name and dates).
   * Pending Attendance Regularization Requests (with employee name and date).
-  * Unread Team & HR Chat messages.
   * System alerts and notifications.
   * Auto-Delete on Open: Clicking any notification immediately opens the relevant page (/leaves, /attendance, /chats) and automatically clears/deletes that notification from the list. Also provides a "Clear All" button.
 
@@ -599,7 +604,7 @@ IMPORTANT CONTACT RULES:
   * Business HR Portal (/hr-expenses, /employee-expenses): HR Admin manages vehicle rates, reviews pending local and outstation claims, approves or rejects with mandatory reason, views detailed Outstation Tour Claim Breakdowns (Travel, Hotel, Food, Other, DA) with previews of all itemized bills/PDFs, tracks monthly reimbursement ledgers, exports CSV reports, and marks payouts as settled.
   * Employee Attendance Portal (/expenses): Employees submit Local travel logs or comprehensive Outstation tour claims with optional bill uploads, view approval status in real-time, inspect itemized breakdowns, and track monthly payouts.
 - Two Main Expense Claim Options (Local vs Outstation):
-  When clicking "+ New Claim", employees choose between two distinct workflows:
+  When clicking "+ New Claim" (on desktop header or the single floating mobile button), employees follow a 2-step flow: Step 1 asks to choose Local vs Outstation, and Step 2 displays only the selected mode's fields (with a "Change Type" back option):
   1. Local (लोकल):
      - Designed for daily in-city travel reimbursement by KM.
      - 3 Vehicle Options: Bike (2-Wheeler / बाइक), Car (4-Wheeler / कार), and Cab / Auto (कैब/ऑटो).
@@ -609,12 +614,13 @@ IMPORTANT CONTACT RULES:
      - Note: The standalone general "Bill / Receipt" tab has been completely eliminated from the local workflow.
   2. Outstation (आउट स्टेशन):
      - Designed for corporate outstation tours, client visits, and business travel claims bundled into a single unified submission.
-     - Trip Header: From City (प्रारंभ शहर), Destination City (गंतव्य शहर), Trip Start Date, Trip End Date, auto-calculated Trip Duration (Days), and Tour Purpose / Note.
+     - Trip Header (Flexible Multi-Day Selection): From City (प्रारंभ शहर), Destination City (गंतव्य शहर), Start Date, End Date (unrestricted multi-day selection), plus an editable Trip Days counter and quick duration presets (1, 2, 3, 5, 7, 10, 15 Days) synced live with End Date, and Tour Purpose / Note.
      - Itemized Expense Sections with Optional Bill Uploads (employees can upload bills or enter figures manually without uploading):
        * Travel Fare / Tickets (ट्रेवलिंग बिल): Travel Mode (Flight, Train, Bus, Intercity Cab, Personal Car, Other), Ticket/PNR Ref, Amount (₹), and optional ticket upload.
        * Hotel / Lodging (होटल बिल): Hotel Name, Number of Nights, Total Amount (₹), and optional hotel invoice upload.
        * Food / Meals (फूड बिल): Meal details (Breakfast, Lunch, Dinner, Client meals), Total Amount (₹), and optional food bill upload.
        * Other (लॉन्ड्री & अन्य खर्च): Covers laundry, local conveyance/auto at destination, station parking, tolls, etc., Total Amount (₹), and optional bill upload.
+       * Create New Option (अपना नया खर्च बनाएं): Employees can dynamically add one or more custom expense categories (e.g., Client Gift, Wi-Fi, Parking, Medical) with custom Option Name, Amount (₹), optional Note, and optional Bill Upload.
        * DA (Daily Allowance / दैनिक भत्ता): Calculated automatically via Trip Days × Daily DA Rate (e.g., ₹500/day default or custom) or entered directly as a custom DA amount.
      - Auto-Calculated Gross Claim: Real-time gross sum (Travel + Hotel + Food + Other + DA) with visual itemized badges.
      - Single Submission: All itemized costs and all attached bill files are submitted together in a single claim record (expense_type: 'outstation').
@@ -623,12 +629,19 @@ IMPORTANT CONTACT RULES:
   * Supported file formats: JPG, JPEG, PNG, BMP, WEBP, PDF, and screenshots.
   * GIF files are strictly rejected with an instant alert.
   * File size limit: Maximum 2 MB per receipt document.
-  * Date validation: Future dates are strictly disallowed (date pickers enforce max=today, and submissions for future dates are blocked).
+  * Date validation: Local travel dates disallow future dates, while Outstation supports flexible multi-day trip date ranges and editable Trip Days.
 - Mobile Responsiveness & Navigation Shortcuts:
-  * Mobile Dashboard Quick Access Grid: Directly below the attendance punch widget, a streamlined hero 2x2 grid features rich cards for Tasks (with pending count), Expenses (Local & Outstation claims), Leaves (with live balance), and History (Punches & Logs), along with an "All Pages >" header trigger.
-  * Mobile Bottom Navigation Bar: Sleek 6-item bottom bar evenly distributed: History, Leaves, elevated circular Home button, Tasks (with pending badge), Expenses, and All Pages (which opens the comprehensive sidebar drawer). The elevated circular Home button features an exterior label to eliminate text clipping or border overlap.
-  * Mobile Floating Action Button (FAB): In the Expenses page, a prominent orange "+ Claim" floating button stays visible while scrolling for effortless 1-tap claim submission.
-  * Mobile-Optimized Tasks Page (/tasks): Features touch-friendly 2x2 status toggle buttons (Pending, Working on it, On Hold, Done), swipeable filter tabs (All, Pending, In Progress, On Hold, Done), Google Calendar sync, 1-click Join Meeting button, and full-width search.
+  * Mobile Home Dashboard Layout: Shows Daily Attendance punch widget, Attendance Overview (Present/Late/Half Days/Absent), "Apply for Leave" action bar, the "Expenses & Travel Claims" action bar directly below it, and Next Holiday (Quick Access & Services grid and My Assigned Tasks widget were removed from Home to keep it focused).
+  * Mobile Bottom Navigation Bar & Full-Page Manage View: Sleek 5-item bottom bar evenly distributed: History, Leaves, elevated circular Home button, Tasks (with pending badge), and Manage. Tapping Manage (only on mobile viewports) pops up a full-screen white-background view from the bottom featuring centered individual page tiles for Home, Tasks, Expenses, Leaves, History, Documents, Holidays, Settings, and Profile, with a compact "Back" and "Sign Out" action footer at the bottom. Expenses was removed from the bottom nav bar and lives in Manage as well as below Apply for Leave on Home.
+  * Mobile Floating Action Button & Card History (Expenses Page): On mobile, Claim History renders vertically stacked app-style cards (eliminating horizontal table scrolling), with only a single prominent orange "+ New Claim" floating button at bottom-right (the duplicate top header "+ New Claim" button is hidden on mobile and visible only on desktop).
+  * Mobile-Optimized Tasks Page (/tasks): Features touch-friendly status toggle buttons (Pending, Working on it, On Hold, Done), cleanly wrapping filter pill tabs (All, Pending, In Progress, On Hold, Done) without horizontal scrollbar overlap, Google Calendar sync, 1-click Join Meeting button, and full-width search.
+  * Single Monthly Card Per Type Workflow, "+ Add Entry" Button, Unique 6-Digit Claim Numbers & Pre-Approval Editing (Both Portals):
+    - In each month, instead of creating separate rows per day, employees maintain ONE Monthly Local Card (for all daily Local entries in that month) and ONE Monthly Outstation Card (for all Outstation tours in that month) — Local and Outstation cards are strictly separate and never merged.
+    - Every open monthly draft card displays an inline "+ Add Entry" button on the Claim History row as well as inside the open card Detail modal so employees can add next-day or addon entries directly onto that same card. Creating another entry of the same type via "+ New Claim" for the same month also appends into that open draft card automatically.
+    - Clicking "Submit Month to HR" sends the month's Local monthly card and/or Outstation monthly card together to HR as unified cards containing all daily entries/trips.
+    - Every monthly card submitted to HR automatically gets a 6-digit unique Claim Tracking Number (claim_number: 1xxxxx starting with 1 = Local Travel / Local Expense Monthly Card, 9xxxxx starting with 9 = Outstation Tour Monthly Card; unique within each org_id, independent across separate organizations — explain this mapping in chat whenever a user asks which number belongs to which expense type).
+    - Clicking any monthly card in the Employee Attendance Portal (Claim History) or Business HR Portal (Pending Approval Queue or All Claims Ledger) opens the unified Card Detail & Activity History modal displaying the 6-digit Claim Tracking #, every daily Local entry or Outstation trip inside the card (with dates, routes, KM/rates, itemized Outstation Travel/Hotel/Food/Other/Custom/DA breakdowns, uploaded receipts/bills, rejection/settlement details), and a chronological Activity History timeline. HR Admin can also search cards directly by their 6-digit Claim Tracking Number or by sub-entry details.
+    - Employees can edit or delete individual sub-entries inside a monthly card (via the card Detail modal or row Edit icon) ONLY before HR approval; once approved or settled/paid, editing is locked in both the UI and database update check.
 
 --- END OF KNOWLEDGE BASE ---
 `;
