@@ -108,7 +108,10 @@ export default function LeavesPage() {
 
       const pol = policies.find((p: any) => p.leave_type === adjustForm.leave_type);
       const meta = LEAVE_TYPES.find((t) => t.v === adjustForm.leave_type);
-      const baseAnnual = Number(pol?.annual_limit ?? meta?.annual ?? 0);
+      const polLimit = pol?.annual_limit !== undefined && pol?.annual_limit !== null ? Number(pol.annual_limit) : NaN;
+      const baseAnnual = (adjustForm.leave_type !== "comp_off" && (isNaN(polLimit) || polLimit === 0))
+        ? (meta?.annual ?? (adjustForm.leave_type === "casual" ? 12 : adjustForm.leave_type === "sick" ? 5 : adjustForm.leave_type === "el_pl" ? 15 : 0))
+        : (!isNaN(polLimit) ? polLimit : (meta?.annual ?? 0));
       const currentAccrued = Number(currentBal?.accrued ?? 0);
       const newAccrued = adjustForm.transaction_type === 'credit'
         ? currentAccrued + amt
@@ -120,7 +123,7 @@ export default function LeavesPage() {
         leave_type: adjustForm.leave_type,
         accrued: newAccrued,
         used: Number(currentBal?.used ?? 0)
-      }, { onConflict: "employee_id,leave_type" }).select("*, employees(name)").single();
+      }, { onConflict: "employee_id,leave_type" }).select("*").single();
       if (balError) throw balError;
       
       // 3. Optimistically update local state immediately
@@ -154,7 +157,7 @@ export default function LeavesPage() {
         (supabase as any).from("leaves").select("*, employees(name)").eq("org_id", org.id).order("created_at", { ascending: false }),
         (supabase as any).from("employees").select("id,name").eq("org_id", org.id).eq("is_active", true).order("name"),
         (supabase as any).from("leave_policies").select("*").eq("org_id", org.id),
-        (supabase as any).from("employee_leave_balances").select("*, employees(name)").eq("org_id", org.id),
+        (supabase as any).from("employee_leave_balances").select("*").eq("org_id", org.id),
         (supabase as any).from("leave_transactions").select("*, employees(name)").eq("org_id", org.id).order("created_at", { ascending: false }),
       ]);
       setRows(lv.data || []);
@@ -182,9 +185,16 @@ export default function LeavesPage() {
       ["casual", "sick", "el_pl", "comp_off"].forEach((t) => {
         const meta = LEAVE_TYPES.find((x) => x.v === t)!;
         const existing = policyList.find((p: any) => p.leave_type === t);
+        const existingLimit = existing?.annual_limit !== undefined && existing?.annual_limit !== null ? Number(existing.annual_limit) : NaN;
+        const existingAccrual = existing?.monthly_accrual !== undefined && existing?.monthly_accrual !== null ? Number(existing.monthly_accrual) : NaN;
+
         pf[t] = {
-          annual_limit: existing?.annual_limit ?? meta.annual,
-          monthly_accrual: existing?.monthly_accrual ?? parseFloat((meta.annual / 12).toFixed(2)),
+          annual_limit: (t !== "comp_off" && (isNaN(existingLimit) || existingLimit === 0))
+            ? meta.annual
+            : (!isNaN(existingLimit) ? existingLimit : meta.annual),
+          monthly_accrual: (t !== "comp_off" && (isNaN(existingAccrual) || existingAccrual === 0))
+            ? parseFloat((meta.annual / 12).toFixed(2))
+            : (!isNaN(existingAccrual) ? existingAccrual : parseFloat((meta.annual / 12).toFixed(2))),
         };
       });
       setPolicyForm(pf);
@@ -424,8 +434,12 @@ export default function LeavesPage() {
 
   const getBalance = (byType: Record<string, any>, type: string, empId?: string) => {
     const pol = policies.find((p: any) => p.leave_type === type);
+    const meta = LEAVE_TYPES.find((t) => t.v === type);
     const fallbackAnnual = type === "casual" ? 12 : type === "sick" ? 5 : type === "el_pl" ? 15 : 0;
-    const baseAnnual = Number(pol?.annual_limit ?? LEAVE_TYPES.find((t) => t.v === type)?.annual ?? fallbackAnnual);
+    const polLimit = pol?.annual_limit !== undefined && pol?.annual_limit !== null ? Number(pol.annual_limit) : NaN;
+    const baseAnnual = (type !== "comp_off" && (isNaN(polLimit) || polLimit === 0))
+      ? (meta?.annual ?? fallbackAnnual)
+      : (!isNaN(polLimit) ? polLimit : (meta?.annual ?? fallbackAnnual));
     const accrued = Number(byType[type]?.accrued ?? 0);
     const annual = Math.max(0, baseAnnual + accrued);
 
