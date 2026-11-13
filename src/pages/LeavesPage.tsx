@@ -12,12 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Check, X, Trash2, Settings, Users, ClipboardList, Info, CalendarDays, History, PlusCircle, MinusCircle, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, Check, X, Trash2, Settings, Users, ClipboardList, Info, CalendarDays, History, PlusCircle, MinusCircle, AlertTriangle, Loader2, Search, RotateCcw, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { differenceInCalendarDays, parseISO, format } from "date-fns";
 
 export const LEAVE_TYPES = [
   { v: "casual",      l: "Casual Leave (CL)",          short: "CL",  color: "bg-blue-100 text-blue-700 border-blue-300", annual: 12 },
-  { v: "el_pl",       l: "Earned/Privilege (EL/PL)",   short: "PL",  color: "bg-indigo-100 text-indigo-700 border-indigo-300", annual: 0 },
+  { v: "el_pl",       l: "Earned/Privilege (EL/PL)",   short: "PL",  color: "bg-indigo-100 text-indigo-700 border-indigo-300", annual: 15 },
   { v: "sick",        l: "Sick/Medical (SL/ML)",       short: "SL",  color: "bg-amber-100 text-amber-700 border-amber-300", annual: 5 },
   { v: "comp_off",    l: "Compensatory Off",           short: "CO",  color: "bg-teal-100 text-teal-700 border-teal-300", annual: 0 },
   { v: "maternity",   l: "Maternity Leave",            short: "ML",  color: "bg-pink-100 text-pink-700 border-pink-300", annual: 0 },
@@ -57,14 +57,19 @@ export default function LeavesPage() {
   const [form, setForm] = useState<any>({ employee_id: "", leave_type: "casual", start_date: "", end_date: "", reason: "" });
   const [processingId, setProcessingId] = useState<string | null>(null);
 
+  // Search & Filter state for requests and balances
+  const [requestSearch, setRequestSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [balanceSearch, setBalanceSearch] = useState("");
+
   // Leave policies
   const [policies, setPolicies] = useState<any[]>([]);
   const [policyForm, setPolicyForm] = useState<Record<string, { annual_limit: number; monthly_accrual: number }>>({});
   const [savingPolicy, setSavingPolicy] = useState(false);
     
-    // Adjust Balance Form
-    const [adjustOpen, setAdjustOpen] = useState(false);
-    const [adjustForm, setAdjustForm] = useState<any>({});
+  // Adjust Balance Form
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustForm, setAdjustForm] = useState<any>({});
 
   // Transactions log
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -72,80 +77,122 @@ export default function LeavesPage() {
   // Employee balances
   const [balances, setBalances] = useState<any[]>([]);
 
-    const submitAdjust = async () => {
-      const amt = Number(adjustForm.amount);
-      if (!adjustForm.employee_id || !amt || amt <= 0 || !adjustForm.leave_type || !adjustForm.transaction_type) {
-        toast({ title: "Fill all required fields", variant: "destructive" }); return;
-      }
-      
-      try {
-        // Log transaction
-        const { error: txError } = await (supabase as any).from("leave_transactions").insert({
-          org_id: org?.id,
-          employee_id: adjustForm.employee_id,
-          leave_type: adjustForm.leave_type,
-          amount: amt,
-          transaction_type: adjustForm.transaction_type,
-          description: adjustForm.description,
-          expiry_date: adjustForm.expiry_date || null
-        });
-        if (txError) throw txError;
-        
-        // Update balance across all leave types (policy base + accrued delta)
-        const empBals = balances.find(b => b.employee_id === adjustForm.employee_id && b.leave_type === adjustForm.leave_type);
-        const pol = policies.find((p: any) => p.leave_type === adjustForm.leave_type);
-        const baseAnnual = Number(pol?.annual_limit ?? LEAVE_TYPES.find((t) => t.v === adjustForm.leave_type)?.annual ?? 0);
-        const currentAccrued = Number(empBals?.accrued ?? 0);
-        const newAccrued = adjustForm.transaction_type === 'credit'
-          ? currentAccrued + amt
-          : Math.max(-baseAnnual, currentAccrued - amt);
-        
-        const { error: balError } = await (supabase as any).from("employee_leave_balances").upsert({
-          org_id: org?.id,
-          employee_id: adjustForm.employee_id,
-          leave_type: adjustForm.leave_type,
-          accrued: newAccrued,
-          used: Number(empBals?.used ?? 0)
-        }, { onConflict: "employee_id,leave_type" });
-        if (balError) throw balError;
-        
-        toast({ title: "Balance adjusted successfully" });
-        setAdjustOpen(false);
-        load();
-      } catch (err: any) {
-        toast({ title: "Adjustment failed", description: err.message, variant: "destructive" });
-      }
-    };
+  const submitAdjust = async () => {
+    const amt = Number(adjustForm.amount);
+    if (!adjustForm.employee_id || !amt || amt <= 0 || !adjustForm.leave_type || !adjustForm.transaction_type) {
+      toast({ title: "Fill all required fields", variant: "destructive" }); return;
+    }
+    
+    try {
+      const targetOrgId = org?.id;
 
+      // 1. Log transaction
+      const { data: newTx, error: txError } = await (supabase as any).from("leave_transactions").insert({
+        org_id: targetOrgId,
+        employee_id: adjustForm.employee_id,
+        leave_type: adjustForm.leave_type,
+        amount: amt,
+        transaction_type: adjustForm.transaction_type,
+        description: adjustForm.description || (adjustForm.transaction_type === 'credit' ? `Admin credited ${amt} day(s)` : `Admin deducted ${amt} day(s)`),
+        expiry_date: adjustForm.expiry_date || null
+      }).select("*, employees(name)").single();
+      if (txError) throw txError;
+      
+      // 2. Fetch fresh current balance directly from DB to prevent stale state calculations
+      const { data: currentBal } = await (supabase as any)
+        .from("employee_leave_balances")
+        .select("id, accrued, used")
+        .eq("employee_id", adjustForm.employee_id)
+        .eq("leave_type", adjustForm.leave_type)
+        .maybeSingle();
+
+      const pol = policies.find((p: any) => p.leave_type === adjustForm.leave_type);
+      const meta = LEAVE_TYPES.find((t) => t.v === adjustForm.leave_type);
+      const baseAnnual = Number(pol?.annual_limit ?? meta?.annual ?? 0);
+      const currentAccrued = Number(currentBal?.accrued ?? 0);
+      const newAccrued = adjustForm.transaction_type === 'credit'
+        ? currentAccrued + amt
+        : Math.max(-baseAnnual, currentAccrued - amt);
+      
+      const { data: updatedBal, error: balError } = await (supabase as any).from("employee_leave_balances").upsert({
+        org_id: targetOrgId,
+        employee_id: adjustForm.employee_id,
+        leave_type: adjustForm.leave_type,
+        accrued: newAccrued,
+        used: Number(currentBal?.used ?? 0)
+      }, { onConflict: "employee_id,leave_type" }).select("*, employees(name)").single();
+      if (balError) throw balError;
+      
+      // 3. Optimistically update local state immediately
+      setBalances((prev) => {
+        const idx = prev.findIndex((b) => b.employee_id === adjustForm.employee_id && b.leave_type === adjustForm.leave_type);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = { ...next[idx], ...updatedBal };
+          return next;
+        }
+        return [...prev, updatedBal];
+      });
+
+      if (newTx) {
+        setTransactions((prev) => [newTx, ...prev]);
+      }
+
+      toast({ title: "Balance adjusted successfully", description: `${adjustForm.employee_name || 'Employee'} balance updated.` });
+      setAdjustOpen(false);
+      load();
+    } catch (err: any) {
+      toast({ title: "Adjustment failed", description: err.message, variant: "destructive" });
+    }
+  };
 
   const load = async () => {
     if (!org?.id) return;
     setLoading(true);
-    const [lv, emps, pols, bals, txns] = await Promise.all([
-      (supabase as any).from("leaves").select("*, employees(name)").eq("org_id", org.id).order("created_at", { ascending: false }),
-      (supabase as any).from("employees").select("id,name").eq("org_id", org.id).eq("is_active", true).order("name"),
-      (supabase as any).from("leave_policies").select("*").eq("org_id", org.id),
-      (supabase as any).from("employee_leave_balances").select("*, employees(name)").eq("org_id", org.id),
-      (supabase as any).from("leave_transactions").select("*, employees(name)").eq("org_id", org.id).order("created_at", { ascending: false }),
-    ]);
-    setRows(lv.data || []);
-    setEmployees(emps.data || []);
-    setPolicies(pols.data || []);
-    setBalances(bals.data || []);
-    setTransactions(txns.data || []);
+    try {
+      const [lv, emps, pols, bals, txns] = await Promise.all([
+        (supabase as any).from("leaves").select("*, employees(name)").eq("org_id", org.id).order("created_at", { ascending: false }),
+        (supabase as any).from("employees").select("id,name").eq("org_id", org.id).eq("is_active", true).order("name"),
+        (supabase as any).from("leave_policies").select("*").eq("org_id", org.id),
+        (supabase as any).from("employee_leave_balances").select("*, employees(name)").eq("org_id", org.id),
+        (supabase as any).from("leave_transactions").select("*, employees(name)").eq("org_id", org.id).order("created_at", { ascending: false }),
+      ]);
+      setRows(lv.data || []);
+      setEmployees(emps.data || []);
+      setBalances(bals.data || []);
+      setTransactions(txns.data || []);
 
-    // Build policy form state - merge DB data with defaults
-    const pf: Record<string, { annual_limit: number; monthly_accrual: number }> = {};
-    ["casual", "sick", "el_pl", "comp_off"].forEach((t) => {
-      const meta = LEAVE_TYPES.find((x) => x.v === t)!;
-      const existing = (pols.data || []).find((p: any) => p.leave_type === t);
-      pf[t] = {
-        annual_limit: existing?.annual_limit ?? meta.annual,
-        monthly_accrual: existing?.monthly_accrual ?? parseFloat((meta.annual / 12).toFixed(2)),
-      };
-    });
-    setPolicyForm(pf);
-    setLoading(false);
+      // If no policies in DB for this org, auto-seed standard defaults into DB
+      let policyList = pols.data || [];
+      if (policyList.length === 0) {
+        const seedPayload = [
+          { org_id: org.id, leave_type: "casual", annual_limit: 12, monthly_accrual: 1.00 },
+          { org_id: org.id, leave_type: "sick", annual_limit: 5, monthly_accrual: 0.42 },
+          { org_id: org.id, leave_type: "el_pl", annual_limit: 15, monthly_accrual: 1.25 },
+          { org_id: org.id, leave_type: "comp_off", annual_limit: 0, monthly_accrual: 0.00 },
+        ];
+        await (supabase as any).from("leave_policies").insert(seedPayload);
+        const refetch = await (supabase as any).from("leave_policies").select("*").eq("org_id", org.id);
+        policyList = refetch.data || [];
+      }
+      setPolicies(policyList);
+
+      // Build policy form state - merge DB data with defaults
+      const pf: Record<string, { annual_limit: number; monthly_accrual: number }> = {};
+      ["casual", "sick", "el_pl", "comp_off"].forEach((t) => {
+        const meta = LEAVE_TYPES.find((x) => x.v === t)!;
+        const existing = policyList.find((p: any) => p.leave_type === t);
+        pf[t] = {
+          annual_limit: existing?.annual_limit ?? meta.annual,
+          monthly_accrual: existing?.monthly_accrual ?? parseFloat((meta.annual / 12).toFixed(2)),
+        };
+      });
+      setPolicyForm(pf);
+    } catch (err: any) {
+      console.error("Failed loading leaves data:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { 
@@ -375,20 +422,35 @@ export default function LeavesPage() {
     balancesByEmp[emp.id] = byType;
   });
 
-  const balancesList = (employees || []).map((emp) => ({
-    emp,
-    byType: balancesByEmp[emp.id] || {},
-  }));
-
-  const getBalance = (byType: Record<string, any>, type: string) => {
+  const getBalance = (byType: Record<string, any>, type: string, empId?: string) => {
     const pol = policies.find((p: any) => p.leave_type === type);
-    const baseAnnual = Number(pol?.annual_limit ?? LEAVE_TYPES.find((t) => t.v === type)?.annual ?? 0);
+    const fallbackAnnual = type === "casual" ? 12 : type === "sick" ? 5 : type === "el_pl" ? 15 : 0;
+    const baseAnnual = Number(pol?.annual_limit ?? LEAVE_TYPES.find((t) => t.v === type)?.annual ?? fallbackAnnual);
     const accrued = Number(byType[type]?.accrued ?? 0);
     const annual = Math.max(0, baseAnnual + accrued);
-    const used = Number(byType[type]?.used ?? 0);
+
+    // Compute used from actual approved requests in leaves rows (or DB balance record)
+    let used = Number(byType[type]?.used ?? 0);
+    if (empId) {
+      const dynamicUsed = (rows || [])
+        .filter((r) => r.employee_id === empId && r.leave_type === type && r.status === "approved")
+        .reduce((sum, r) => sum + (Number(r.days) || 1), 0);
+      used = Math.max(used, dynamicUsed);
+    }
+
     const remaining = Math.max(0, annual - used);
-    return { annual, used, remaining };
+    return { annual, used, remaining, accrued };
   };
+
+  const filteredBalancesList = (employees || [])
+    .filter((emp) => {
+      if (!balanceSearch.trim()) return true;
+      return emp.name?.toLowerCase().includes(balanceSearch.toLowerCase());
+    })
+    .map((emp) => ({
+      emp,
+      byType: balancesByEmp[emp.id] || {},
+    }));
 
   return (
     <div className="space-y-4">
@@ -461,94 +523,160 @@ export default function LeavesPage() {
         </TabsList>
 
         {/* ── Leave Requests Tab ── */}
-        <TabsContent value="requests">
+        <TabsContent value="requests" className="space-y-4">
+          {/* Filters & Search for past/current leaves */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-muted/40 p-3 rounded-xl border border-border">
+            <div className="flex items-center gap-2 flex-wrap">
+              {[
+                { key: "all", label: "All Requests", count: (rows || []).length },
+                { key: "pending", label: "Pending", count: (rows || []).filter(r => r.status === 'pending').length },
+                { key: "approved", label: "Approved", count: (rows || []).filter(r => r.status === 'approved').length },
+                { key: "rejected", label: "Rejected", count: (rows || []).filter(r => r.status === 'rejected').length },
+              ].map(({ key, label, count }) => (
+                <Button
+                  key={key}
+                  variant={statusFilter === key ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStatusFilter(key as any)}
+                  className={`text-xs h-8 rounded-lg font-medium ${statusFilter === key ? "" : "text-muted-foreground"}`}
+                >
+                  {label}
+                  <span className={`ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${statusFilter === key ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"}`}>
+                    {count}
+                  </span>
+                </Button>
+              ))}
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search employee, reason..."
+                value={requestSearch}
+                onChange={(e) => setRequestSearch(e.target.value)}
+                className="pl-8 h-8 text-xs bg-background"
+              />
+            </div>
+          </div>
+
           <Card>
             <CardContent className="p-0">
-              {loading ? <div className="p-8 text-center text-muted-foreground">Loading…</div>
-              : (!rows || rows.length === 0) ? <div className="p-8 text-center text-muted-foreground">No leave requests yet.</div>
-              : (
-                <Table>
-                  <TableHeader><TableRow>
-                    <TableHead>Employee</TableHead><TableHead>Type</TableHead><TableHead>From</TableHead>
-                    <TableHead>To</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead>
-                    <TableHead>Status</TableHead><TableHead className="text-right min-w-[220px]">Actions</TableHead>
-                  </TableRow></TableHeader>
-                  <TableBody>
-                    {(rows || []).map((r) => {
-                      const meta = typeMeta(r.leave_type);
-                      return (
-                        <TableRow key={r.id}>
-                          <TableCell className="font-medium">{r.employees?.name || "—"}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={`text-xs ${meta.color}`}>{meta.l}</Badge>
-                          </TableCell>
-                          <TableCell>{format(parseISO(r.start_date), "dd MMM yyyy")}</TableCell>
-                          <TableCell>{format(parseISO(r.end_date), "dd MMM yyyy")}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-bold">{r.days}</span>
-                              {["casual", "sick", "el_pl", "comp_off"].includes(r.leave_type) && (
-                                <span className={`text-[10px] ${r.days > getBalance(balancesByEmp[r.employee_id] || {}, r.leave_type).remaining ? 'text-red-500 font-bold' : 'text-gray-500'}`}>
-                                  {getBalance(balancesByEmp[r.employee_id] || {}, r.leave_type).remaining} available
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{r.reason || "—"}</TableCell>
-                          <TableCell>{statusBadge(r.status)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {r.status === "pending" && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-xs gap-1.5 transition-all active:scale-95"
-                                    onClick={() => setStatus(r.id, "approved")}
-                                    disabled={processingId === r.id}
-                                    title="Approve Leave"
-                                  >
-                                    {processingId === r.id ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                      <Check className="h-3.5 w-3.5" />
-                                    )}
-                                    Approve
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 px-3 text-red-600 border-red-200 bg-red-50/50 hover:bg-red-100 hover:text-red-700 hover:border-red-300 dark:border-red-900/50 dark:bg-red-950/20 dark:hover:bg-red-950/50 font-medium text-xs gap-1.5 transition-all active:scale-95"
-                                    onClick={() => setStatus(r.id, "rejected")}
-                                    disabled={processingId === r.id}
-                                    title="Reject Leave"
-                                  >
-                                    {processingId === r.id ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                      <X className="h-3.5 w-3.5" />
-                                    )}
-                                    Reject
-                                  </Button>
-                                </>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-red-50 dark:hover:bg-red-950/30"
-                                onClick={() => remove(r.id)}
-                                disabled={processingId === r.id}
-                                title="Delete Leave Request"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
+              {loading ? (
+                <div className="p-8 text-center text-muted-foreground">Loading…</div>
+              ) : (() => {
+                const filteredRows = (rows || []).filter((r) => {
+                  if (statusFilter !== "all" && r.status !== statusFilter) return false;
+                  if (requestSearch.trim()) {
+                    const q = requestSearch.toLowerCase();
+                    const empName = (r.employees?.name || "").toLowerCase();
+                    const reason = (r.reason || "").toLowerCase();
+                    const typeLabel = (LEAVE_TYPES.find(t => t.v === r.leave_type)?.l || r.leave_type || "").toLowerCase();
+                    if (!empName.includes(q) && !reason.includes(q) && !typeLabel.includes(q)) return false;
+                  }
+                  return true;
+                });
+
+                if (filteredRows.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-muted-foreground">
+                      No leave requests found{statusFilter !== "all" ? ` with status '${statusFilter}'` : ""}.
+                    </div>
+                  );
+                }
+
+                return (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>From</TableHead>
+                        <TableHead>To</TableHead>
+                        <TableHead>Days</TableHead>
+                        <TableHead>Reason</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right min-w-[200px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredRows.map((r) => {
+                        const meta = typeMeta(r.leave_type);
+                        const bal = getBalance(balancesByEmp[r.employee_id] || {}, r.leave_type, r.employee_id);
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell className="font-medium">{r.employees?.name || "—"}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={`text-xs ${meta.color}`}>{meta.l}</Badge>
+                            </TableCell>
+                            <TableCell>{format(parseISO(r.start_date), "dd MMM yyyy")}</TableCell>
+                            <TableCell>{format(parseISO(r.end_date), "dd MMM yyyy")}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-bold">{r.days} day(s)</span>
+                                {["casual", "sick", "el_pl", "comp_off"].includes(r.leave_type) && (
+                                  <span className={`text-[10px] ${r.days > bal.remaining ? 'text-red-500 font-bold' : 'text-gray-500'}`}>
+                                    {bal.remaining} available
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground" title={r.reason || ""}>
+                              {r.reason || "—"}
+                            </TableCell>
+                            <TableCell>{statusBadge(r.status)}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {r.status === "pending" && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-xs gap-1.5 transition-all active:scale-95"
+                                      onClick={() => setStatus(r.id, "approved")}
+                                      disabled={processingId === r.id}
+                                      title="Approve Leave"
+                                    >
+                                      {processingId === r.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <Check className="h-3.5 w-3.5" />
+                                      )}
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 px-3 text-red-600 border-red-200 bg-red-50/50 hover:bg-red-100 hover:text-red-700 hover:border-red-300 dark:border-red-900/50 dark:bg-red-950/20 dark:hover:bg-red-950/50 font-medium text-xs gap-1.5 transition-all active:scale-95"
+                                      onClick={() => setStatus(r.id, "rejected")}
+                                      disabled={processingId === r.id}
+                                      title="Reject Leave"
+                                    >
+                                      {processingId === r.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <X className="h-3.5 w-3.5" />
+                                      )}
+                                      Reject
+                                    </Button>
+                                  </>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-red-50 dark:hover:bg-red-950/30"
+                                  onClick={() => remove(r.id)}
+                                  disabled={processingId === r.id}
+                                  title="Delete Leave Request"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                );
+              })()}
             </CardContent>
           </Card>
 
@@ -556,44 +684,72 @@ export default function LeavesPage() {
           <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
             <Info className="h-4 w-4 shrink-0 mt-0.5" />
             <span>
-              Approving a leave request automatically deducts the required balance.
+              Approving a leave request automatically syncs attendance and deducts the employee's available balance in real time.
             </span>
           </div>
         </TabsContent>
 
         {/* ── Employee Balances Tab ── */}
-        <TabsContent value="balances">
+        <TabsContent value="balances" className="space-y-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-muted/40 p-3 rounded-xl border border-border">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">Employee Leave Quotas & Balances</span>
+              <span className="text-xs text-muted-foreground">({filteredBalancesList.length} employees)</span>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search employee..."
+                value={balanceSearch}
+                onChange={(e) => setBalanceSearch(e.target.value)}
+                className="pl-8 h-8 text-xs bg-background"
+              />
+            </div>
+          </div>
+
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Leave Balances (This Year)</CardTitle>
+            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Leave Balances (This Year)</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Calculated from company policies, monthly accruals, and approved leave records.</p>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
-              {loading ? <div className="p-8 text-center text-muted-foreground">Loading…</div>
-              : employees.length === 0 ? <div className="p-8 text-center text-muted-foreground">No active employees.</div>
-              : (
+              {loading ? (
+                <div className="p-8 text-center text-muted-foreground">Loading…</div>
+              ) : filteredBalancesList.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">No employees found.</div>
+              ) : (
                 <Table>
-                  <TableHeader><TableRow>
-                    <TableHead>Employee</TableHead>
-                    <TableHead className="text-center">Casual (Used / Annual)</TableHead>
-                    <TableHead className="text-center">Sick (Used / Annual)</TableHead>
-                    <TableHead className="text-center">Earned/PL (Used / Accrued)</TableHead>
-                      <TableHead className="text-center">Comp-Off (Used / Accrued)</TableHead>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead className="text-center">Casual (Left / Allowed)</TableHead>
+                      <TableHead className="text-center">Sick (Left / Allowed)</TableHead>
+                      <TableHead className="text-center">Earned/PL (Left / Allowed)</TableHead>
+                      <TableHead className="text-center">Comp-Off (Left / Accrued)</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
-                  </TableRow></TableHeader>
+                    </TableRow>
+                  </TableHeader>
                   <TableBody>
-                    {balancesList.map(({ emp, byType }) => (
+                    {filteredBalancesList.map(({ emp, byType }) => (
                       <TableRow key={emp.id}>
-                        <TableCell className="font-medium">{emp.name}</TableCell>
+                        <TableCell className="font-semibold text-foreground">{emp.name}</TableCell>
                         {["casual", "sick", "el_pl", "comp_off"].map((type) => {
-                          const { annual, used, remaining } = getBalance(byType, type);
+                          const { annual, used, remaining, accrued } = getBalance(byType, type, emp.id);
                           const pct = annual > 0 ? Math.min(100, (used / annual) * 100) : 0;
                           return (
                             <TableCell key={type} className="text-center">
-                              <div className="text-sm font-medium">{used} / {annual}</div>
-                              <div className="text-xs text-muted-foreground">{remaining} left</div>
-                              <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1">
+                              <div className="text-sm font-bold text-foreground">
+                                {remaining} <span className="text-xs font-normal text-muted-foreground">/ {annual} left</span>
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {used} used {accrued > 0 ? `(+${accrued} bonus)` : accrued < 0 ? `(${accrued})` : ""}
+                              </div>
+                              <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mt-1.5">
                                 <div
-                                  className={`h-1.5 rounded-full ${pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-green-500"}`}
+                                  className={`h-1.5 rounded-full ${pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500"}`}
                                   style={{ width: `${pct}%` }}
                                 />
                               </div>
@@ -601,10 +757,23 @@ export default function LeavesPage() {
                           );
                         })}
                         <TableCell className="text-right">
-                          <Button variant="outline" size="sm" onClick={() => {
-                            setAdjustForm({ employee_id: emp.id, employee_name: emp.name, leave_type: "comp_off", amount: 1, transaction_type: "credit", description: "", expiry_date: "" });
-                            setAdjustOpen(true);
-                          }}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="font-semibold hover:border-primary hover:text-primary transition-colors"
+                            onClick={() => {
+                              setAdjustForm({
+                                employee_id: emp.id,
+                                employee_name: emp.name,
+                                leave_type: "casual",
+                                amount: 1,
+                                transaction_type: "credit",
+                                description: "",
+                                expiry_date: ""
+                              });
+                              setAdjustOpen(true);
+                            }}
+                          >
                             <PlusCircle className="h-3.5 w-3.5 mr-1" />Adjust
                           </Button>
                         </TableCell>
@@ -619,13 +788,84 @@ export default function LeavesPage() {
 
         {/* ── Leave Policies Tab ── */}
         <TabsContent value="policies">
-          <div className="space-y-4 max-w-2xl">
-            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-              <Info className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>
-                Set annual leave limits and monthly accrual for each leave type. These apply to all employees in your organization. Default values: Casual=12, Sick=5. EL/PL and Comp-Off start at 0 and grow through monthly accrual or manual credits.
-              </span>
-            </div>
+          <div className="space-y-4 max-w-3xl">
+            {/* Visual HR Rule Guidelines Card */}
+            <Card className="border-amber-200 bg-gradient-to-br from-amber-50/60 via-orange-50/40 to-amber-50/20 dark:from-amber-950/20 dark:to-orange-950/10">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5 text-amber-600" />
+                    <CardTitle className="text-base text-amber-900 dark:text-amber-300">
+                      Standard HR Leave Rules for All Employees
+                    </CardTitle>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs bg-white dark:bg-slate-900 border-amber-300 hover:bg-amber-100 text-amber-800"
+                    onClick={() => {
+                      setPolicyForm({
+                        casual: { annual_limit: 12, monthly_accrual: 1.00 },
+                        sick: { annual_limit: 5, monthly_accrual: 0.42 },
+                        el_pl: { annual_limit: 15, monthly_accrual: 1.25 },
+                        comp_off: { annual_limit: 0, monthly_accrual: 0.00 },
+                      });
+                      toast({ title: "Reset to Standard Defaults", description: "Values updated in form. Click 'Save Policies' to persist." });
+                    }}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset to Recommended Defaults
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0 text-xs text-amber-900/90 dark:text-amber-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  <div className="p-2.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-amber-200/60 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5 text-blue-700 dark:text-blue-400">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      Casual Leave (CL): 12 Days / Year
+                    </div>
+                    <p className="text-muted-foreground text-[11px] leading-relaxed">
+                      All employees receive 12 days annually, accruing at <strong>1.0 day/month</strong>. New joiners can use this for unplanned or short personal absences.
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-amber-200/60 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                      Sick / Medical Leave (SL): 5 Days / Year
+                    </div>
+                    <p className="text-muted-foreground text-[11px] leading-relaxed">
+                      5 days allotted per calendar year, accruing at <strong>0.42 days/month</strong>. Used for medical illness and health recovery.
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-amber-200/60 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-400">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                      Earned / Privilege Leave (EL/PL): 15 Days / Year
+                    </div>
+                    <p className="text-muted-foreground text-[11px] leading-relaxed">
+                      15 days annual entitlement, accruing at <strong>1.25 days/month</strong>. Planned long holidays and vacations.
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-amber-200/60 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5 text-teal-700 dark:text-teal-400">
+                      <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                      Compensatory Off (Comp-Off): On-Demand
+                    </div>
+                    <p className="text-muted-foreground text-[11px] leading-relaxed">
+                      Starts at 0. Awarded by HR via <strong>+ Adjust</strong> when an employee works on Sunday, weekly off, or public holiday.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1 text-[11px] font-medium text-amber-800 dark:text-amber-300">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>These rules apply immediately to all new joiners and existing team members across both HR Portal and Employee Portal.</span>
+                </div>
+              </CardContent>
+            </Card>
 
             {["casual", "sick", "el_pl", "comp_off"].map((type) => {
               const meta = typeMeta(type);
@@ -650,14 +890,15 @@ export default function LeavesPage() {
                           }))
                         }
                       />
+                      <p className="text-[11px] text-muted-foreground mt-1">Full yearly quota granted to each employee.</p>
                     </div>
                     <div>
                       <Label>Monthly Accrual (days/month)</Label>
                       <Input
                         type="number"
                         min={0}
-                        step={0.25}
-                        value={policyForm[type]?.monthly_accrual ?? parseFloat((meta.annual / 12).toFixed(2))}
+                        step={0.05}
+                        value={policyForm[type]?.monthly_accrual ?? (type === 'casual' ? 1.0 : type === 'sick' ? 0.42 : type === 'el_pl' ? 1.25 : 0)}
                         onChange={(e) =>
                           setPolicyForm((prev) => ({
                             ...prev,
@@ -665,7 +906,7 @@ export default function LeavesPage() {
                           }))
                         }
                       />
-                      <p className="text-xs text-muted-foreground mt-1">How many days accrue per month for this leave type.</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">Added automatically to employee balance each month.</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -780,17 +1021,32 @@ export default function LeavesPage() {
         {/* === Adjust Balance Dialog === */}
         <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Adjust Leave Balance - {adjustForm.employee_name}</DialogTitle></DialogHeader>
+            <DialogHeader>
+              <DialogTitle>Adjust Leave Balance — {adjustForm.employee_name}</DialogTitle>
+            </DialogHeader>
             <div className="space-y-4 py-2">
+              {/* Current balance helper preview */}
+              {adjustForm.employee_id && adjustForm.leave_type && (() => {
+                const b = getBalance(balancesByEmp[adjustForm.employee_id] || {}, adjustForm.leave_type, adjustForm.employee_id);
+                return (
+                  <div className="p-3 bg-muted/60 border border-border rounded-xl text-xs flex items-center justify-between">
+                    <span className="text-muted-foreground font-medium">Current Available Balance:</span>
+                    <span className="font-bold text-foreground">
+                      {b.remaining} days left <span className="font-normal text-muted-foreground">({b.annual} allowed, {b.used} used)</span>
+                    </span>
+                  </div>
+                );
+              })()}
+
               <div>
                 <Label>Leave Type</Label>
                 <Select value={adjustForm.leave_type} onValueChange={(v) => setAdjustForm({ ...adjustForm, leave_type: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="casual">Casual Leave (CL)</SelectItem>
+                    <SelectItem value="sick">Sick / Medical Leave (SL)</SelectItem>
+                    <SelectItem value="el_pl">Earned / Privilege Leave (EL/PL)</SelectItem>
                     <SelectItem value="comp_off">Compensatory Off (CO)</SelectItem>
-                    <SelectItem value="el_pl">Earned/Privilege (EL/PL)</SelectItem>
-                    <SelectItem value="casual">Casual Leave</SelectItem>
-                    <SelectItem value="sick">Sick Leave</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -800,13 +1056,13 @@ export default function LeavesPage() {
                   <Select value={adjustForm.transaction_type} onValueChange={(v) => setAdjustForm({ ...adjustForm, transaction_type: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="credit">Credit (Add)</SelectItem>
-                      <SelectItem value="deduction">Deduct (Remove)</SelectItem>
+                      <SelectItem value="credit">Credit (Add Leaves)</SelectItem>
+                      <SelectItem value="deduction">Deduct (Remove Leaves)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label>Days</Label>
+                  <Label>Days to Adjust</Label>
                   <Input type="number" min="0.5" step="0.5" value={adjustForm.amount} onChange={(e) => setAdjustForm({ ...adjustForm, amount: e.target.value })} />
                 </div>
               </div>
