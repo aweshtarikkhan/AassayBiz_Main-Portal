@@ -12,11 +12,7 @@ export function PublicHeader() {
         <Link to="/" className="flex items-center gap-2 shrink-0">
           <img src={`${logoImg}?v=${Date.now()}`} alt="Aassay Biz" className="h-6 sm:h-8 w-auto object-contain" />
         </Link>
-        <nav className="hidden md:flex items-center gap-7 text-sm font-semibold text-slate-600">
-          <Link to="/" className="hover:text-primary transition-colors">Home</Link>
-          <a href="/#features" className="hover:text-primary transition-colors">Features</a>
-          <Link to="/partner-with-us" className="hover:text-primary transition-colors">Partner With Us</Link>
-        </nav>
+        
         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
           {session ? (
             <Button variant="outline" className="text-primary border-primary/30 hover:bg-primary/10 font-semibold px-2 sm:px-4 text-xs sm:text-sm h-9 sm:h-10" asChild>
@@ -28,7 +24,7 @@ export function PublicHeader() {
             </Button>
           )}
           <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-md shadow-primary/25 rounded-full px-4 sm:px-6 text-xs sm:text-sm h-9 sm:h-10" asChild>
-            <a href="/#pricing">View Plans</a>
+            <Link to="/pricing">View Plans</Link>
           </Button>
         </div>
       </div>

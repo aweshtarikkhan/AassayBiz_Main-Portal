@@ -57,6 +57,8 @@ const RecurringInvoicesPage = lazy(() => import("./pages/RecurringInvoicesPage")
 const GstReturnsPage = lazy(() => import("./pages/GstReturnsPage"));
 const DemoAutoLoginPage = lazy(() => import("./pages/DemoAutoLoginPage"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
+const PricingPage = lazy(() => import("./pages/PricingPage"));
+const BookDemoPage = lazy(() => import("./pages/BookDemoPage"));
 const ChatUIPage = lazy(() => import("./pages/ChatUIPage"));
 const VendorsPage = lazy(() => import("./pages/VendorsPage"));
 const VendorDetailPage = lazy(() => import("./pages/VendorDetailPage"));
@@ -382,6 +384,9 @@ const App = () => (
 
             {/* Redirects */}
             <Route path="/" element={<LandingPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/book-demo" element={<BookDemoPage />} />
+            <Route path="/demo" element={<Navigate to="/book-demo" replace />} />
             <Route path="/partner" element={<PartnerWithUsPage />} />
             <Route path="/partner-with-us" element={<PartnerWithUsPage />} />
 
