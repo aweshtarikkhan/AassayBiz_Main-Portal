@@ -99,13 +99,16 @@ IMPORTANT CONTACT RULES:
     - Platform access up to 5 employees included.
     - Unlimited Invoices, Quotations, Purchase Invoices, Purchase Orders, and Leads.
     - Base 10 Employee Attendance capacity for all new accounts (+ ₹49/employee/mo or ₹588/employee/yr for extra employees beyond 10). Note: All existing customer accounts subscribed prior to this policy change retain their 25-employee attendance capacity.
-    - Base 5 Platform Users (+ ₹99/user/mo or ₹1,188/user/yr for additional platform access).
     - Includes 2 CRM Sales Team Member logins (+ ₹99/user/mo or ₹1,188/user/yr for extra CRM sales team members).
+    - Add-on: Task Management available at ₹599/month (₹7,188/year = ₹599 × 12).
+    - Add-on: Expense Management available at ₹999/month (₹11,988/year = ₹999 × 12).
     - Full access to Business Integration, Marketing campaigns, and Settings.
   * Add-ons & Mid-Cycle Proration Rules:
+    - Task Management Add-on: ₹599/month (₹7,188/year = ₹599 × 12) for task assignment, kanban workflow, milestones, and employee productivity tracking (available on Business HR and Business Suite).
+    - Expense Management Add-on: ₹999/month (₹11,988/year = ₹999 × 12) for business travel expenses, voucher uploads, approval workflows, and reimbursements (available on Business HR and Business Suite).
     - Extra Employee: ₹49/mo (₹588/yr = ₹49 × 12) per additional employee attendance slot beyond 10 under Business HR or Suite.
     - Extra CRM Sales Team Member: ₹99/mo (₹1,188/yr = ₹99 × 12) per additional sales executive portal login beyond the 2 included accounts in Business CRM or Suite.
-    - Additional Platform Access: ₹99/mo (₹1,188/yr = ₹99 × 12) per additional admin/platform seat to collaborate on the business portal.
+    - GST Policy: 18% GST is charged separately and displayed transparently at checkout / billing summary.
     - Flat Monthly Add-on Rate: Add-ons never carry an annual discount (always billed at monthly rate × 12 on full-year purchases).
     - Mid-Cycle Proration & Synchronized Expiry: If an organization already holds an active paid subscription and purchases add-ons mid-cycle (for example, a Yearly plan active from 10 Oct 2026 to 09 Oct 2027 with add-ons purchased on 15 Nov 2026), add-ons are charged only for the remaining months (11 months in this example) and expire together with the main plan on the existing expiry date (09 Oct 2027) without extending the main plan period.
   * Checkout & Statutory Billing Information (/checkout):

@@ -729,7 +729,8 @@ export function PlanSelectorModal({
         
         const addonSummaryParts: string[] = [];
         if (extraEmployeesToAdd > 0) addonSummaryParts.push(`+${extraEmployeesToAdd} HR Employee${extraEmployeesToAdd > 1 ? "s" : ""}`);
-        if (extraPlatformEmployeesToAdd > 0) addonSummaryParts.push(`+${extraPlatformEmployeesToAdd} Platform User${extraPlatformEmployeesToAdd > 1 ? "s" : ""}`);
+        if (hasTaskAddon) addonSummaryParts.push("Task Management Add-on (+₹599/mo)");
+        if (hasExpenseAddon) addonSummaryParts.push("Expense Management Add-on (+₹999/mo)");
         if (extraCrmMembersToAdd > 0) addonSummaryParts.push(`+${extraCrmMembersToAdd} CRM Member${extraCrmMembersToAdd > 1 ? "s" : ""}`);
 
         let planDisplay = targetPlanNames.map((p) => {
@@ -792,7 +793,8 @@ export function PlanSelectorModal({
       // For paid purchases, navigate to the dedicated Checkout & Statutory Billing Information page
       const addonSummaryParts: string[] = [];
       if (extraEmployeesToAdd > 0) addonSummaryParts.push(`+${extraEmployeesToAdd} HR Employee${extraEmployeesToAdd > 1 ? "s" : ""}`);
-      if (extraPlatformEmployeesToAdd > 0) addonSummaryParts.push(`+${extraPlatformEmployeesToAdd} Platform User${extraPlatformEmployeesToAdd > 1 ? "s" : ""}`);
+      if (hasTaskAddon) addonSummaryParts.push("Task Management Add-on (+₹599/mo)");
+      if (hasExpenseAddon) addonSummaryParts.push("Expense Management Add-on (+₹999/mo)");
       if (extraCrmMembersToAdd > 0) addonSummaryParts.push(`+${extraCrmMembersToAdd} CRM Member${extraCrmMembersToAdd > 1 ? "s" : ""}`);
 
       let planDisplay = targetPlanNames

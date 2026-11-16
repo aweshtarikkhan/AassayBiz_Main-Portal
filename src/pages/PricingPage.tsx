@@ -28,7 +28,8 @@ export default function PricingPage() {
   const [dbPlans, setDbPlans] = useState<any[]>([]);
   const [selectedPlans, setSelectedPlans] = useState<string[]>([]);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("yearly");
-  const [platformExtra, setPlatformExtra] = useState(0);
+  const [hasTaskAddon, setHasTaskAddon] = useState(false);
+  const [hasExpenseAddon, setHasExpenseAddon] = useState(false);
   const [hrExtra, setHrExtra] = useState(0);
   const [crmExtra, setCrmExtra] = useState(0);
   const [isDemoDialogOpen, setIsDemoDialogOpen] = useState(false);
@@ -60,15 +61,19 @@ export default function PricingPage() {
     });
   }, []);
 
-  const getPlanPrice = (baseMo: number, baseYr: number, hasHrAddon = false, hasCrmAddon = false) => {
-    const platAddon = platformExtra * 99;
+  const getPlanPrice = (baseMo: number, baseYr: number, hasHrAddon = false, hasCrmAddon = false, isHrOrSuite = false) => {
     const hrAddon = hasHrAddon ? hrExtra * 49 : 0;
     const crmAddon = hasCrmAddon ? crmExtra * 99 : 0;
-    const totalMo = baseMo + platAddon + hrAddon + crmAddon;
-    const platAddonYr = platformExtra * 99 * 12;
+    const taskAddon = isHrOrSuite && hasTaskAddon ? 599 : 0;
+    const expenseAddon = isHrOrSuite && hasExpenseAddon ? 999 : 0;
+    const totalMo = baseMo + hrAddon + crmAddon + taskAddon + expenseAddon;
+
     const hrAddonYr = hasHrAddon ? hrExtra * 49 * 12 : 0;
     const crmAddonYr = hasCrmAddon ? crmExtra * 99 * 12 : 0;
-    const totalYr = baseYr + platAddonYr + hrAddonYr + crmAddonYr;
+    const taskAddonYr = isHrOrSuite && hasTaskAddon ? 7188 : 0;
+    const expenseAddonYr = isHrOrSuite && hasExpenseAddon ? 11988 : 0;
+    const totalYr = baseYr + hrAddonYr + crmAddonYr + taskAddonYr + expenseAddonYr;
+
     if (billingCycle === "yearly") {
       const monthlyEquiv = Math.floor(totalYr / 12);
       return monthlyEquiv.toLocaleString("en-IN");
@@ -76,11 +81,12 @@ export default function PricingPage() {
     return totalMo.toLocaleString("en-IN");
   };
 
-  const getPlanYearlyTotal = (baseYr: number, hasHrAddon = false, hasCrmAddon = false) => {
-    const platAddonYr = platformExtra * 99 * 12;
+  const getPlanYearlyTotal = (baseYr: number, hasHrAddon = false, hasCrmAddon = false, isHrOrSuite = false) => {
     const hrAddonYr = hasHrAddon ? hrExtra * 49 * 12 : 0;
     const crmAddonYr = hasCrmAddon ? crmExtra * 99 * 12 : 0;
-    const totalYr = baseYr + platAddonYr + hrAddonYr + crmAddonYr;
+    const taskAddonYr = isHrOrSuite && hasTaskAddon ? 7188 : 0;
+    const expenseAddonYr = isHrOrSuite && hasExpenseAddon ? 11988 : 0;
+    const totalYr = baseYr + hrAddonYr + crmAddonYr + taskAddonYr + expenseAddonYr;
     return totalYr.toLocaleString("en-IN");
   };
 
@@ -96,26 +102,36 @@ export default function PricingPage() {
   let totalAmount = 0;
   if (finalSelected.has("suite")) {
     totalAmount = isYearly ? 20388 : 1999;
-    if (platformExtra > 0) {
-      totalAmount += platformExtra * (isYearly ? 99 * 12 : 99);
-    }
     if (crmExtra > 0) {
       totalAmount += crmExtra * (isYearly ? 99 * 12 : 99);
     }
+    if (hasTaskAddon) {
+      totalAmount += isYearly ? 7188 : 599;
+    }
+    if (hasExpenseAddon) {
+      totalAmount += isYearly ? 11988 : 999;
+    }
   } else {
     if (finalSelected.has("accounting")) totalAmount += isYearly ? 5988 : 599;
-    if (finalSelected.has("hr")) totalAmount += isYearly ? 5988 : 599;
-    if (finalSelected.has("crm")) totalAmount += isYearly ? 5988 : 599;
+    if (finalSelected.has("hr")) {
+      totalAmount += isYearly ? 5988 : 599;
+      if (hrExtra > 0) {
+        totalAmount += hrExtra * (isYearly ? 49 * 12 : 49);
+      }
+      if (hasTaskAddon) {
+        totalAmount += isYearly ? 7188 : 599;
+      }
+      if (hasExpenseAddon) {
+        totalAmount += isYearly ? 11988 : 999;
+      }
+    }
+    if (finalSelected.has("crm")) {
+      totalAmount += isYearly ? 5988 : 599;
+      if (crmExtra > 0) {
+        totalAmount += crmExtra * (isYearly ? 99 * 12 : 99);
+      }
+    }
     if (finalSelected.has("promotion")) totalAmount += isYearly ? 5988 : 599;
-    if (finalSelected.size > 0 && platformExtra > 0) {
-      totalAmount += platformExtra * (isYearly ? 99 * 12 : 99);
-    }
-    if (finalSelected.has("hr") && hrExtra > 0) {
-      totalAmount += hrExtra * (isYearly ? 49 * 12 : 49);
-    }
-    if (finalSelected.has("crm") && crmExtra > 0) {
-      totalAmount += crmExtra * (isYearly ? 99 * 12 : 99);
-    }
   }
 
   return (
@@ -336,26 +352,14 @@ export default function PricingPage() {
                           <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                           <span>Platform access up to 3 employees</span>
                         </div>
-                        <div className="flex items-center justify-between w-full bg-orange-50/50 p-2 rounded-lg border border-orange-100/50 mt-2" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-[#e77817] shrink-0" />
-                            <span className="text-slate-700 font-semibold">
-                              + Additional Platform Access (₹99/mo)
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
-                            <button onClick={(e) => { e.stopPropagation(); setPlatformExtra(Math.max(0, platformExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
-                            <span className="font-bold text-sm w-5 text-center text-slate-800">{platformExtra}</span>
-                            <button onClick={(e) => { e.stopPropagation(); setPlatformExtra(platformExtra + 1); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
-                          </div>
-                        </div>
+
                       </div>
                     </div>
 
                     {/* Button */}
                     <div className="mt-auto pt-2 flex justify-end">
                       <Link
-                        to={`/register?plan=accounting&billing=${billingCycle}&hr=${hrExtra}&plat=${platformExtra}`}
+                        to={`/register?plan=accounting&billing=${billingCycle}`}
                         onClick={(e) => e.stopPropagation()}
                         className="border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1 transition-all duration-200 shadow-2xs"
                       >
@@ -405,7 +409,7 @@ export default function PricingPage() {
                       {/* Price */}
                       <div className="mb-5">
                         <div className="flex items-baseline gap-1">
-                          <span className="text-3xl font-black text-slate-900">{`₹${getPlanPrice(599, 5988, true)}`}</span>
+                          <span className="text-3xl font-black text-slate-900">{`₹${getPlanPrice(599, 5988, true, false, true)}`}</span>
                           <span className="text-xs text-slate-500 font-semibold">/month</span>
                         </div>
                         {isYearly ? (
@@ -465,17 +469,71 @@ export default function PricingPage() {
                           <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                           <span>Platform access up to 3 employees</span>
                         </div>
-                        <div className="flex items-center justify-between w-full bg-orange-50/50 p-2 rounded-lg border border-orange-100/50 mt-2" onClick={(e) => e.stopPropagation()}>
+                        {/* Task Management Add-on */}
+                        <div 
+                          onClick={(e) => { e.stopPropagation(); setHasTaskAddon(!hasTaskAddon); }}
+                          className={`flex items-center justify-between w-full p-2.5 rounded-xl border transition-all cursor-pointer mt-2 ${
+                            hasTaskAddon ? 'bg-purple-50/80 border-purple-300 ring-1 ring-purple-300' : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
                           <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-[#e77817] shrink-0" />
-                            <span className="text-slate-700 font-semibold">
-                              + Additional Platform Access (₹99/mo)
-                            </span>
+                            <div className={`w-4.5 h-4.5 rounded flex items-center justify-center border transition-colors ${
+                              hasTaskAddon ? 'bg-[#28166f] border-[#28166f] text-white' : 'bg-white border-slate-300'
+                            }`}>
+                              {hasTaskAddon && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                            <div className="flex flex-col text-left">
+                              <span className="text-slate-800 font-bold text-xs">
+                                + Task Management
+                              </span>
+                              <span className="text-[10px] text-slate-500">
+                                Team tracking & calendar sync
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
-                            <button onClick={(e) => { e.stopPropagation(); setPlatformExtra(Math.max(0, platformExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
-                            <span className="font-bold text-sm w-5 text-center text-slate-800">{platformExtra}</span>
-                            <button onClick={(e) => { e.stopPropagation(); setPlatformExtra(platformExtra + 1); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
+                          <div className="text-right">
+                            <div className="text-xs font-black text-[#28166f]">
+                              ₹599<span className="text-[10px] font-normal text-slate-500">/mo</span>
+                            </div>
+                            {isYearly && (
+                              <div className="text-[9px] text-slate-400">
+                                ₹7,188/yr billed annually
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Expense Management Add-on */}
+                        <div 
+                          onClick={(e) => { e.stopPropagation(); setHasExpenseAddon(!hasExpenseAddon); }}
+                          className={`flex items-center justify-between w-full p-2.5 rounded-xl border transition-all cursor-pointer mt-2 ${
+                            hasExpenseAddon ? 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-300' : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={`w-4.5 h-4.5 rounded flex items-center justify-center border transition-colors ${
+                              hasExpenseAddon ? 'bg-[#e77817] border-[#e77817] text-white' : 'bg-white border-slate-300'
+                            }`}>
+                              {hasExpenseAddon && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                            <div className="flex flex-col text-left">
+                              <span className="text-slate-800 font-bold text-xs">
+                                + Expense Management
+                              </span>
+                              <span className="text-[10px] text-slate-500">
+                                Travel & outstation claims
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs font-black text-[#e77817]">
+                              ₹999<span className="text-[10px] font-normal text-slate-500">/mo</span>
+                            </div>
+                            {isYearly && (
+                              <div className="text-[9px] text-slate-400">
+                                ₹11,988/yr billed annually
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -484,7 +542,7 @@ export default function PricingPage() {
                     {/* Button */}
                     <div className="mt-auto pt-2 flex justify-end">
                       <Link
-                        to={`/register?plan=hr&billing=${billingCycle}${hrExtra > 0 ? `&hr=${hrExtra}` : ''}${platformExtra > 0 ? `&plat=${platformExtra}` : ''}`}
+                        to={`/register?plan=hr&billing=${billingCycle}${hrExtra > 0 ? `&hr=${hrExtra}` : ''}${hasTaskAddon ? '&task=1' : ''}${hasExpenseAddon ? '&expense=1' : ''}`}
                         onClick={(e) => e.stopPropagation()}
                         className="border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1 transition-all duration-200 shadow-2xs"
                       >
@@ -600,26 +658,14 @@ export default function PricingPage() {
                           <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                           <span>Platform access up to 3 employees</span>
                         </div>
-                        <div className="flex items-center justify-between w-full bg-orange-50/50 p-2 rounded-lg border border-orange-100/50 mt-1" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-[#e77817] shrink-0" />
-                            <span className="text-slate-700 font-semibold text-xs sm:text-[13px]">
-                              + Additional Platform Access (₹99/mo)
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
-                            <button onClick={(e) => { e.stopPropagation(); setPlatformExtra(Math.max(0, platformExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
-                            <span className="font-bold text-sm w-5 text-center text-slate-800">{platformExtra}</span>
-                            <button onClick={(e) => { e.stopPropagation(); setPlatformExtra(platformExtra + 1); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
-                          </div>
-                        </div>
+
                       </div>
                     </div>
 
                     {/* Button */}
                     <div className="mt-auto pt-2 flex justify-end">
                       <Link
-                        to={`/register?plan=crm&billing=${billingCycle}${platformExtra > 0 ? `&plat=${platformExtra}` : ''}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}`}
+                        to={`/register?plan=crm&billing=${billingCycle}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}`}
                         onClick={(e) => e.stopPropagation()}
                         className="border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1 transition-all duration-200 shadow-2xs"
                       >
@@ -711,26 +757,14 @@ export default function PricingPage() {
                           <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                           <span>Platform access up to 3 employees</span>
                         </div>
-                        <div className="flex items-center justify-between w-full bg-orange-50/50 p-2 rounded-lg border border-orange-100/50 mt-2" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-[#e77817] shrink-0" />
-                            <span className="text-slate-700 font-semibold">
-                              + Additional Platform Access (₹99/mo)
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
-                            <button onClick={(e) => { e.stopPropagation(); setPlatformExtra(Math.max(0, platformExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
-                            <span className="font-bold text-sm w-5 text-center text-slate-800">{platformExtra}</span>
-                            <button onClick={(e) => { e.stopPropagation(); setPlatformExtra(platformExtra + 1); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
-                          </div>
-                        </div>
+
                       </div>
                     </div>
 
                     {/* Button */}
                     <div className="mt-auto pt-2 flex justify-end">
                       <Link
-                        to={`/register?plan=promotion&billing=${billingCycle}${platformExtra > 0 ? `&plat=${platformExtra}` : ''}`}
+                        to={`/register?plan=promotion&billing=${billingCycle}`}
                         onClick={(e) => e.stopPropagation()}
                         className="border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1 transition-all duration-200 shadow-2xs"
                       >
@@ -940,15 +974,74 @@ export default function PricingPage() {
                         </div>
                         <span>Platform Access up to 5 employees</span>
                       </div>
-                      <div className="flex items-center justify-between max-w-md bg-orange-50/50 p-2 rounded-lg border border-orange-100/50" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4 text-[#e77817] shrink-0" />
-                          <span className="text-slate-700 font-semibold text-xs sm:text-[13px]">+ Additional Platform Access (₹99/mo)</span>
+                      {/* Suite Addons Grid: Task & Expense Management */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl w-full">
+                        {/* Task Management Add-on */}
+                        <div 
+                          onClick={(e) => { e.stopPropagation(); setHasTaskAddon(!hasTaskAddon); }}
+                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                            hasTaskAddon ? 'bg-purple-50/90 border-purple-300 ring-1 ring-purple-300' : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={`w-4.5 h-4.5 rounded flex items-center justify-center border transition-colors ${
+                              hasTaskAddon ? 'bg-[#28166f] border-[#28166f] text-white' : 'bg-white border-slate-300'
+                            }`}>
+                              {hasTaskAddon && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                            <div className="flex flex-col text-left">
+                              <span className="text-slate-800 font-bold text-xs">
+                                + Task Management
+                              </span>
+                              <span className="text-[10px] text-slate-500">
+                                Team tasks & calendar
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs font-black text-[#28166f]">
+                              ₹599<span className="text-[10px] font-normal text-slate-500">/mo</span>
+                            </div>
+                            {isYearly && (
+                              <div className="text-[9px] text-slate-400">
+                                ₹7,188/yr
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
-                          <button onClick={(e) => { e.stopPropagation(); setPlatformExtra(Math.max(0, platformExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
-                          <span className="font-bold text-sm w-5 text-center text-slate-800">{platformExtra}</span>
-                          <button onClick={(e) => { e.stopPropagation(); setPlatformExtra(platformExtra + 1); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
+
+                        {/* Expense Management Add-on */}
+                        <div 
+                          onClick={(e) => { e.stopPropagation(); setHasExpenseAddon(!hasExpenseAddon); }}
+                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                            hasExpenseAddon ? 'bg-amber-50/90 border-amber-300 ring-1 ring-amber-300' : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={`w-4.5 h-4.5 rounded flex items-center justify-center border transition-colors ${
+                              hasExpenseAddon ? 'bg-[#e77817] border-[#e77817] text-white' : 'bg-white border-slate-300'
+                            }`}>
+                              {hasExpenseAddon && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                            <div className="flex flex-col text-left">
+                              <span className="text-slate-800 font-bold text-xs">
+                                + Expense Management
+                              </span>
+                              <span className="text-[10px] text-slate-500">
+                                Travel claims & approvals
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs font-black text-[#e77817]">
+                              ₹999<span className="text-[10px] font-normal text-slate-500">/mo</span>
+                            </div>
+                            {isYearly && (
+                              <div className="text-[9px] text-slate-400">
+                                ₹11,988/yr
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -956,7 +1049,7 @@ export default function PricingPage() {
                     {/* Right: Solid Action Button */}
                     <div className="flex items-center justify-end lg:border-l lg:border-slate-200 lg:pl-8">
                       <Link
-                        to={`/register?plan=suite&billing=${billingCycle}${platformExtra > 0 ? `&plat=${platformExtra}` : ''}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}`}
+                        to={`/register?plan=suite&billing=${billingCycle}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}${hasTaskAddon ? '&task=1' : ''}${hasExpenseAddon ? '&expense=1' : ''}`}
                         onClick={(e) => e.stopPropagation()}
                         className="bg-[#e77817] hover:bg-[#d46a0f] text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-orange-500/25 flex items-center gap-2 transition-all duration-200 text-sm whitespace-nowrap"
                       >
@@ -978,7 +1071,7 @@ export default function PricingPage() {
                       <span className="text-xl font-bold text-white">{finalSelected.size}</span>
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-slate-300 uppercase tracking-wider">Total Selected</div>
+                      <div className="text-sm font-medium text-slate-300 uppercase tracking-wider">Subtotal (+ 18% GST separate)</div>
                       <div className="text-3xl font-black text-white">
                         {isYearly ? (
                           <>
@@ -998,7 +1091,7 @@ export default function PricingPage() {
                     </div>
                   </div>
                   <Button size="lg" className="w-full md:w-auto h-14 px-10 text-lg font-bold bg-[#e77817] hover:bg-[#d46a0f] text-white rounded-full shadow-[0_0_20px_rgba(231,120,23,0.4)]" asChild>
-                    <Link to={`/register?plan=${Array.from(finalSelected).join(",")}&billing=${billingCycle}&hr=${hrExtra}&plat=${platformExtra}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}`}>
+                    <Link to={`/register?plan=${Array.from(finalSelected).join(",")}&billing=${billingCycle}&hr=${hrExtra}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}${hasTaskAddon ? '&task=1' : ''}${hasExpenseAddon ? '&expense=1' : ''}`}>
                       Proceed to Checkout <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>
                   </Button>

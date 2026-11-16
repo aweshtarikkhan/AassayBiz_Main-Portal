@@ -332,7 +332,7 @@ export default function LandingPage() {
               {/* Button 1: Start Free -> /book-demo */}
               <Button
                 size="lg"
-                className="h-[68px] w-full sm:w-[245px] text-lg font-bold bg-gradient-to-r from-[#1c0842] via-[#2a0b63] to-[#1c0842] hover:opacity-95 text-white shadow-xl shadow-purple-950/25 rounded-[20px] border-t border-purple-300/30 border-b border-purple-950 transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+                className="h-[58px] w-full sm:w-[225px] text-lg font-bold bg-gradient-to-r from-[#1c0842] via-[#2a0b63] to-[#1c0842] hover:opacity-95 text-white shadow-xl shadow-purple-950/25 rounded-[20px] border-t border-purple-300/30 border-b border-purple-950 transition-all duration-300 hover:scale-[1.02] cursor-pointer"
                 asChild
               >
                 <Link to="/book-demo" className="w-full h-full flex items-center justify-center gap-3">
@@ -345,7 +345,7 @@ export default function LandingPage() {
               {/* Button 2: Book a Demo -> /book-demo */}
               <Button
                 size="lg"
-                className="h-[68px] w-full sm:w-[245px] text-lg font-bold bg-[#fffdfa] hover:bg-[#fff9ef] text-slate-900 shadow-md shadow-amber-500/10 rounded-[20px] border-2 border-[#f59e0b] transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+                className="h-[58px] w-full sm:w-[225px] text-lg font-bold bg-[#fffdfa] hover:bg-[#fff9ef] text-slate-900 shadow-md shadow-amber-500/10 rounded-[20px] border-2 border-[#f59e0b] transition-all duration-300 hover:scale-[1.02] cursor-pointer"
                 asChild
               >
                 <Link to="/book-demo" className="w-full h-full flex items-center justify-center gap-3">
