@@ -14,18 +14,19 @@ export function PublicHeader() {
         </Link>
         
         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          <Button variant="ghost" className="text-slate-700 hover:text-primary hover:bg-slate-100 font-semibold px-2 sm:px-4 text-xs sm:text-sm h-9 sm:h-10" asChild>
+            <Link to="/pricing">View Plans</Link>
+          </Button>
+
           {session ? (
-            <Button variant="outline" className="text-primary border-primary/30 hover:bg-primary/10 font-semibold px-2 sm:px-4 text-xs sm:text-sm h-9 sm:h-10" asChild>
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-md shadow-primary/25 rounded-full px-4 sm:px-6 text-xs sm:text-sm h-9 sm:h-10" asChild>
               <Link to="/dashboard">Dashboard</Link>
             </Button>
           ) : (
-            <Button variant="ghost" className="text-slate-700 hover:text-primary hover:bg-slate-100 font-semibold px-2 sm:px-4 text-xs sm:text-sm h-9 sm:h-10" asChild>
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-md shadow-primary/25 rounded-full px-4 sm:px-6 text-xs sm:text-sm h-9 sm:h-10" asChild>
               <Link to="/login">Sign in</Link>
             </Button>
           )}
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-md shadow-primary/25 rounded-full px-4 sm:px-6 text-xs sm:text-sm h-9 sm:h-10" asChild>
-            <Link to="/pricing">View Plans</Link>
-          </Button>
         </div>
       </div>
     </header>
