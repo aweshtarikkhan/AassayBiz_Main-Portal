@@ -44,6 +44,7 @@ import { CouponsManager } from "@/components/admin/CouponsManager";
 import { PlatformSettingsManager } from "@/components/admin/PlatformSettingsManager";
 import { LandingPageReviewsManager } from "@/components/admin/LandingPageReviewsManager";
 import { PlatformSocialsManager } from "@/components/admin/PlatformSocialsManager";
+import { PlatformInvoicesManager } from "@/components/admin/PlatformInvoicesManager";
 import logoImg from "@/assets/logo.png";
 
 
@@ -158,6 +159,7 @@ export default function PlatformAdminPage() {
   const tabTitles: Record<string, string> = {
     overview: "Platform Overview",
     orgs: "Businesses Directory",
+    invoices: "Platform Invoices & Revenue",
     users: "Registered Users",
     pricing: "Plans & Pricing",
     reviews: "Landing Reviews",
@@ -242,6 +244,7 @@ export default function PlatformAdminPage() {
   const sidebarItems = [
     { key: "overview", label: "Overview", icon: LayoutDashboard },
     { key: "orgs", label: "Businesses", icon: Building2 },
+    { key: "invoices", label: "Invoices", icon: Receipt },
     { key: "users", label: "All Users", icon: Users2 },
     { key: "pricing", label: "Plans & Pricing", icon: IndianRupee },
     { key: "reviews", label: "Reviews", icon: MessageSquare },
@@ -1708,6 +1711,11 @@ export default function PlatformAdminPage() {
               </div>
             </div>
           )}
+
+        {/* ── Invoices Tab ── */}
+        {activeTab === "invoices" && (
+          <PlatformInvoicesManager initialOrganizations={dashData?.organizations || []} />
+        )}
 
         {/* ── Businesses Tab ── */}
         {activeTab === "orgs" && (<div className="space-y-6">
