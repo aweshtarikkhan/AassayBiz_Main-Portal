@@ -18,6 +18,7 @@ import { PublicHeader } from "@/components/public/PublicHeader";
 import { PublicFooter } from "@/components/public/PublicFooter";
 import { HeroDashboardMockup } from "@/components/public/HeroDashboardMockup";
 import { BookDemoDialog } from "@/components/public/BookDemoDialog";
+import { LandingBookDemoSection } from "@/components/public/LandingBookDemoSection";
 import { AIChatWidget } from "@/components/public/AIChatWidget";
 import { SocialMediaLinks } from "@/components/shared/SocialMediaLinks";
 import { usePlatformSocials, formatSocialUrl } from "@/hooks/use-platform-socials";
@@ -882,6 +883,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Full Page Book Demo Section (Where Pricing was originally placed) */}
+      <LandingBookDemoSection onOpenDialog={() => setIsDemoDialogOpen(true)} />
 
       {/* Optimize Your Business with Us - Banner Box (Slim & Compact 50% Height) */}
       <section className="py-14 sm:py-16 bg-[#fafbfc] relative overflow-hidden border-t border-slate-200/60">
