@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import {
   Sparkles,
   Zap,
@@ -142,38 +141,31 @@ export function LandingInteractiveShowcase() {
   }, 0);
   const efficiencyScore = Math.min(99, Math.max(35, totalScore));
 
-  const additionalHours = FEATURE_TOGGLES.reduce((acc, feat) => {
-    return acc + (enabledFeatures[feat.id] ? feat.hoursAdded : 0);
-  }, 0);
   const totalHoursSaved = Math.round(currentPreset.baseHoursSaved * (efficiencyScore / 100));
 
   return (
-    <section className="py-18 sm:py-22 bg-gradient-to-b from-[#120a33] via-[#1a0f44] to-[#120a33] text-white relative overflow-hidden border-t border-b border-white/10 shadow-2xl">
+    <section className="py-8 sm:py-10 bg-gradient-to-b from-[#120a33] via-[#1a0f44] to-[#120a33] text-white relative overflow-hidden border-t border-b border-white/10 shadow-2xl">
       {/* Dynamic ambient lighting accents */}
-      <div className="absolute top-0 left-1/4 -translate-y-1/2 w-[600px] h-[600px] bg-[#e77817]/15 rounded-full blur-[130px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 translate-y-1/2 w-[550px] h-[550px] bg-[#6366f1]/20 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute top-0 left-1/4 -translate-y-1/2 w-[500px] h-[500px] bg-[#e77817]/15 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 translate-y-1/2 w-[450px] h-[450px] bg-[#6366f1]/20 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10">
         
-        {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-12">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/15 text-xs font-bold text-amber-300 uppercase tracking-widest mb-3.5 shadow-sm backdrop-blur-md">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            Interactive Business Simulator
-          </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-[44px] font-black tracking-tight text-white leading-tight mb-3.5">
+        {/* Section Header (Compact & Clean - Badge Removed) */}
+        <div className="text-center max-w-3xl mx-auto mb-5 sm:mb-6">
+          <h2 className="text-2xl sm:text-3xl lg:text-[34px] font-black tracking-tight text-white leading-tight mb-2">
             See how much time & money{" "}
             <span className="bg-gradient-to-r from-[#ffaa47] via-[#ff8522] to-[#e77817] bg-clip-text text-transparent">
               Aassay Biz saves your business
             </span>
           </h2>
-          <p className="text-sm sm:text-base text-slate-300 leading-relaxed font-normal">
+          <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mx-auto font-normal leading-relaxed">
             Choose your business type and toggle our core automation engines to see your live efficiency score and time savings in action.
           </p>
         </div>
 
-        {/* 1. Business Type Selector (Single Line Cohesive Segmented Switcher) */}
-        <div className="max-w-2xl mx-auto mb-8 sm:mb-10 p-1.5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md flex flex-col sm:flex-row gap-1.5 shadow-inner">
+        {/* 1. Business Type Selector (Compact Segmented Switcher) */}
+        <div className="max-w-xl mx-auto mb-5 p-1 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md flex flex-col sm:flex-row gap-1 shadow-inner">
           {BUSINESS_PRESETS.map((preset) => {
             const Icon = preset.icon;
             const isSelected = preset.id === selectedPresetId;
@@ -181,39 +173,39 @@ export function LandingInteractiveShowcase() {
               <button
                 key={preset.id}
                 onClick={() => setSelectedPresetId(preset.id)}
-                className={`flex-1 flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 cursor-pointer ${
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
                   isSelected
                     ? "bg-gradient-to-r from-[#e77817] to-[#ff9438] text-white shadow-md shadow-orange-500/30 scale-[1.01]"
                     : "text-slate-300 hover:text-white hover:bg-white/5"
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
+                <Icon className="w-3.5 h-3.5 shrink-0" />
                 <span>{preset.name}</span>
               </button>
             );
           })}
         </div>
 
-        {/* 2. Unified Interactive Experience Card (Single Cohesive 2-Column Dashboard) */}
-        <div className="rounded-3xl bg-white/[0.06] border border-white/15 backdrop-blur-xl shadow-2xl p-6 sm:p-8 lg:p-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
+        {/* 2. Unified Interactive Experience Card (Compact 2-Column Dashboard) */}
+        <div className="rounded-2xl sm:rounded-3xl bg-white/[0.06] border border-white/15 backdrop-blur-xl shadow-2xl p-4 sm:p-5 lg:p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-center">
             
-            {/* Left Column: Interactive Automation Switches (6 cols) */}
-            <div className="lg:col-span-7 flex flex-col gap-4">
-              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+            {/* Left Column: Interactive Automation Switches (7 cols) */}
+            <div className="lg:col-span-7 flex flex-col gap-2.5">
+              <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
                 <div className="flex items-center gap-2">
-                  <SlidersHorizontal className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-[11px] sm:text-xs font-bold text-white uppercase tracking-wider">
                     Toggle Automation Engines:
                   </span>
                 </div>
-                <span className="text-xs text-slate-400 font-medium">
+                <span className="text-[11px] text-slate-400 font-medium">
                   {activeCount} of {FEATURE_TOGGLES.length} Active
                 </span>
               </div>
 
-              {/* Toggles List */}
-              <div className="space-y-3">
+              {/* Toggles List (Compact Spacing) */}
+              <div className="space-y-2">
                 {FEATURE_TOGGLES.map((feat) => {
                   const isEnabled = !!enabledFeatures[feat.id];
                   const Icon = feat.icon;
@@ -221,27 +213,27 @@ export function LandingInteractiveShowcase() {
                     <div
                       key={feat.id}
                       onClick={() => toggleFeature(feat.id)}
-                      className={`p-3.5 sm:p-4 rounded-2xl border transition-all duration-300 cursor-pointer flex items-center justify-between gap-3 group ${
+                      className={`p-2.5 sm:p-3 rounded-xl border transition-all duration-200 cursor-pointer flex items-center justify-between gap-3 group ${
                         isEnabled
-                          ? "bg-white/10 border-amber-400/50 shadow-md shadow-orange-500/10"
+                          ? "bg-white/10 border-amber-400/50 shadow-sm shadow-orange-500/10"
                           : "bg-white/5 border-white/10 hover:border-white/20 opacity-60"
                       }`}
                     >
-                      <div className="flex items-center gap-3 sm:gap-3.5">
+                      <div className="flex items-center gap-2.5 sm:gap-3">
                         <div
-                          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                             isEnabled
                               ? "bg-gradient-to-br from-[#e77817] to-[#ff9438] text-white shadow-sm"
                               : "bg-white/10 text-slate-400"
                           }`}
                         >
-                          <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                          <Icon className="w-4 h-4" />
                         </div>
                         <div>
                           <div className="text-xs sm:text-sm font-bold text-white group-hover:text-amber-200 transition-colors">
                             {feat.title}
                           </div>
-                          <div className="text-[11px] sm:text-xs text-slate-300 mt-0.5 line-clamp-1">
+                          <div className="text-[11px] text-slate-300 mt-0.5 line-clamp-1">
                             {feat.subtitle}
                           </div>
                         </div>
@@ -249,15 +241,15 @@ export function LandingInteractiveShowcase() {
 
                       {/* Interactive iOS-style Toggle Pill */}
                       <div
-                        className={`w-11 h-6 rounded-full transition-colors flex items-center p-0.5 shrink-0 ${
+                        className={`w-10 h-5.5 rounded-full transition-colors flex items-center p-0.5 shrink-0 ${
                           isEnabled ? "bg-[#e77817] justify-end" : "bg-white/20 justify-start"
                         }`}
                       >
-                        <div className="w-5 h-5 rounded-full bg-white shadow-sm flex items-center justify-center">
+                        <div className="w-4.5 h-4.5 rounded-full bg-white shadow-sm flex items-center justify-center">
                           {isEnabled ? (
-                            <Check className="w-3 h-3 text-[#e77817] stroke-[3]" />
+                            <Check className="w-2.5 h-2.5 text-[#e77817] stroke-[3]" />
                           ) : (
-                            <X className="w-3 h-3 text-slate-400 stroke-[3]" />
+                            <X className="w-2.5 h-2.5 text-slate-400 stroke-[3]" />
                           )}
                         </div>
                       </div>
@@ -267,8 +259,8 @@ export function LandingInteractiveShowcase() {
               </div>
 
               {/* Preset Note */}
-              <div className="text-xs text-slate-400 pt-1 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="text-[11px] text-slate-400 pt-0.5 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span>
                   Tailored for {currentPreset.name}: {currentPreset.sampleCustomer}
                 </span>
@@ -277,92 +269,87 @@ export function LandingInteractiveShowcase() {
 
             {/* Right Column: Live Calculated Business Impact Card (5 cols) */}
             <div className="lg:col-span-5">
-              <div className="rounded-2xl bg-gradient-to-br from-[#1b0f47] via-[#24135e] to-[#160c38] border border-white/20 p-6 sm:p-7 shadow-2xl relative overflow-hidden">
+              <div className="rounded-2xl bg-gradient-to-br from-[#1b0f47] via-[#24135e] to-[#160c38] border border-white/20 p-4 sm:p-5 shadow-2xl relative overflow-hidden">
                 
                 {/* Background soft glow */}
-                <div className="absolute -top-12 -right-12 w-36 h-36 bg-[#ff8522]/30 rounded-full blur-2xl pointer-events-none" />
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#ff8522]/25 rounded-full blur-2xl pointer-events-none" />
 
                 {/* Score Header */}
-                <div className="flex items-center justify-between pb-4 mb-5 border-b border-white/10 relative z-10">
+                <div className="flex items-center justify-between pb-3 mb-3 border-b border-white/10 relative z-10">
                   <div className="flex items-center gap-2">
-                    <Gauge className="w-5 h-5 text-amber-400" />
+                    <Gauge className="w-4 h-4 text-amber-400" />
                     <span className="text-xs font-bold text-white uppercase tracking-wider">
-                      Business Efficiency Score
+                      Efficiency Score
                     </span>
                   </div>
-                  <div className="px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 font-mono text-xs font-black">
+                  <div className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 font-mono text-xs font-black">
                     {efficiencyScore}% Optimized
                   </div>
                 </div>
 
-                {/* Main Dynamic Metric Callouts */}
-                <div className="space-y-4 mb-6 relative z-10">
+                {/* Main Dynamic Metric Callouts (2-Column Compact Grid) */}
+                <div className="grid grid-cols-2 gap-2.5 mb-3 relative z-10">
                   {/* Metric 1: Monthly Hours Saved */}
-                  <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] text-slate-300 font-medium">Time Saved</span>
+                      <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                    </div>
                     <div>
-                      <div className="text-xs text-slate-300">Time Saved Every Month</div>
-                      <div className="text-2xl sm:text-3xl font-black text-amber-400 font-mono mt-0.5">
-                        ~{totalHoursSaved} Hours
+                      <div className="text-xl sm:text-2xl font-black text-amber-400 font-mono">
+                        ~{totalHoursSaved}h/mo
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">
-                        Free up 1.5 workdays every single week
+                        ~1.5 workdays / wk
                       </div>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0">
-                      <Clock className="w-6 h-6" />
                     </div>
                   </div>
 
                   {/* Metric 2: Faster Cash Inflow */}
-                  <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] text-slate-300 font-medium">Cash Inflow</span>
+                      <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" />
+                    </div>
                     <div>
-                      <div className="text-xs text-slate-300">Payment Collection Speed</div>
-                      <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono mt-0.5">
+                      <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
                         {enabledFeatures.whatsapp_upi ? currentPreset.cashFlowSpeedup : "1.0x"} Faster
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">
-                        Customers pay instantly via 1-click UPI QR
+                        1-Click UPI QR
                       </div>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0">
-                      <TrendingUp className="w-6 h-6" />
                     </div>
                   </div>
                 </div>
 
                 {/* Audit & Compliance Trust Points */}
-                <div className="space-y-2 mb-6 pt-2 border-t border-white/10 text-xs text-slate-300 relative z-10">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Zero manual Excel data entry & ledger errors</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-3 pt-2 border-t border-white/10 text-[11px] text-slate-300 relative z-10">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Zero manual Excel ledger errors</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>100% GST & Statutory Audit compliance ready</span>
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>100% GST & Audit ready</span>
                   </div>
                 </div>
 
-                {/* Direct Action CTA Buttons */}
-                <div className="flex flex-col gap-2.5 relative z-10">
-                  <Button
-                    size="lg"
-                    className="w-full h-12 bg-gradient-to-r from-[#e77817] to-[#ff8522] hover:from-[#d46a0f] hover:to-[#ea7617] text-white font-black text-sm rounded-xl shadow-lg shadow-orange-500/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer"
-                    asChild
+                {/* Direct Action CTA Buttons - 100% Visible & Prominent Side-by-Side */}
+                <div className="flex flex-col sm:flex-row gap-2.5 relative z-10">
+                  <Link
+                    to="/book-demo"
+                    className="flex-1 h-11 bg-gradient-to-r from-[#e77817] to-[#ff8522] hover:from-[#d46a0f] hover:to-[#ea7617] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-lg shadow-orange-500/25 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01] active:scale-[0.99] text-center"
                   >
-                    <Link to="/book-demo">
-                      <span>Experience Free Live Online Demo</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </Link>
-                  </Button>
+                    <span>Book Free Live Demo</span>
+                    <ArrowRight className="w-4 h-4 shrink-0" />
+                  </Link>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full h-10 border-white/20 text-white hover:bg-white/10 text-xs font-semibold rounded-xl cursor-pointer"
-                    asChild
+                  <Link
+                    to="/pricing"
+                    className="flex-1 h-11 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center transition-all text-center"
                   >
-                    <Link to="/pricing">Explore Pricing & Plans</Link>
-                  </Button>
+                    <span>Explore Plans & Pricing</span>
+                  </Link>
                 </div>
 
               </div>
