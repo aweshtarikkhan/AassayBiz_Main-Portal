@@ -215,7 +215,7 @@ export default function BookDemoPage() {
               </span>
             </h1>
             <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
-              Discover how Aassay Biz streamlines GST billing, multi-warehouse inventory, staff attendance, payroll, and CRM. Our product specialist will walk you through a customized session.
+              Discover how Aassay Biz streamlines GST billing, multi-warehouse inventory, staff attendance, payroll, and CRM. Our product specialist will give you a live online demo tailored to your business.
             </p>
           </div>
 
@@ -229,7 +229,7 @@ export default function BookDemoPage() {
               <div className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-7 shadow-sm space-y-4">
                 <h3 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-[#e77817]" />
-                  What to expect in your guided walkthrough
+                  What to expect in your live online demo
                 </h3>
                 
                 <div className="space-y-3.5">
@@ -238,7 +238,7 @@ export default function BookDemoPage() {
                       <Zap className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-slate-900">15-Min Tailored Tour</h4>
+                      <h4 className="text-sm font-bold text-slate-900">15-Min Live Interactive Demo</h4>
                       <p className="text-xs text-slate-500 mt-0.5 leading-snug">
                         Customized specifically to your business workflow and pain points.
                       </p>
@@ -381,7 +381,7 @@ export default function BookDemoPage() {
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                       <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                        Schedule Your 1-on-1 Walkthrough
+                        Schedule Your Live Online Demo
                       </h2>
                       <p className="text-xs text-slate-500 mt-0.5">
                         Fill in your business details so we can tailor the session for you.

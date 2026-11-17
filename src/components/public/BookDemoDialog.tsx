@@ -233,7 +233,7 @@ export function BookDemoDialog({ open, onOpenChange }: BookDemoDialogProps) {
         city: formData.city.trim() || "Not specified",
         preferred_date: formData.preferred_date,
         preferred_time: formData.preferred_time,
-        message: formData.message.trim() || "Standard product walkthrough requested",
+        message: formData.message.trim() || "Standard live online demo requested",
       };
 
       const { error } = await supabase.from("feature_requests").insert({
@@ -282,7 +282,7 @@ export function BookDemoDialog({ open, onOpenChange }: BookDemoDialogProps) {
                 Our product expert will connect with you on{" "}
                 <span className="font-semibold text-[#28166f]">+91 {formData.mobile}</span> on{" "}
                 <span className="font-semibold text-slate-900">{formatDisplayDate(formData.preferred_date)}</span> during{" "}
-                <span className="font-semibold text-[#e77817]">{formData.preferred_time}</span> for a personalized live walkthrough.
+                <span className="font-semibold text-[#e77817]">{formData.preferred_time}</span> for a personalized live online demo.
               </p>
             </div>
 
@@ -350,7 +350,7 @@ export function BookDemoDialog({ open, onOpenChange }: BookDemoDialogProps) {
                   <span>in Action</span>
                 </DialogTitle>
                 <DialogDescription className="text-orange-100/90 text-xs sm:text-sm">
-                  Get a personalized walkthrough tailored to your business workflow with our product specialist.
+                  Get a personalized live online demo tailored to your business workflow with our product specialist.
                 </DialogDescription>
               </div>
 
