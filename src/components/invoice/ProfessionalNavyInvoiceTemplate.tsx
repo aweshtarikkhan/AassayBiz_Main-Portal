@@ -254,11 +254,13 @@ export function ProfessionalNavyInvoiceTemplate({
                 <td style={{ padding: "3px 0", textAlign: "left" }}>:</td>
                 <td style={{ padding: "3px 0", textAlign: "left" }}>{formatDate(date)}</td>
               </tr>
-              <tr>
-                <td style={{ padding: "3px 0", fontWeight: 600, textAlign: "left" }}>{getDueDateLabel(type)}</td>
-                <td style={{ padding: "3px 0", textAlign: "left" }}>:</td>
-                <td style={{ padding: "3px 0", textAlign: "left" }}>{formatDate(dueDate)}</td>
-              </tr>
+              {!((invoice.metadata as any)?.hide_due_date || (invoice.metadata as any)?.payment_terms === 0) && (
+                <tr>
+                  <td style={{ padding: "3px 0", fontWeight: 600, textAlign: "left" }}>{getDueDateLabel(type)}</td>
+                  <td style={{ padding: "3px 0", textAlign: "left" }}>:</td>
+                  <td style={{ padding: "3px 0", textAlign: "left" }}>{formatDate(dueDate)}</td>
+                </tr>
+              )}
               {hasGst && (
                 <>
                   <tr>
@@ -371,38 +373,46 @@ export function ProfessionalNavyInvoiceTemplate({
       </div>
 
       {/* Totals & Terms */}
-      <div style={{ display: "flex", gap: 15, marginBottom: 15 }}>
-        {/* Left: Totals */}
-        <div style={{ flex: 1 }}>
-          <InvoiceTotalsTable
-            invoice={invoice}
-            lines={lines}
-            taxBreakdown={taxBreakdown}
-            hasGst={hasGst}
-            fmt={fmt}
-            primaryColor={navy}
-            accentColor={blue}
-            variant="table"
-            type={type}
-             isInterstate={isInterstate}
-          />
-        </div>
-
-        {/* Right: Terms */}
-        <div style={{ flex: 1, border: "1px solid " + grayBorder, borderRadius: 6, padding: "12px", fontSize: 10 }}>
-          <div style={{ color: darkBlue, fontWeight: 700, marginBottom: 8, fontSize: 11 }}>TERMS & CONDITIONS</div>
-          <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6, color: "#374151", paddingLeft: 12 }}>
-            {(invoice.terms_conditions || invoice.terms || invoice.default_terms || org?.default_terms || "1. Goods once sold will not be taken back.\n2. Interest @ 18% p.a. will be charged on overdue payments.\n3. Payment to be made within 15 days from the date of invoice.").split('\n').map((line, i) => (
-              <div style={{ position: "relative" }} key={i}>
-                <span style={{ position: "absolute", left: -12 }}>{i + 1}.</span> {line}
+      {(() => {
+        const showBank = invoice?.metadata?.show_bank_details !== false;
+        const showTerms = invoice?.metadata?.show_terms !== false;
+        const termsText = (invoice.terms_conditions || invoice.terms || invoice.default_terms || org?.default_terms || "")?.trim();
+        return (
+          <>
+            <div style={{ display: "flex", gap: 15, marginBottom: 15 }}>
+              {/* Left: Totals */}
+              <div style={{ flex: showTerms && termsText ? 1 : "0 0 350px", marginLeft: showTerms && termsText ? 0 : "auto" }}>
+                <InvoiceTotalsTable
+                  invoice={invoice}
+                  lines={lines}
+                  taxBreakdown={taxBreakdown}
+                  hasGst={hasGst}
+                  fmt={fmt}
+                  primaryColor={navy}
+                  accentColor={blue}
+                  variant="table"
+                  type={type}
+                   isInterstate={isInterstate}
+                />
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
-      {/* Bank & UPI Details */}
-      {type !== "po" && (bankName || bankAccNum || org?.upi_id) && (
+              {/* Right: Terms */}
+              {showTerms && termsText ? (
+                <div style={{ flex: 1, border: "1px solid " + grayBorder, borderRadius: 6, padding: "12px", fontSize: 10 }}>
+                  <div style={{ color: darkBlue, fontWeight: 700, marginBottom: 8, fontSize: 11 }}>TERMS &amp; CONDITIONS</div>
+                  <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6, color: "#374151", paddingLeft: 12 }}>
+                    {termsText.split('\n').map((line, i) => (
+                      <div style={{ position: "relative" }} key={i}>
+                        <span style={{ position: "absolute", left: -12 }}>{i + 1}.</span> {line}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Bank & UPI Details */}
+            {type !== "po" && showBank && (bankName || bankAccNum || org?.upi_id) && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 15 }}>
           {/* Bank */}
           {(bankName || bankAccNum) && (
@@ -466,19 +476,24 @@ export function ProfessionalNavyInvoiceTemplate({
                   <div style={{ fontWeight: 600 }}>NEFT / RTGS / UPI / Cheque</div>
                 </div>
               </div>
-              <div style={{ display: "flex", borderTop: "1px solid " + grayBorder }}>
-                <div style={{ width: 140, flexShrink: 0 }}></div>
-                <div style={{ padding: "4px 12px", display: "flex", flex: 1, fontSize: 10 }}></div>
-                <div style={{ borderLeft: "1px solid " + grayBorder, padding: "4px 12px", display: "flex", width: 250, fontSize: 10, flexShrink: 0, backgroundColor: "#f9fafb" }}>
-                  <div style={{ width: 80, color: "#374151" }}>Payment Due</div>
-                  <div style={{ width: 10 }}>:</div>
-                  <div style={{ fontWeight: 600 }}>{formatDate(dueDate)}</div>
+              {!((invoice.metadata as any)?.hide_due_date || (invoice.metadata as any)?.payment_terms === 0) && (
+                <div style={{ display: "flex", borderTop: "1px solid " + grayBorder }}>
+                  <div style={{ width: 140, flexShrink: 0 }}></div>
+                  <div style={{ padding: "4px 12px", display: "flex", flex: 1, fontSize: 10 }}></div>
+                  <div style={{ borderLeft: "1px solid " + grayBorder, padding: "4px 12px", display: "flex", width: 250, fontSize: 10, flexShrink: 0, backgroundColor: "#f9fafb" }}>
+                    <div style={{ width: 80, color: "#374151" }}>Payment Due</div>
+                    <div style={{ width: 10 }}>:</div>
+                    <div style={{ fontWeight: 600 }}>{formatDate(dueDate)}</div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>
       )}
+          </>
+        );
+      })()}
 
       {/* Footer */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 20 }}>

@@ -181,7 +181,7 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
             <span style={{ fontSize: 11, color: "#71717a", marginRight: 8 }}>Date:</span>
             <span style={{ fontWeight: 600 }}>{invoice.issue_date}</span>
           </div>
-          {type === "invoice" && invoice.due_date && (
+          {type === "invoice" && invoice.due_date && !(invoice.metadata as any)?.hide_due_date && (invoice.metadata as any)?.payment_terms !== 0 && (
             <div>
               <span style={{ fontSize: 11, color: "#71717a", marginRight: 8 }}>Due Date:</span>
               <span style={{ fontWeight: 600 }}>{invoice.due_date}</span>
@@ -349,25 +349,30 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 40 }}>
         
         {/* Left Side: Notes & Bank Details & QR */}
-        <div style={{ flex: 1 }}>
-          {invoice.notes && invoice.notes.trim() && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: accent, marginBottom: 4 }}>Notes</div>
-              <div style={{ fontSize: 11, whiteSpace: "pre-wrap", color: "#3f3f46" }}>{invoice.notes.trim()}</div>
-            </div>
-          )}
-          {(invoice.terms_conditions || invoice.terms || invoice.default_terms || org?.default_terms) && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: accent, marginBottom: 4 }}>Terms &amp; Conditions</div>
-              <div style={{ fontSize: 11, whiteSpace: "pre-wrap", color: "#3f3f46" }}>
-                {(invoice.terms_conditions || invoice.terms || invoice.default_terms || org?.default_terms).trim()}
-              </div>
-            </div>
-          )}
+        {(() => {
+          const showBank = invoice?.metadata?.show_bank_details !== false;
+          const showTerms = invoice?.metadata?.show_terms !== false;
+          const showNotes = invoice?.metadata?.show_notes !== false;
+          return (
+            <div style={{ flex: 1 }}>
+              {showNotes && invoice.notes && invoice.notes.trim() && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: accent, marginBottom: 4 }}>Notes</div>
+                  <div style={{ fontSize: 11, whiteSpace: "pre-wrap", color: "#3f3f46" }}>{invoice.notes.trim()}</div>
+                </div>
+              )}
+              {showTerms && (invoice.terms_conditions || invoice.terms || invoice.default_terms || org?.default_terms) && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: accent, marginBottom: 4 }}>Terms &amp; Conditions</div>
+                  <div style={{ fontSize: 11, whiteSpace: "pre-wrap", color: "#3f3f46" }}>
+                    {(invoice.terms_conditions || invoice.terms || invoice.default_terms || org?.default_terms).trim()}
+                  </div>
+                </div>
+              )}
 
-          {(() => {
-            const invoiceBank = invoice?.bank_details;
-            const isBankDisabled = invoiceBank && invoiceBank.enabled === false;
+              {(() => {
+                const invoiceBank = invoice?.bank_details;
+                const isBankDisabled = !showBank || (invoiceBank && invoiceBank.enabled === false);
             const bankAccName = invoiceBank?.bank_account_name || (!isBankDisabled ? (org?.bank_account_name || org?.name) : null);
             const bankName = invoiceBank?.bank_name || (!isBankDisabled ? org?.bank_name : null);
             const bankAccNum = invoiceBank?.bank_account_number || (!isBankDisabled ? org?.bank_account_number : null);
@@ -390,7 +395,7 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
             );
           })()}
           
-          {type !== "po" && org?.qr_code_enabled && (
+          {type !== "po" && showBank && org?.qr_code_enabled && (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: 12, border: "1px dashed #d4d4d8", borderRadius: 6 }}>
               <QRCodeSVG
                 value={
@@ -408,6 +413,8 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
             </div>
           )}
         </div>
+          );
+        })()}
 
         {/* Right Side: Totals */}
         <div style={{ width: 280, fontSize: 12 }}>

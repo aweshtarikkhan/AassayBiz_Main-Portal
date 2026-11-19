@@ -243,10 +243,10 @@ const App = () => (
                 <Route path="/gst-returns" element={<GstReturnsPage />} />
               </Route>
 
-              <Route path="/templates" element={<InvoiceTemplatePage />} />
+              <Route path="/templates" element={<Navigate to="/settings?tab=templates" replace />} />
               <Route path="/templates/customize" element={<TemplateCustomizationPage />} />
               <Route path="/audit-logs" element={<AuditLogsPage />} />
-              <Route path="/custom-fields" element={<CustomFieldsPage />} />
+              <Route path="/custom-fields" element={<Navigate to="/settings?tab=custom-fields" replace />} />
               <Route element={<FeatureGuard featureKey="people" featureName="Business HR" />}>
                 <Route path="/employees" element={<EmployeesPage />} />
                 <Route path="/attendance" element={<AttendancePage />} />

@@ -63,6 +63,7 @@ interface LineItem {
   unit: string;
   quantity: any;
   rate: any;
+  sales_price?: any;
   discount: any;
   discount_type: "percentage" | "fixed";
   tax_id: string | null;
@@ -87,6 +88,7 @@ function createEmptyLine(): LineItem {
     unit: "pcs",
     quantity: 1,
     rate: "",
+    sales_price: "",
     discount: "",
     discount_type: "percentage",
     tax_id: null,
@@ -130,6 +132,7 @@ function SortableLineItem({
   const handleItemSelect = async (item: any) => {
     onChange(index, "item_id", item.id);
     onChange(index, "name", item.name);
+    onChange(index, "sales_price", Number(item.unit_price) || 0);
     if (item.has_expiry && item.expiry_date) {
       const exp = new Date(item.expiry_date);
       const now = new Date();
@@ -158,8 +161,8 @@ function SortableLineItem({
         .join("\n");
     }
     onChange(index, "description", item.description ? (extraDesc ? `${item.description}\n${extraDesc}` : item.description) : extraDesc);
-        let __rate = Number(item.unit_price) || 0;
-    const __priceType = window.location.pathname.includes("bill") || window.location.pathname.includes("purchase") || window.location.pathname.includes("grn") ? (item.purchase_price_type || "without_tax") : (item.sales_price_type || "without_tax");
+    let __rate = Number(item.purchase_price) || Number(item.unit_price) || 0;
+    const __priceType = item.purchase_price_type || "without_tax";
     if (__priceType === "with_tax" && item.tax_id) {
       const __tax = taxRates.find((t: any) => t.id === item.tax_id);
       if (__tax && Number(__tax.rate) > 0) {
@@ -169,9 +172,9 @@ function SortableLineItem({
     onChange(index, "rate", __rate);
     onChange(index, "discount", Number(item.discount) || 0);
     onChange(index, "discount_type", "percentage");
-    onChange(index, "unit", item.unit || "pcs");
-    onChange(index, "primary_unit", item.unit || "pcs");
-    onChange(index, "base_unit_price", Number(item.unit_price) || 0);
+    onChange(index, "unit", (item.unit || "PCS").toUpperCase());
+    onChange(index, "primary_unit", (item.unit || "PCS").toUpperCase());
+    onChange(index, "base_unit_price", Number(item.purchase_price || item.unit_price) || 0);
     onChange(index, "hsn_code", item.hsn_code || "");
     onChange(index, "tax_id", item.tax_id || null);
     onChange(index, "sub_unit", item.sub_unit || "");
@@ -201,8 +204,8 @@ function SortableLineItem({
           <div className="flex gap-0.5">
             <div className="relative flex-1">
               <Input
-                className="h-8 text-xs pr-7"
-                placeholder="Type or click to select an item"
+                className="h-8 text-xs pr-7 font-medium"
+                placeholder="Add new item or search..."
                 value={line.name}
                 onChange={(e) => {
                   onChange(index, "item_id", null);
@@ -236,21 +239,9 @@ function SortableLineItem({
                         )}
                       </div>
                       <div className="text-right">
-                        {Number(item.discount) > 0 ? (
-                          <div className="flex flex-col items-end">
-                            <span className="font-semibold text-emerald-700">
-                              {fmt(Number(item.unit_price) * (1 - Number(item.discount) / 100))}
-                            </span>
-                            <div className="flex items-center gap-1 text-[10px]">
-                              <span className="line-through text-muted-foreground">{fmt(Number(item.unit_price))}</span>
-                              <span className="text-emerald-600 font-bold">({item.discount}% off)</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="font-medium text-foreground">{fmt(Number(item.unit_price))}</span>
-                        )}
-                        {item.sub_unit && item.sub_unit_conversion_rate > 1 && (
-                          <div className="text-[9px] text-muted-foreground">1 {item.unit || 'Box'} = {item.sub_unit_conversion_rate} {item.sub_unit}</div>
+                        <span className="font-medium text-foreground">{fmt(Number(item.purchase_price || item.unit_price || 0))}</span>
+                        {item.unit && (
+                          <span className="text-[10px] text-muted-foreground ml-1">/ {item.unit}</span>
                         )}
                       </div>
                     </button>
@@ -258,7 +249,7 @@ function SortableLineItem({
                 </div>
               )}
             </div>
-            <button type="button" onClick={onAddItem} className="h-8 w-8 flex items-center justify-center rounded-md border border-input bg-background text-muted-foreground hover:text-foreground hover:bg-accent shrink-0" title="Add New Item">
+            <button type="button" onClick={onAddItem} className="h-8 w-8 flex items-center justify-center rounded-md border border-input bg-background text-muted-foreground hover:text-foreground hover:bg-accent shrink-0" title="Add New Item to Catalog">
               <Plus className="h-3 w-3" />
             </button>
           </div>
@@ -269,93 +260,136 @@ function SortableLineItem({
             onChange={(e) => onChange(index, "description", e.target.value)}
             rows={2}
           />
+          {line.item_id ? (
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <a
+                href="/items"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                title="Open items catalog in new tab to view or edit"
+              >
+                <span>Edit in Items ↗</span>
+              </a>
+              <span className="text-[10px] text-muted-foreground">• Existing Catalog Item</span>
+            </div>
+          ) : line.name.trim() ? (
+            <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium pt-0.5">
+              ✨ Will auto-create in Items &amp; Inventory on save
+            </div>
+          ) : null}
           {line.expiry_warning && <div className="text-[10px] text-red-500 font-medium mt-1">{line.expiry_warning}</div>}
         </div>
-        {/* Quantity */}
+        {/* Quantity & Unit */}
         <div className="col-span-2 space-y-1">
-          <Input 
-            placeholder="1" 
-            type="number" 
-            className="h-8 text-xs text-center font-medium" 
-            onFocus={(e) => e.target.select()} 
-            onBlur={(e) => { if (!e.target.value || parseFloat(e.target.value) <= 0) onChange(index, "quantity", 1); }} 
-            value={line.quantity} 
-            onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
-            onChange={(e) => {
-              let val = e.target.value;
-              if (val !== "") {
-                const u = (line.unit || "").toLowerCase();
-                if (u === "pcs" || u === "pieces" || u === "box" || u === "boxes" || u === "nos") {
-                  val = String(Math.floor(parseFloat(val) || 0));
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] text-muted-foreground font-medium text-center">Qty</span>
+            <Input 
+              placeholder="1" 
+              type="number" 
+              className="h-8 text-xs text-center font-medium" 
+              onFocus={(e) => e.target.select()} 
+              onBlur={(e) => { if (!e.target.value || parseFloat(e.target.value) <= 0) onChange(index, "quantity", 1); }} 
+              value={line.quantity} 
+              onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
+              onChange={(e) => {
+                let val = e.target.value;
+                if (val !== "") {
+                  const u = (line.unit || "").toLowerCase();
+                  if (u === "pcs" || u === "pieces" || u === "box" || u === "boxes" || u === "nos") {
+                    val = String(Math.floor(parseFloat(val) || 0));
+                  }
                 }
-              }
-              onChange(index, "quantity", val === "" ? "" : Math.max(0, parseFloat(val) || 0));
-            }} 
-            min={0} 
-            step={["pcs", "pieces", "box", "boxes", "nos"].includes((line.unit || "").toLowerCase()) ? "1" : "0.01"} 
-          />
-          {line.item_id ? (
-            <div className="flex flex-col items-center">
-              {hasSubUnit ? (
-                <div className="w-full flex flex-col items-center gap-0.5">
-                  <div className="flex items-center justify-center gap-1 bg-muted/60 rounded px-1 py-0.5 w-full">
-                    <span className="text-[10px] font-bold text-foreground uppercase">{line.unit}</span>
-                    <button
-                      type="button"
-                      title="Switch unit"
-                      onClick={() => {
-                        if (isSellingInSubUnit) {
-                          // Switch to Primary Unit (e.g. BOX)
-                          const targetUnit = line.primary_unit || "box";
-                          const targetRate = line.base_unit_price || Number((line.rate * (line.sub_unit_conversion_rate || 1)).toFixed(2));
-                          onChange(index, "unit", targetUnit);
-                          onChange(index, "rate", targetRate);
-                        } else {
-                          // Switch to Sub-Unit (e.g. PCS)
-                          const targetUnit = line.sub_unit;
-                          const base = line.base_unit_price || line.rate;
-                          const targetRate = Number((base / (line.sub_unit_conversion_rate || 1)).toFixed(2));
-                          onChange(index, "unit", targetUnit);
-                          onChange(index, "rate", targetRate);
-                        }
-                      }}
-                      className="text-[9px] text-blue-600 hover:text-blue-800 underline font-medium"
-                    >
-                      {isSellingInSubUnit ? `Switch to ${line.primary_unit?.toUpperCase() || 'BOX'}` : `Buy in ${line.sub_unit?.toUpperCase()}`}
-                    </button>
-                  </div>
-                  {!isSellingInSubUnit ? (
-                    <span className="text-[9px] text-muted-foreground text-center">
-                      = {(line.quantity * (line.sub_unit_conversion_rate || 1)).toLocaleString("en-IN", { maximumFractionDigits: 2 })} {line.sub_unit}
-                    </span>
-                  ) : (
-                    <span className="text-[9px] text-blue-600/80 text-center">
-                      (1 {line.primary_unit || 'box'} = {line.sub_unit_conversion_rate} {line.sub_unit})
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <span className="text-[10px] text-muted-foreground uppercase font-medium mt-0.5">{line.unit || "pcs"}</span>
-              )}
+                onChange(index, "quantity", val === "" ? "" : Math.max(0, parseFloat(val) || 0));
+              }} 
+              min={0} 
+              step={["pcs", "pieces", "box", "boxes", "nos"].includes((line.unit || "").toLowerCase()) ? "1" : "0.01"} 
+            />
+          </div>
+          {hasSubUnit ? (
+            <div className="w-full flex flex-col items-center gap-0.5 mt-1">
+              <div className="flex items-center justify-center gap-1 bg-muted/60 rounded px-1 py-0.5 w-full">
+                <span className="text-[10px] font-bold text-foreground uppercase">{line.unit}</span>
+                <button
+                  type="button"
+                  title="Switch unit"
+                  onClick={() => {
+                    if (isSellingInSubUnit) {
+                      const targetUnit = line.primary_unit || "box";
+                      const targetRate = line.base_unit_price || Number((line.rate * (line.sub_unit_conversion_rate || 1)).toFixed(2));
+                      onChange(index, "unit", targetUnit);
+                      onChange(index, "rate", targetRate);
+                    } else {
+                      const targetUnit = line.sub_unit;
+                      const base = line.base_unit_price || line.rate;
+                      const targetRate = Number((base / (line.sub_unit_conversion_rate || 1)).toFixed(2));
+                      onChange(index, "unit", targetUnit);
+                      onChange(index, "rate", targetRate);
+                    }
+                  }}
+                  className="text-[9px] text-blue-600 hover:text-blue-800 underline font-medium"
+                >
+                  {isSellingInSubUnit ? `Switch to ${line.primary_unit?.toUpperCase() || 'BOX'}` : `Buy in ${line.sub_unit?.toUpperCase()}`}
+                </button>
+              </div>
             </div>
           ) : (
-            <Input
-              className="h-5 text-[10px] text-muted-foreground text-center border-0 border-b border-dashed bg-transparent px-1 py-0 focus-visible:ring-0 focus-visible:ring-offset-0 mt-0.5 uppercase"
-              placeholder="unit"
-              value={line.unit === "pcs" && !line.name ? "" : line.unit}
-              onChange={(e) => onChange(index, "unit", e.target.value)}
-            />
+            <div className="flex flex-col gap-0.5 mt-1">
+              <span className="text-[9px] text-muted-foreground font-medium text-center">Unit</span>
+              <Select
+                value={line.unit?.toUpperCase() || "PCS"}
+                onValueChange={(val) => onChange(index, "unit", val)}
+              >
+                <SelectTrigger className="h-7 text-[10px] uppercase px-1.5 py-0 border-dashed bg-transparent text-center font-medium">
+                  <SelectValue placeholder="UNIT" />
+                </SelectTrigger>
+                <SelectContent className="max-h-56">
+                  {COMMON_UNITS.map((u) => (
+                    <SelectItem key={u} value={u} className="text-xs">
+                      {u}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
-        {/* Rate */}
-        <div className="col-span-2 space-y-0.5">
-          <Input placeholder="0" type="number" className="h-8 text-xs text-right" value={line.rate}
-            onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
-            onChange={(e) => onChange(index, "rate", e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0))} min={0} step="0.01" />
+        {/* Rate & Selling Price */}
+        <div className="col-span-2 space-y-1">
+          <div>
+            <div className="flex justify-between items-center text-[9px] text-muted-foreground font-medium mb-0.5">
+              <span>Buy Rate (₹)</span>
+            </div>
+            <Input 
+              placeholder="0" 
+              type="number" 
+              className="h-7 text-xs text-right font-medium" 
+              value={line.rate}
+              onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
+              onChange={(e) => onChange(index, "rate", e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0))} 
+              min={0} 
+              step="0.01" 
+            />
+          </div>
+          <div>
+            <div className="flex justify-between items-center text-[9px] text-emerald-600 dark:text-emerald-400 font-medium mb-0.5">
+              <span>Sell Price (₹)</span>
+            </div>
+            <Input 
+              placeholder="0" 
+              type="number" 
+              className="h-7 text-xs text-right border-emerald-300 dark:border-emerald-700 focus-visible:ring-emerald-500 font-medium" 
+              value={line.sales_price ?? ""}
+              onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
+              onChange={(e) => onChange(index, "sales_price", e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0))} 
+              min={0} 
+              step="0.01"
+              title="Sales price when selling this item" 
+            />
+          </div>
           {Number(line.discount) > 0 && (
-            <div className="flex flex-col items-end mt-1 text-[10px]">
-              <span className="text-emerald-600 font-semibold">{line.discount_type === 'percentage' ? `${line.discount}%` : `₹${line.discount}`} discount</span>
-              <span className="text-muted-foreground font-medium">= ₹{(line.discount_type === 'percentage' ? Number(line.rate) * (1 - Number(line.discount)/100) : Number(line.rate) - Number(line.discount)).toFixed(2)}</span>
+            <div className="flex flex-col items-end mt-0.5 text-[9px] text-emerald-600 font-medium">
+              <span>{line.discount_type === 'percentage' ? `${line.discount}%` : `₹${line.discount}`} off</span>
             </div>
           )}
         </div>
@@ -418,6 +452,11 @@ export default function BillBuilderPage() {
   const [linkedGrnId, setLinkedGrnId] = useState<string | null>(null);
   const org = useAppStore((s) => s.organization);
   const { toast } = useToast();
+  const billPref = (org?.invoice_preferences as any) || {};
+  const billShowTerms = billPref.bill_show_terms !== false;
+  const billShowNotes = billPref.bill_show_notes !== false;
+  const billShowDisplayOptions = billPref.bill_show_display_options !== false;
+  const billShowCompliance = billPref.bill_show_compliance !== false;
   const [showSignature, setShowSignature] = useState(() => {
     const org = useAppStore.getState().organization;
     return !!(org?.address?.signature_type && org.address.signature_type !== 'none');
@@ -428,6 +467,31 @@ export default function BillBuilderPage() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [activeOrgPlans, setActiveOrgPlans] = useState<string[]>([]);
   const plan = normalizePlanKey(subscriptionPlan);
+
+  useEffect(() => {
+    if (!id && org?.invoice_preferences) {
+      const pref = (org.invoice_preferences as any);
+      if (pref.bill_default_add_stock !== undefined) {
+        setDeductStock(pref.bill_default_add_stock !== false);
+        setPrevDeductStock(pref.bill_default_add_stock !== false);
+      }
+      if (pref.bill_pdf_auto_round_off !== undefined) {
+        setAutoRoundOff(pref.bill_pdf_auto_round_off !== false);
+      }
+      if (pref.bill_pdf_show_bank_details !== undefined) {
+        setIncludeBankDetails(pref.bill_pdf_show_bank_details !== false);
+      }
+      if (pref.bill_pdf_show_terms !== undefined) {
+        setShowTerms(pref.bill_pdf_show_terms !== false);
+      }
+      if (pref.bill_pdf_show_notes !== undefined) {
+        setShowNotes(pref.bill_pdf_show_notes !== false);
+      }
+      if (pref.bill_pdf_show_signature !== undefined) {
+        setShowSignature(pref.bill_pdf_show_signature !== false);
+      }
+    }
+  }, [id, org?.invoice_preferences]);
 
   useEffect(() => {
     if (!org?.id) return;
@@ -518,7 +582,7 @@ export default function BillBuilderPage() {
 
       // Auto-generate bill number from fresh DB value
       if (!id) {
-        const { data: freshOrg } = await supabase.from("organizations").select("next_bill_number, bill_prefix, payment_terms, default_notes, default_terms").eq("id", org.id).single();
+        const { data: freshOrg } = await supabase.from("organizations").select("next_bill_number, bill_prefix, payment_terms, default_notes, default_terms, invoice_preferences").eq("id", org.id).single();
         const prefix = freshOrg?.bill_prefix || (org as any)?.bill_prefix || "BILL";
         let num = freshOrg?.next_bill_number || (org as any)?.next_bill_number || 1;
         const { data: recentBills } = await supabase
@@ -539,9 +603,30 @@ export default function BillBuilderPage() {
           num = maxExisting + 1;
         }
         setBillNumber(formatSequenceNumber(prefix, num, "BILL"));
-        setPaymentTerms(freshOrg?.payment_terms || org.payment_terms || 30);
-        setNotes(freshOrg?.default_notes || org.default_notes || "");
-        setTerms(freshOrg?.default_terms || org.default_terms || "");
+        const freshPrefs = (freshOrg as any)?.invoice_preferences || {};
+        const billTermsDays = freshPrefs.bill_default_payment_terms !== undefined
+          ? Number(freshPrefs.bill_default_payment_terms)
+          : (freshOrg?.payment_terms || org.payment_terms || 30);
+        setPaymentTerms(billTermsDays);
+        const bNotes = freshPrefs.default_bill_notes || freshOrg?.default_notes || org.default_notes || "";
+        setNotes(bNotes);
+        const bTerms = freshPrefs.default_bill_terms || freshOrg?.default_terms || org.default_terms || "";
+        setTerms(bTerms);
+        if (freshPrefs.bill_pdf_auto_round_off !== undefined) {
+          setAutoRoundOff(freshPrefs.bill_pdf_auto_round_off !== false);
+        }
+        if (freshPrefs.bill_pdf_show_bank_details !== undefined) {
+          setIncludeBankDetails(freshPrefs.bill_pdf_show_bank_details !== false);
+        }
+        if (freshPrefs.bill_pdf_show_terms !== undefined) {
+          setShowTerms(freshPrefs.bill_pdf_show_terms !== false);
+        }
+        if (freshPrefs.bill_pdf_show_notes !== undefined) {
+          setShowNotes(freshPrefs.bill_pdf_show_notes !== false);
+        }
+        if (freshPrefs.bill_pdf_show_signature !== undefined) {
+          setShowSignature(freshPrefs.bill_pdf_show_signature !== false);
+        }
       }
     };
     fetchData();
@@ -639,6 +724,11 @@ export default function BillBuilderPage() {
       setIncludeBankDetails(extraData.includeBankDetails ?? !!meta.includeBankDetails);
       setShowTerms(extraData.showTerms ?? meta.showTerms !== false);
       setShowNotes(extraData.showNotes ?? meta.showNotes !== false);
+      if (extraData.showSignature !== undefined) {
+        setShowSignature(extraData.showSignature !== false);
+      } else if (meta.showSignature !== undefined) {
+        setShowSignature(meta.showSignature !== false);
+      }
       
       setDiscount(Number(inv.discount));
       setDiscountType(inv.discount_type as any);
@@ -990,6 +1080,7 @@ export default function BillBuilderPage() {
         includeBankDetails,
         showTerms,
         showNotes,
+        showSignature,
         deduct_stock: deductStock,
       };
 
@@ -1075,6 +1166,78 @@ export default function BillBuilderPage() {
         const { data: latestOrg } = await supabase.from("organizations").select("next_bill_number").eq("id", org!.id).single();
         const nextTarget = Math.max(latestOrg?.next_bill_number || 1, savedSeq + 1);
         await supabase.from("organizations").update({ next_bill_number: nextTarget }).eq("id", org!.id);
+      }
+
+      // Auto-create missing items in items catalog & update existing items with sales_price/unit
+      for (const l of calculatedLines) {
+        if (!l.name?.trim()) continue;
+
+        let currentItemId = l.item_id;
+
+        if (!currentItemId) {
+          // Check if item already exists with matching name
+          const { data: existingItem } = await supabase
+            .from("items")
+            .select("id, unit_price, purchase_price, stock_quantity, type, unit")
+            .eq("org_id", org!.id)
+            .ilike("name", l.name.trim())
+            .maybeSingle();
+
+          if (existingItem) {
+            currentItemId = existingItem.id;
+            l.item_id = existingItem.id;
+            const updates: any = {};
+            if (Number(l.rate) > 0) updates.purchase_price = Number(l.rate);
+            if (l.sales_price !== undefined && l.sales_price !== "" && Number(l.sales_price) > 0) {
+              updates.unit_price = Number(l.sales_price);
+            }
+            if (l.unit) updates.unit = l.unit;
+            if (Object.keys(updates).length > 0) {
+              await supabase.from("items").update(updates).eq("id", existingItem.id);
+            }
+          } else if (deductStock) {
+            // Auto-create new product item in items catalog
+            const purchasePrice = Number(l.rate) || 0;
+            const salesPrice = (l.sales_price !== undefined && l.sales_price !== "" && Number(l.sales_price) > 0)
+              ? Number(l.sales_price)
+              : purchasePrice;
+
+            const { data: newItem, error: createItemErr } = await supabase
+              .from("items")
+              .insert({
+                org_id: org!.id,
+                name: l.name.trim(),
+                type: "product",
+                description: l.description || null,
+                unit: l.unit || "pcs",
+                purchase_price: purchasePrice,
+                unit_price: salesPrice,
+                stock_quantity: 0, // Will be incremented by delta logic below
+                tax_id: l.tax_id || null,
+                hsn_code: l.hsn_code?.trim() || null,
+                is_active: true,
+              })
+              .select()
+              .single();
+
+            if (!createItemErr && newItem) {
+              currentItemId = newItem.id;
+              l.item_id = newItem.id;
+              setCatalogItems((prev) => [...prev, newItem]);
+            }
+          }
+        } else {
+          // Existing item: update purchase_price, sales_price, and unit if specified
+          const updates: any = {};
+          if (Number(l.rate) > 0) updates.purchase_price = Number(l.rate);
+          if (l.sales_price !== undefined && l.sales_price !== "" && Number(l.sales_price) > 0) {
+            updates.unit_price = Number(l.sales_price);
+          }
+          if (l.unit) updates.unit = l.unit;
+          if (Object.keys(updates).length > 0) {
+            await supabase.from("items").update(updates).eq("id", currentItemId);
+          }
+        }
       }
 
       // Insert lines
@@ -1340,7 +1503,13 @@ export default function BillBuilderPage() {
                   </Button>
                 </div>
                 <AddVendorDialog open={addVendorOpen} onOpenChange={setAddVendorOpen} onVendorAdded={(c) => { setVendors(prev => [...prev, c]); setVendorId(c.id); setVendorSearch(c.display_name); }} />
-                <ItemFormDialog open={addItemOpen} onOpenChange={setAddItemOpen} taxRates={taxRates} onItemAdded={(item) => { setCatalogItems(prev => [...prev, item]); }} />
+                <ItemFormDialog 
+                  open={addItemOpen} 
+                  onOpenChange={setAddItemOpen} 
+                  taxRates={taxRates} 
+                  onItemSaved={(item) => { if (item) setCatalogItems(prev => [...prev, item]); }}
+                  onItemAdded={(item) => { if (item) setCatalogItems(prev => [...prev, item]); }} 
+                />
                 {vendorId && vendorAgingSummary && vendorAgingSummary.totalDue > 0 && (
                   <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30 p-3 space-y-2">
                     <div className="flex items-center gap-2 text-sm font-semibold text-orange-700 dark:text-orange-400">
@@ -1416,35 +1585,62 @@ export default function BillBuilderPage() {
               </div>
             </div>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Purchase Invoice #</Label>
-                  <Input value={billNumber} onChange={(e) => setBillNumber(e.target.value)} />
+              {paymentTerms === 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Purchase Invoice #</Label>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentTerms(30)}
+                        className="text-[10px] text-blue-600 hover:underline"
+                      >
+                        + Add Due Date
+                      </button>
+                    </div>
+                    <Input value={billNumber} onChange={(e) => setBillNumber(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Issue Date</Label>
+                      <span className="text-[10px] text-muted-foreground font-medium">Due on Receipt (0d)</span>
+                    </div>
+                    <Input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Payment Terms</Label>
-                  <Select value={String(paymentTerms)} onValueChange={(v) => setPaymentTerms(parseInt(v))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="15">Net 15</SelectItem>
-                      <SelectItem value="30">Net 30</SelectItem>
-                      <SelectItem value="45">Net 45</SelectItem>
-                      <SelectItem value="60">Net 60</SelectItem>
-                      <SelectItem value="0">Due on Receipt</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Issue Date</Label>
-                  <Input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Due Date</Label>
-                  <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Purchase Invoice #</Label>
+                      <Input value={billNumber} onChange={(e) => setBillNumber(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Payment Terms</Label>
+                      <Select value={String(paymentTerms)} onValueChange={(v) => setPaymentTerms(parseInt(v))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="15">Net 15</SelectItem>
+                          <SelectItem value="30">Net 30</SelectItem>
+                          <SelectItem value="45">Net 45</SelectItem>
+                          <SelectItem value="60">Net 60</SelectItem>
+                          <SelectItem value="0">Due on Receipt (0 days)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Issue Date</Label>
+                      <Input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Due Date</Label>
+                      <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </CardContent>
@@ -1453,11 +1649,7 @@ export default function BillBuilderPage() {
       
   
       {/* Custom Fields */}
-      <Card>
-        <CardContent className="pt-6">
-          <CustomFieldsForm entityType="bill" entityId={id} onChange={setCustomFieldValues} />
-        </CardContent>
-      </Card>
+      <CustomFieldsForm entityType="bill" entityId={id} onChange={setCustomFieldValues} />
 
       {/* Line Items */}
       <Card>
@@ -1470,8 +1662,8 @@ export default function BillBuilderPage() {
         <CardContent>
           <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider grid grid-cols-12 gap-2 px-6 pb-2 border-b">
             <div className="col-span-4">Item Details</div>
-            <div className="col-span-2 text-center">Quantity</div>
-            <div className="col-span-2 text-right">Rate</div>
+            <div className="col-span-2 text-center">Quantity &amp; Unit</div>
+            <div className="col-span-2 text-right">Rates (Buy / Sell)</div>
             <div className="col-span-2 text-left pl-2">Tax</div>
             <div className="col-span-2 text-right">Amount</div>
           </div>
@@ -1493,20 +1685,8 @@ export default function BillBuilderPage() {
               ))}
             </SortableContext>
           </DndContext>
-          {/* Empty row placeholder */}
-          <div className="flex items-center gap-1 py-3 border-b text-muted-foreground">
-            <GripVertical className="h-3.5 w-3.5 opacity-30 shrink-0" />
-            <div className="grid flex-1 grid-cols-12 gap-2 items-center px-1">
-              <div className="col-span-5 text-xs italic cursor-pointer hover:text-foreground" onClick={addLine}>
-                Type or click to select an item.
-              </div>
-              <div className="col-span-2 text-center text-xs">1.00</div>
-              <div className="col-span-2 text-right text-xs">0.00</div>
-              <div className="col-span-3 text-right text-xs">0.00</div>
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" onClick={addLine} className="mt-2">
-            <Plus className="mr-1 h-4 w-4" /> Add Line
+          <Button variant="outline" size="sm" onClick={addLine} className="mt-3 text-xs border-dashed text-primary hover:text-primary hover:bg-primary/5">
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> + Click here to add new item
           </Button>
         </CardContent>
       </Card>
@@ -1600,170 +1780,211 @@ export default function BillBuilderPage() {
       {/* Totals & Notes */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="shadow-sm border-slate-200">
-              <CardHeader className="pb-3 border-b bg-slate-50/50">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 bg-blue-100 text-blue-700 rounded-md flex items-center justify-center">
-                    <FileText className="h-3.5 w-3.5" />
-                  </div>
-                  <CardTitle className="text-sm font-semibold text-blue-700">Notes</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <Textarea 
-                  value={notes} 
-                  onChange={e => setNotes(e.target.value)} 
-                  rows={3} 
-                  placeholder="Notes visible on bill..."
-                  className="resize-none bg-slate-50/50 border-slate-200 text-sm"
-                  maxLength={500}
-                />
-                <div className="text-right text-xs text-slate-400 mt-2">{notes.length} / 500</div>
-              </CardContent>
-            </Card>
+          {(billShowNotes || billShowTerms || billShowDisplayOptions) && (
+            <div className={`grid grid-cols-1 ${
+              [billShowNotes, billShowTerms, billShowDisplayOptions].filter(Boolean).length === 3
+                ? "md:grid-cols-3"
+                : [billShowNotes, billShowTerms, billShowDisplayOptions].filter(Boolean).length === 2
+                ? "md:grid-cols-2"
+                : "md:grid-cols-1"
+            } gap-6`}>
+              {billShowNotes && (
+                <Card className="shadow-sm border-slate-200">
+                  <CardHeader className="pb-3 border-b bg-slate-50/50">
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 bg-blue-100 text-blue-700 rounded-md flex items-center justify-center">
+                        <FileText className="h-3.5 w-3.5" />
+                      </div>
+                      <CardTitle className="text-sm font-semibold text-blue-700">Notes</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    <Textarea 
+                      value={notes} 
+                      onChange={e => setNotes(e.target.value)} 
+                      rows={3} 
+                      placeholder="Notes visible on bill..."
+                      className="resize-none bg-slate-50/50 border-slate-200 text-sm"
+                      maxLength={500}
+                    />
+                    <div className="text-right text-xs text-slate-400 mt-2">{notes.length} / 500</div>
+                  </CardContent>
+                </Card>
+              )}
 
-            <Card className="shadow-sm border-slate-200">
-              <CardHeader className="pb-3 border-b bg-slate-50/50">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 bg-blue-100 text-blue-700 rounded-md flex items-center justify-center">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  </div>
-                  <CardTitle className="text-sm font-semibold text-blue-700">Terms</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-4 space-y-3">
-                <Textarea 
-                  value={terms} 
-                  onChange={e => setTerms(e.target.value)} 
-                  rows={3} 
-                  placeholder="Payment terms, late fees..."
-                  className="resize-none bg-slate-50/50 border-slate-200 text-sm"
-                />
-              </CardContent>
-            </Card>
+              {billShowTerms && (
+                <Card className="shadow-sm border-slate-200">
+                  <CardHeader className="pb-3 border-b bg-slate-50/50">
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 bg-blue-100 text-blue-700 rounded-md flex items-center justify-center">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      </div>
+                      <CardTitle className="text-sm font-semibold text-blue-700">Terms</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-4 space-y-3">
+                    <Textarea 
+                      value={terms} 
+                      onChange={e => setTerms(e.target.value)} 
+                      rows={3} 
+                      placeholder="Payment terms, late fees..."
+                      className="resize-none bg-slate-50/50 border-slate-200 text-sm"
+                    />
+                  </CardContent>
+                </Card>
+              )}
 
-            <Card className="shadow-sm border-slate-200">
-              <CardHeader className="pb-3 border-b bg-slate-50/50">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 bg-blue-100 text-blue-700 rounded-md flex items-center justify-center">
-                    <Eye className="h-3.5 w-3.5" />
+              {billShowDisplayOptions && (
+                <Card className="shadow-sm border-slate-200">
+                  <CardHeader className="pb-3 border-b bg-slate-50/50">
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 bg-blue-100 text-blue-700 rounded-md flex items-center justify-center">
+                        <Eye className="h-3.5 w-3.5" />
+                      </div>
+                      <CardTitle className="text-sm font-semibold text-blue-700">Display Options</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-4 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
+                      <Checkbox checked={autoRoundOff} onCheckedChange={(v) => setAutoRoundOff(!!v)} />
+                      <span className="text-sm font-medium text-slate-700">Auto Round Off Total</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
+                      <Checkbox checked={includeBankDetails} onCheckedChange={(v) => setIncludeBankDetails(!!v)} />
+                      <span className="text-sm font-medium text-slate-700">Show Bank / UPI Details</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
+                      <Checkbox checked={showTerms} onCheckedChange={(v) => setShowTerms(!!v)} />
+                      <span className="text-sm font-medium text-slate-700">Show Terms</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
+                      <Checkbox checked={showNotes} onCheckedChange={(v) => setShowNotes(!!v)} />
+                      <span className="text-sm font-medium text-slate-700">Show Notes</span>
+                    </label>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+          {/* Action Options: Stock & Signature */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {linkedGrnId ? (
+              <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50/70 dark:bg-amber-950/20 dark:border-amber-800 p-3">
+                <div className="text-sm">
+                  <div className="font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                    <span>🔒</span> Stock Addition Locked (GRN)
                   </div>
-                  <CardTitle className="text-sm font-semibold text-blue-700">Display Options</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-4 space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
-                  <Checkbox checked={autoRoundOff} onCheckedChange={(v) => setAutoRoundOff(!!v)} />
-                  <span className="text-sm font-medium text-slate-700">Auto Round Off Total</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
-                  <Checkbox checked={includeBankDetails} onCheckedChange={(v) => setIncludeBankDetails(!!v)} />
-                  <span className="text-sm font-medium text-slate-700">Show Bank / UPI Details</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
-                  <Checkbox checked={showTerms} onCheckedChange={(v) => setShowTerms(!!v)} />
-                  <span className="text-sm font-medium text-slate-700">Show Terms</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
-                  <Checkbox checked={showNotes} onCheckedChange={(v) => setShowNotes(!!v)} />
-                  <span className="text-sm font-medium text-slate-700">Show Notes</span>
-                </label>
-              </CardContent>
-            </Card>
-          </div>
-          {linkedGrnId ? (
-            <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50/70 dark:bg-amber-950/20 dark:border-amber-800 p-3">
-              <div className="text-sm">
-                <div className="font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                  <span>🔒</span> Stock Addition Locked (Already Received via GRN)
-                </div>
-                <div className="text-xs text-amber-700/90 dark:text-amber-400 mt-1">
-                  Product quantities were already added to inventory upon Goods Receipt (GRN). This bill will not add stock again to prevent duplicate inventory.
+                  <div className="text-xs text-amber-700/90 dark:text-amber-400 mt-1">
+                    Product quantities were already added to inventory upon Goods Receipt (GRN). This bill will not add stock again to prevent duplicate inventory.
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <label className="flex items-start gap-2 rounded-md border p-3 cursor-pointer hover:bg-muted/40">
+            ) : (
+              <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40 transition-colors">
+                <Checkbox
+                  checked={deductStock}
+                  onCheckedChange={(v) => setDeductStock(!!v)}
+                  className="mt-0.5"
+                />
+                <div className="text-sm space-y-0.5">
+                  <div className="font-medium">Add stock to inventory</div>
+                  <div className="text-xs text-muted-foreground">
+                    When saved, product item quantities on this purchase bill will be added to stock.
+                  </div>
+                </div>
+              </label>
+            )}
+
+            {/* Signature Toggle */}
+            <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40 transition-colors">
               <Checkbox
-                checked={deductStock}
-                onCheckedChange={(v) => setDeductStock(!!v)}
+                id="show-signature"
+                checked={showSignature}
+                onCheckedChange={(checked) => {
+                  if (checked && (!org?.address?.signature_type || org.address.signature_type === 'none')) {
+                    toast({ title: "No signature found", description: "Please upload or select your signature in Settings > Invoices" });
+                    return;
+                  }
+                  setShowSignature(!!checked);
+                }}
                 className="mt-0.5"
               />
-              <div className="text-sm">
-                <div className="font-medium">Add stock to inventory</div>
+              <div className="text-sm space-y-0.5">
+                <div className="font-medium">Include Authorized Signature</div>
                 <div className="text-xs text-muted-foreground">
-                  When saved, product item quantities on this purchase bill will be added to stock. (Keep unchecked if stock is received separately via GRN).
+                  Print company stamp and authorized signatory on purchase documents.
                 </div>
               </div>
             </label>
-          )}
+          </div>
 
           {/* Phase 5 — Opt-in Compliance */}
-          <div className="space-y-2 rounded-md border p-3">
-            <div className="text-sm font-medium">Compliance (optional)</div>
-            <p className="text-xs text-muted-foreground">
-              Tick to record IRN / E-way bill details. Nothing is generated automatically — paste the values you receive from the GST / NIC portal.
-            </p>
+          {billShowCompliance && (
+            <div className="space-y-2 rounded-md border p-3">
+              <div className="text-sm font-medium">Compliance (optional)</div>
+              <p className="text-xs text-muted-foreground">
+                Tick to record IRN / E-way bill details. Nothing is generated automatically — paste the values you receive from the GST / NIC portal.
+              </p>
 
-            <label className="flex items-start gap-2 cursor-pointer mt-2">
-              <Checkbox checked={generateIrn} onCheckedChange={(v) => setGenerateIrn(!!v)} className="mt-0.5" />
-              <span className="text-sm font-medium">E-bill (IRN) details</span>
-            </label>
-            {generateIrn && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pl-6">
-                <div className="md:col-span-3">
-                  <Label className="text-xs">IRN</Label>
-                  <Input value={irn} onChange={(e) => setIrn(e.target.value)} placeholder="64-char hash" className="h-8 text-xs font-mono" />
+              <label className="flex items-start gap-2 cursor-pointer mt-2">
+                <Checkbox checked={generateIrn} onCheckedChange={(v) => setGenerateIrn(!!v)} className="mt-0.5" />
+                <span className="text-sm font-medium">E-bill (IRN) details</span>
+              </label>
+              {generateIrn && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pl-6">
+                  <div className="md:col-span-3">
+                    <Label className="text-xs">IRN</Label>
+                    <Input value={irn} onChange={(e) => setIrn(e.target.value)} placeholder="64-char hash" className="h-8 text-xs font-mono" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Ack No.</Label>
+                    <Input value={ackNo} onChange={(e) => setAckNo(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Ack Date</Label>
+                    <Input type="date" value={ackDate} onChange={(e) => setAckDate(e.target.value)} className="h-8 text-xs" />
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-xs">Ack No.</Label>
-                  <Input value={ackNo} onChange={(e) => setAckNo(e.target.value)} className="h-8 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-xs">Ack Date</Label>
-                  <Input type="date" value={ackDate} onChange={(e) => setAckDate(e.target.value)} className="h-8 text-xs" />
-                </div>
-              </div>
-            )}
+              )}
 
-            <label className="flex items-start gap-2 cursor-pointer mt-2">
-              <Checkbox checked={generateEway} onCheckedChange={(v) => setGenerateEway(!!v)} className="mt-0.5" />
-              <span className="text-sm font-medium">E-way bill details</span>
-            </label>
-            {generateEway && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pl-6">
-                <div>
-                  <Label className="text-xs">EWB No.</Label>
-                  <Input value={ewayBillNo} onChange={(e) => setEwayBillNo(e.target.value)} className="h-8 text-xs" />
+              <label className="flex items-start gap-2 cursor-pointer mt-2">
+                <Checkbox checked={generateEway} onCheckedChange={(v) => setGenerateEway(!!v)} className="mt-0.5" />
+                <span className="text-sm font-medium">E-way bill details</span>
+              </label>
+              {generateEway && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pl-6">
+                  <div>
+                    <Label className="text-xs">EWB No.</Label>
+                    <Input value={ewayBillNo} onChange={(e) => setEwayBillNo(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Valid Until</Label>
+                    <Input type="date" value={ewayValidUntil} onChange={(e) => setEwayValidUntil(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Vehicle No.</Label>
+                    <Input value={ewayVehicleNo} onChange={(e) => setEwayVehicleNo(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Transport Mode</Label>
+                    <Select value={ewayTransportMode} onValueChange={setEwayTransportMode}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="road">Road</SelectItem>
+                        <SelectItem value="rail">Rail</SelectItem>
+                        <SelectItem value="air">Air</SelectItem>
+                        <SelectItem value="ship">Ship</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Distance (km)</Label>
+                    <Input type="number" value={ewayDistanceKm} onChange={(e) => setEwayDistanceKm(e.target.value)} className="h-8 text-xs" />
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-xs">Valid Until</Label>
-                  <Input type="date" value={ewayValidUntil} onChange={(e) => setEwayValidUntil(e.target.value)} className="h-8 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-xs">Vehicle No.</Label>
-                  <Input value={ewayVehicleNo} onChange={(e) => setEwayVehicleNo(e.target.value)} className="h-8 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-xs">Transport Mode</Label>
-                  <Select value={ewayTransportMode} onValueChange={setEwayTransportMode}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="road">Road</SelectItem>
-                      <SelectItem value="rail">Rail</SelectItem>
-                      <SelectItem value="air">Air</SelectItem>
-                      <SelectItem value="ship">Ship</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">Distance (km)</Label>
-                  <Input type="number" value={ewayDistanceKm} onChange={(e) => setEwayDistanceKm(e.target.value)} className="h-8 text-xs" />
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="lg:col-span-4 space-y-4">
@@ -1920,36 +2141,6 @@ export default function BillBuilderPage() {
         </div>
       </div>
 
-
-    
-                {/* Signature Toggle */}
-                <div className="flex items-center space-x-2 py-4 border-t mt-4">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="flex items-center space-x-2">
-                          <Checkbox 
-                            id="show-signature" 
-                            checked={showSignature} 
-                            onCheckedChange={(checked) => {
-                              if (checked && (!org?.address?.signature_type || org.address.signature_type === 'none')) {
-                                toast({ title: "No signature found", description: "Please upload or select your signature in Settings > Custom Fields" });
-                                return;
-                              }
-                              setShowSignature(!!checked);
-                            }} 
-                          />
-                          <Label htmlFor="show-signature" className="cursor-pointer">Include Authorized Signature</Label>
-                        </div>
-                      </TooltipTrigger>
-                      {(!org?.address?.signature_type || org?.address?.signature_type === 'none') && (
-                        <TooltipContent>
-                          <p>Please upload or select your signature in Settings {'>'} Custom Fields</p>
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
       <PlanSelectorModal
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}

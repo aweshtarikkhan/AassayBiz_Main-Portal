@@ -121,12 +121,28 @@ export default function BillDetailPage() {
     if (!b) { toast({ title: "Error", description: "Bill not found", variant: "destructive" }); navigate("/purchase-invoices"); return; }
     setBill(b);
     setPayAmt(String(b.balance_due));
-    const [{ data: l }, { data: v }, { data: p }] = await Promise.all([
-      (supabase as any).from("bill_lines").select("*, tax_rates(id, name, rate), items(name, sku, unit, hsn_code)").eq("bill_id", id).order("sort_order"),
+    const [linesRes, { data: v }, { data: p }] = await Promise.all([
+      (supabase as any)
+        .from("bill_lines")
+        .select("*, items(name, sku, unit, hsn_code)")
+        .eq("bill_id", id)
+        .order("sort_order"),
       (supabase as any).from("vendors").select("*").eq("id", b.vendor_id).maybeSingle(),
       (supabase as any).from("bill_payments").select("*").eq("bill_id", id).order("payment_date", { ascending: false }),
     ]);
-    setLines(l || []); setVendor(v); setPayments(p || []);
+
+    let loadedLines = linesRes?.data;
+    if (linesRes?.error || !loadedLines || loadedLines.length === 0) {
+      const { data: fallbackLines } = await (supabase as any)
+        .from("bill_lines")
+        .select("*")
+        .eq("bill_id", id)
+        .order("sort_order");
+      if (fallbackLines && fallbackLines.length > 0) {
+        loadedLines = fallbackLines;
+      }
+    }
+    setLines(loadedLines || []); setVendor(v); setPayments(p || []);
   };
   useEffect(() => { load(); }, [id]);
 
@@ -207,11 +223,32 @@ export default function BillDetailPage() {
   };
   const invoiceRef = useRef<HTMLDivElement>(null);
 
-  const mappedBillForTemplate = useMemo(() => {
-    if (!bill) return null;
+  const { mappedBillForTemplate, billShowSignature } = useMemo(() => {
+    if (!bill) return { mappedBillForTemplate: null, billShowSignature: true };
     const vendorName = vendor?.display_name || vendor?.name || (bill as any)?.vendor_name || "Vendor";
-    return {
+    
+    let baseNotes = bill.notes || "";
+    let extraData: any = {};
+    if (baseNotes.includes("---EXTRA_DATA---")) {
+      const parts = baseNotes.split("---EXTRA_DATA---");
+      baseNotes = parts[0].trim();
+      try {
+        extraData = JSON.parse(parts[1].trim());
+      } catch (e) {
+        console.error("Failed to parse extra data", e);
+      }
+    }
+    const meta = bill.metadata && typeof bill.metadata === 'object' ? bill.metadata : {};
+    const billPref = (org?.invoice_preferences as any) || {};
+
+    const showTerms = extraData.showTerms ?? meta.showTerms ?? (billPref.bill_pdf_show_terms !== false);
+    const showNotes = extraData.showNotes ?? meta.showNotes ?? (billPref.bill_pdf_show_notes !== false);
+    const showBank = extraData.includeBankDetails ?? meta.includeBankDetails ?? (billPref.bill_pdf_show_bank_details !== false);
+    const showSig = extraData.showSignature ?? meta.showSignature ?? (billPref.bill_pdf_show_signature !== false);
+
+    const mapped = {
       ...bill,
+      notes: baseNotes,
       invoice_number: bill.vendor_bill_number || bill.bill_number,
       issue_date: bill.bill_date,
       total_tax: bill.tax_total || 0,
@@ -224,6 +261,13 @@ export default function BillDetailPage() {
       tds_tcs_type: (bill as any).tds_tcs_type || "tds",
       tds_tcs_rate: Number((bill as any).tds_tcs_rate || 0),
       tds_tcs_amount: Number((bill as any).tds_tcs_amount || 0),
+      metadata: {
+        ...meta,
+        show_terms: showTerms,
+        show_notes: showNotes,
+        include_bank_details: showBank,
+        show_bank_details: showBank,
+      },
       clients: {
         display_name: vendorName,
         tax_number: vendor?.gstin || (bill as any)?.vendor_gstin,
@@ -232,7 +276,9 @@ export default function BillDetailPage() {
         phone: vendor?.phone
       }
     };
-  }, [bill, vendor]);
+
+    return { mappedBillForTemplate: mapped, billShowSignature: showSig };
+  }, [bill, vendor, org]);
 
   const isInterstate = useMemo(() => {
     if (!bill || !org) return false;
@@ -249,9 +295,9 @@ export default function BillDetailPage() {
       const splitDesc = desc.split("\n");
       const itemName = l.items?.name || l.name || splitDesc[0] || "Item";
       const itemDesc = l.items?.name ? desc : (splitDesc.slice(1).join("\n") || "");
-      const q = Number(l.quantity) || 0;
+      const q = Number(l.quantity) || 1;
       const r = Number(l.rate) || 0;
-      const tr = resolveLineTaxRate(l);
+      const tr = Number(l.tax_rate) !== undefined && !isNaN(Number(l.tax_rate)) ? Number(l.tax_rate) : resolveLineTaxRate(l);
       const tax_amount = Number(l.tax_amount) || (q * r * (tr / 100));
       const amount = Number(l.amount) || (q * r + tax_amount);
       return {
@@ -263,7 +309,7 @@ export default function BillDetailPage() {
         quantity: q,
         rate: r,
         tax_rate: tr,
-        tax_rates: l.tax_rates || { rate: tr },
+        tax_rates: l.tax_rates || { rate: tr, name: `${tr}%` },
         tax_amount,
         amount,
       };
@@ -551,7 +597,7 @@ export default function BillDetailPage() {
       <div ref={invoiceRef}>
           {mappedBillForTemplate && (
             <div className={getDocumentPreviewClass(org?.template_style, org?.template_paper_size)}>
-              <StyledInvoiceTemplate org={org} invoice={mappedBillForTemplate} lines={enhancedLines} fmt={fmt} type="bill" taxBreakdown={taxBreakdown} isInterstate={isInterstate} />
+              <StyledInvoiceTemplate org={org} invoice={mappedBillForTemplate} lines={enhancedLines} fmt={fmt} type="bill" taxBreakdown={taxBreakdown} isInterstate={isInterstate} showSignature={billShowSignature} />
             </div>
           )}
       </div>

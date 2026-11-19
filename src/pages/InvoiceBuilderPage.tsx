@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Save, Eye, Trash2, Plus, GripVertical, Printer, Share2, Clock, ChevronDown, AlertTriangle, Layers, Check, CreditCard, Mail, MessageCircle, ArrowLeft, Lock, RefreshCw, Wallet } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { InvoiceSettingsSheet } from "@/components/shared/InvoiceSettingsSheet";
 
 import {
@@ -131,6 +132,7 @@ function SortableLineItem({
   onAddItem: () => void;
   currency: string;
   org: any;
+  onAutoAddLine?: () => void;
 }) {
   const hasGst = Boolean((org?.gst_number?.trim() || (org as any)?.tax_number?.trim()) || (org as any)?.gst_enabled);
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: line.id });
@@ -184,14 +186,16 @@ function SortableLineItem({
     onChange(index, "rate", __rate);
     onChange(index, "discount", Number(item.discount) || 0);
     onChange(index, "discount_type", "percentage");
-    onChange(index, "unit", item.unit || "pcs");
-    onChange(index, "primary_unit", item.unit || "pcs");
+    const itemUnit = item.unit || "pcs";
+    onChange(index, "unit", itemUnit);
+    onChange(index, "primary_unit", itemUnit);
     onChange(index, "base_unit_price", Number(item.unit_price) || 0);
     onChange(index, "hsn_code", hasGst ? (item.hsn_code || "") : "");
     onChange(index, "tax_id", hasGst ? (item.tax_id || null) : null);
     onChange(index, "sub_unit", item.sub_unit || "");
     onChange(index, "sub_unit_conversion_rate", Number(item.sub_unit_conversion_rate) || 1);
     setItemDropdownOpen(false);
+    onAutoAddLine?.();
   };
 
   const filteredItems = useMemo(() => {
@@ -217,12 +221,18 @@ function SortableLineItem({
             <div className="relative flex-1">
               <Input
                 className="h-8 text-xs pr-7"
-                placeholder="Type or click to select an item"
+                placeholder="Add new item"
                 value={line.name}
                 onChange={(e) => {
-                  onChange(index, "item_id", null);
-                  onChange(index, "name", e.target.value);
+                  const val = e.target.value;
+                  onChange(index, "name", val);
                   setItemDropdownOpen(true);
+                  const matched = items.find((i: any) => i.name.toLowerCase() === val.trim().toLowerCase());
+                  if (matched) {
+                    handleItemSelect(matched);
+                  } else {
+                    onChange(index, "item_id", null);
+                  }
                 }}
                 onFocus={() => setItemDropdownOpen(true)}
                 onBlur={() => setTimeout(() => setItemDropdownOpen(false), 200)}
@@ -351,14 +361,19 @@ function SortableLineItem({
                   )}
                 </div>
               ) : (
-                <span className="text-[10px] text-muted-foreground uppercase font-medium mt-0.5">{line.unit || "pcs"}</span>
+                <Input
+                  className="h-5 text-[10px] text-foreground font-semibold text-center border-0 border-b border-muted-foreground/30 bg-transparent px-1 py-0 focus-visible:ring-0 focus-visible:ring-offset-0 mt-0.5 uppercase hover:border-foreground"
+                  placeholder="UNIT"
+                  value={line.unit || "pcs"}
+                  onChange={(e) => onChange(index, "unit", e.target.value)}
+                />
               )}
             </div>
           ) : (
             <Input
-              className="h-5 text-[10px] text-muted-foreground text-center border-0 border-b border-dashed bg-transparent px-1 py-0 focus-visible:ring-0 focus-visible:ring-offset-0 mt-0.5 uppercase"
-              placeholder="unit"
-              value={line.unit === "pcs" && !line.name ? "" : line.unit}
+              className="h-5 text-[10px] text-foreground font-semibold text-center border-0 border-b border-dashed bg-transparent px-1 py-0 focus-visible:ring-0 focus-visible:ring-offset-0 mt-0.5 uppercase hover:border-foreground"
+              placeholder="UNIT"
+              value={line.unit || "pcs"}
               onChange={(e) => onChange(index, "unit", e.target.value)}
             />
           )}
@@ -448,6 +463,8 @@ export default function InvoiceBuilderPage() {
   const [showSignature, setShowSignature] = useState(() => {
     const orgState = useAppStore.getState().organization;
     if (!orgState) return false;
+    const prefs = (orgState as any)?.invoice_preferences || {};
+    if (prefs.pdf_show_signature === false) return false;
     let addr: any = orgState.address;
     if (typeof addr === "string") {
       try { addr = JSON.parse(addr); } catch { addr = null; }
@@ -475,9 +492,9 @@ export default function InvoiceBuilderPage() {
   const [shippingGst, setShippingGst] = useState("");
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
-  const [paymentTerms, setPaymentTerms] = useState(30);
-  const [notes, setNotes] = useState("");
-  const [terms, setTerms] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState<number>(() => org?.payment_terms !== undefined && org?.payment_terms !== null ? Number(org.payment_terms) : 30);
+  const [notes, setNotes] = useState(org?.default_notes || "");
+  const [terms, setTerms] = useState(org?.default_terms || "");
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState<"percentage" | "fixed">("percentage");
   const [tdsTcsApplicable, setTdsTcsApplicable] = useState(false);
@@ -487,14 +504,27 @@ export default function InvoiceBuilderPage() {
   const [expenses, setExpenses] = useState(0);
   const [adjustment, setAdjustment] = useState(0);
   const [adjustmentName, setAdjustmentName] = useState("Adjustment");
-  const [autoRoundOff, setAutoRoundOff] = useState(true);
-  const [showBankDetails, setShowBankDetails] = useState(true);
-  const [showTerms, setShowTerms] = useState(true);
-  const [showNotes, setShowNotes] = useState(true);
+  // Invoice Builder sections & PDF display preferences (configured from Settings > Invoices > Preferences)
+  const initialPrefs = (org as any)?.invoice_preferences || {};
+  const [autoRoundOff, setAutoRoundOff] = useState<boolean>(initialPrefs.auto_round_off !== false);
+  const [showBankDetails, setShowBankDetails] = useState<boolean>(initialPrefs.pdf_show_bank_details !== false && initialPrefs.show_bank_details !== false);
+  const [showTerms, setShowTerms] = useState<boolean>(initialPrefs.pdf_show_terms !== false);
+  const [showNotes, setShowNotes] = useState<boolean>(initialPrefs.pdf_show_notes !== false);
+
+  const [prefShowTerms, setPrefShowTerms] = useState<boolean>(initialPrefs.show_terms !== false);
+  const [prefShowNotes, setPrefShowNotes] = useState<boolean>(initialPrefs.show_notes !== false);
+  const [prefShowBankDetails, setPrefShowBankDetails] = useState<boolean>(initialPrefs.show_bank_details !== false);
+  const [prefShowDisplayOptions, setPrefShowDisplayOptions] = useState<boolean>(initialPrefs.show_display_options !== false);
+  const [prefShowCompliance, setPrefShowCompliance] = useState<boolean>(initialPrefs.show_compliance !== false);
   const [lines, setLines] = useState<LineItem[]>([createEmptyLine()]);
   const [deductStock, setDeductStock] = useState(true);
   const [prevDeductStock, setPrevDeductStock] = useState(true);
   const [amountPaid, setAmountPaid] = useState(0);
+  const [paymentMode, setPaymentMode] = useState<string>("unpaid");
+  const [paymentDate, setPaymentDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [paymentRef, setPaymentRef] = useState<string>("");
+  const [paymentNotes, setPaymentNotes] = useState<string>("");
+  const [paymentBankAccountId, setPaymentBankAccountId] = useState<string>("");
 
   // Bank details per organization
   const [includeBankDetails, setIncludeBankDetails] = useState(false);
@@ -563,7 +593,7 @@ export default function InvoiceBuilderPage() {
       if (!id) {
         const { data: freshOrg } = await supabase
           .from("organizations")
-          .select("invoice_next_number, invoice_prefix, payment_terms, default_notes, default_terms, bank_name, bank_account_name, bank_account_number, bank_ifsc, bank_branch, bank_details_enabled, upi_id, name")
+          .select("invoice_next_number, invoice_prefix, payment_terms, default_notes, default_terms, bank_name, bank_account_name, bank_account_number, bank_ifsc, bank_branch, bank_details_enabled, upi_id, name, invoice_preferences")
           .eq("id", org.id)
           .single();
         const prefix = freshOrg?.invoice_prefix || org.invoice_prefix || "INV";
@@ -588,33 +618,61 @@ export default function InvoiceBuilderPage() {
           num = maxExisting + 1;
         }
         setInvoiceNumber(formatSequenceNumber(prefix, num, "INV"));
-        setPaymentTerms(freshOrg?.payment_terms || org.payment_terms || 30);
+        const rawTerms = freshOrg?.payment_terms !== undefined && freshOrg?.payment_terms !== null 
+          ? Number(freshOrg.payment_terms) 
+          : (org?.payment_terms !== undefined && org?.payment_terms !== null ? Number(org.payment_terms) : 30);
+        setPaymentTerms(rawTerms);
         setNotes(freshOrg?.default_notes || org.default_notes || "");
         setTerms(freshOrg?.default_terms || org.default_terms || "");
 
-        if (freshOrg) {
-          if (freshOrg.bank_name || freshOrg.bank_account_number || freshOrg.bank_ifsc) {
-            setIncludeBankDetails(freshOrg.bank_details_enabled !== false);
-            setBankName(freshOrg.bank_name || "");
-            setBankAccountName(freshOrg.bank_account_name || freshOrg.name || org.name || "");
-            setBankAccountNumber(freshOrg.bank_account_number || "");
-            setBankIfsc(freshOrg.bank_ifsc || "");
-            setBankBranch(freshOrg.bank_branch || "");
-            setBankUpiId(freshOrg.upi_id || org.upi_id || "");
-          } else {
-            const { data: bAccs } = await supabase.from("bank_accounts").select("*").eq("org_id", org.id).eq("is_active", true).limit(1);
-            if (bAccs && bAccs.length > 0) {
-              const acc = bAccs[0];
-              setSelectedBankAccountId(acc.id);
-              setIncludeBankDetails(true);
-              setBankName(acc.bank_name || "");
-              setBankAccountName(acc.name || freshOrg.name || org.name || "");
-              setBankAccountNumber(acc.account_number || "");
-              setBankIfsc(acc.ifsc || "");
-              setBankBranch("");
-              setBankUpiId(acc.upi_id || freshOrg.upi_id || org.upi_id || "");
-            }
+        const effectivePrefs = (freshOrg as any)?.invoice_preferences || (org as any)?.invoice_preferences;
+        if (effectivePrefs) {
+          // Builder input sections
+          if (effectivePrefs.show_terms !== undefined) setPrefShowTerms(effectivePrefs.show_terms !== false);
+          if (effectivePrefs.show_notes !== undefined) setPrefShowNotes(effectivePrefs.show_notes !== false);
+          if (effectivePrefs.show_bank_details !== undefined) setPrefShowBankDetails(effectivePrefs.show_bank_details !== false);
+          if (effectivePrefs.show_display_options !== undefined) setPrefShowDisplayOptions(effectivePrefs.show_display_options !== false);
+          if (effectivePrefs.show_compliance !== undefined) setPrefShowCompliance(effectivePrefs.show_compliance !== false);
+
+          // PDF document display defaults
+          if (effectivePrefs.pdf_show_bank_details !== undefined) {
+            setShowBankDetails(effectivePrefs.pdf_show_bank_details !== false);
+            setIncludeBankDetails(effectivePrefs.pdf_show_bank_details !== false);
           }
+          if (effectivePrefs.pdf_show_terms !== undefined) setShowTerms(effectivePrefs.pdf_show_terms !== false);
+          if (effectivePrefs.pdf_show_notes !== undefined) setShowNotes(effectivePrefs.pdf_show_notes !== false);
+          if (effectivePrefs.auto_round_off !== undefined) setAutoRoundOff(effectivePrefs.auto_round_off !== false);
+          if (effectivePrefs.pdf_show_signature !== undefined) setShowSignature(effectivePrefs.pdf_show_signature !== false);
+        }
+
+        // Auto-select Default / Primary Bank Account
+        const defaultBankId = effectivePrefs?.default_bank_account_id;
+        const targetAcc = (allBankAccounts || []).find((a: any) => a.id === defaultBankId) ||
+          (allBankAccounts || []).find((a: any) => a.account_number === freshOrg?.bank_account_number) ||
+          ((allBankAccounts || [])[0]);
+
+        if (targetAcc) {
+          setSelectedBankAccountId(targetAcc.id);
+          const parsedNotes = targetAcc.notes ? (() => { try { return JSON.parse(targetAcc.notes); } catch { return {}; } })() : {};
+          setBankName(targetAcc.bank_name || "");
+          setBankAccountName(parsedNotes.account_holder_name || targetAcc.name || freshOrg?.name || org.name || "");
+          setBankAccountNumber(targetAcc.account_number || "");
+          setBankIfsc(targetAcc.ifsc || "");
+          setBankBranch(parsedNotes.branch || "");
+          setBankUpiId(targetAcc.upi_id || freshOrg?.upi_id || org.upi_id || "");
+          const shouldPrintBank = effectivePrefs?.pdf_show_bank_details !== false && effectivePrefs?.show_bank_details !== false;
+          setIncludeBankDetails(shouldPrintBank);
+          setShowBankDetails(shouldPrintBank);
+        } else if (freshOrg && (freshOrg.bank_name || freshOrg.bank_account_number)) {
+          const shouldPrintBank = freshOrg.bank_details_enabled !== false && effectivePrefs?.pdf_show_bank_details !== false;
+          setIncludeBankDetails(shouldPrintBank);
+          setShowBankDetails(shouldPrintBank);
+          setBankName(freshOrg.bank_name || "");
+          setBankAccountName(freshOrg.bank_account_name || freshOrg.name || org.name || "");
+          setBankAccountNumber(freshOrg.bank_account_number || "");
+          setBankIfsc(freshOrg.bank_ifsc || "");
+          setBankBranch(freshOrg.bank_branch || "");
+          setBankUpiId(freshOrg.upi_id || org.upi_id || "");
         }
       }
     };
@@ -624,9 +682,13 @@ export default function InvoiceBuilderPage() {
   // Update due date when issue date or payment terms change
   useEffect(() => {
     if (issueDate) {
-      const d = new Date(issueDate);
-      d.setDate(d.getDate() + paymentTerms);
-      setDueDate(d.toISOString().split("T")[0]);
+      if (Number(paymentTerms) === 0) {
+        setDueDate(issueDate);
+      } else {
+        const d = new Date(issueDate);
+        d.setDate(d.getDate() + Number(paymentTerms));
+        setDueDate(d.toISOString().split("T")[0]);
+      }
     }
   }, [issueDate, paymentTerms]);
 
@@ -674,8 +736,8 @@ export default function InvoiceBuilderPage() {
         setDueDate(inv.due_date);
       }
       
-      setNotes(inv.notes || "");
-      setTerms(inv.terms_conditions || "");
+      setNotes(inv.notes !== null && inv.notes !== undefined && inv.notes !== "" ? inv.notes : (org?.default_notes || ""));
+      setTerms(inv.terms_conditions !== null && inv.terms_conditions !== undefined && inv.terms_conditions !== "" ? inv.terms_conditions : (org?.default_terms || ""));
       setDiscount(Number(inv.discount));
       setDiscountType(inv.discount_type as any);
       setShippingCharge(Number(inv.shipping_charge));
@@ -706,6 +768,8 @@ export default function InvoiceBuilderPage() {
       setDeductStock((inv as any).deduct_stock !== undefined && (inv as any).deduct_stock !== null ? !!(inv as any).deduct_stock : true);
       setPrevDeductStock((inv as any).deduct_stock !== undefined && (inv as any).deduct_stock !== null ? !!(inv as any).deduct_stock : true);
       setAmountPaid(duplicateId ? 0 : Number(inv.amount_paid || 0));
+      const loadedPayMode = (inv.metadata as any)?.payment_mode || (inv.status === "paid" ? "bank_transfer" : "unpaid");
+      setPaymentMode(duplicateId ? "unpaid" : loadedPayMode);
 
       if (inv.bank_details && typeof inv.bank_details === "object") {
         setIncludeBankDetails(!!inv.bank_details.enabled);
@@ -1178,7 +1242,8 @@ export default function InvoiceBuilderPage() {
       }
     }
 
-    const bankDetailsPayload = includeBankDetails && (bankName.trim() || bankAccountNumber.trim() || bankIfsc.trim()) ? {
+    const isBankPrinting = prefShowBankDetails && includeBankDetails && showBankDetails;
+    const bankDetailsPayload = isBankPrinting && (bankName.trim() || bankAccountNumber.trim() || bankIfsc.trim()) ? {
       enabled: true,
       bank_name: bankName.trim(),
       bank_account_name: bankAccountName.trim(),
@@ -1187,6 +1252,13 @@ export default function InvoiceBuilderPage() {
       bank_branch: bankBranch.trim(),
       bank_upi_id: bankUpiId.trim(),
     } : { enabled: false };
+
+    const isModePaid = Boolean(paymentMode && paymentMode !== "unpaid" && paymentMode !== "none");
+    const paidVal = isModePaid ? total : (id ? Number(amountPaid) : 0);
+    const calculatedBalance = Math.max(0, total - paidVal);
+    const finalStatus = isModePaid 
+      ? "paid" 
+      : (paidVal > 0 ? (calculatedBalance <= 0.01 ? "paid" : "partial") : status);
 
     const invoicePayload = {
       org_id: org!.id,
@@ -1215,13 +1287,18 @@ export default function InvoiceBuilderPage() {
         shipping_same_as_billing: shippingSameAsBilling,
         auto_round_off: autoRoundOff,
         round_off: finalAdjustment,
-        show_bank_details: showBankDetails,
-        show_terms: showTerms,
-        show_notes: showNotes,
+        show_bank_details: isBankPrinting,
+        show_terms: prefShowTerms && showTerms,
+        show_notes: prefShowNotes && showNotes,
+        show_signature: showSignature,
+        pref_show_compliance: prefShowCompliance,
         tds_tcs_applicable: tdsTcsApplicable,
         tds_tcs_type: tdsTcsType,
         tds_tcs_rate: cleanTdsTcsRate,
         tds_tcs_amount: tdsTcsAmount,
+        hide_due_date: Number(paymentTerms) === 0,
+        payment_terms: Number(paymentTerms),
+        payment_mode: paymentMode,
       },
       invoice_number: invoiceNumber,
       issue_date: issueDate,
@@ -1234,15 +1311,15 @@ export default function InvoiceBuilderPage() {
       adjustment: finalAdjustment,
       adjustment_name: finalAdjustmentName,
       deduct_stock: deductStock,
-      bank_details: bankDetailsPayload,
-      irn: generateIrn && irn.trim() ? irn.trim() : null,
-      ack_no: generateIrn && ackNo.trim() ? ackNo.trim() : null,
-      ack_date: generateIrn && ackDate ? ackDate : null,
-      eway_bill_no: generateEway && ewayBillNo.trim() ? ewayBillNo.trim() : null,
-      eway_valid_until: generateEway && ewayValidUntil ? ewayValidUntil : null,
-      eway_vehicle_no: generateEway && ewayVehicleNo.trim() ? ewayVehicleNo.trim() : null,
-      eway_transport_mode: generateEway ? ewayTransportMode : null,
-      eway_distance_km: generateEway && ewayDistanceKm ? parseInt(ewayDistanceKm) : null,
+      bank_details: isBankPrinting ? bankDetailsPayload : { enabled: false },
+      irn: prefShowCompliance && generateIrn && irn.trim() ? irn.trim() : null,
+      ack_no: prefShowCompliance && generateIrn && ackNo.trim() ? ackNo.trim() : null,
+      ack_date: prefShowCompliance && generateIrn && ackDate ? ackDate : null,
+      eway_bill_no: prefShowCompliance && generateEway && ewayBillNo.trim() ? ewayBillNo.trim() : null,
+      eway_valid_until: prefShowCompliance && generateEway && ewayValidUntil ? ewayValidUntil : null,
+      eway_vehicle_no: prefShowCompliance && generateEway && ewayVehicleNo.trim() ? ewayVehicleNo.trim() : null,
+      eway_transport_mode: prefShowCompliance && generateEway ? ewayTransportMode : null,
+      eway_distance_km: prefShowCompliance && generateEway && ewayDistanceKm ? parseInt(ewayDistanceKm) : null,
       subtotal,
       total_tax: hasGst ? totalTax : 0,
       total_discount: totalDiscount,
@@ -1251,10 +1328,11 @@ export default function InvoiceBuilderPage() {
       tds_tcs_rate: cleanTdsTcsRate,
       tds_tcs_amount: tdsTcsAmount,
       total,
-      balance_due: total - amountPaid,
-      status: (total - amountPaid) <= 0 && amountPaid > 0 ? "paid" : (amountPaid > 0 ? "partial" : status),
-      notes,
-      terms_conditions: terms,
+      amount_paid: paidVal,
+      balance_due: calculatedBalance,
+      status: finalStatus,
+      notes: prefShowNotes ? notes : null,
+      terms_conditions: prefShowTerms ? terms : null,
       ...(status === "sent" ? { sent_at: new Date().toISOString() } : {}),
     };
 
@@ -1443,6 +1521,25 @@ export default function InvoiceBuilderPage() {
       // Save custom fields
       if (invoiceId && Object.keys(customFieldValues).length > 0) {
         await saveCustomFieldValues(invoiceId, customFieldValues);
+      }
+
+      // Record payment received when a payment mode is selected
+      if (isModePaid && total > 0 && invoiceId) {
+        try {
+          const payNum = `PAY-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+          await supabase.from("payments").insert({
+            org_id: org!.id,
+            client_id: clientId,
+            invoice_id: invoiceId,
+            payment_number: payNum,
+            amount: total,
+            payment_date: issueDate,
+            payment_mode: paymentMode,
+            notes: `Paid via ${paymentMode.replace(/_/g, " ")} on invoice creation`,
+          });
+        } catch (payErr) {
+          console.error("Failed to record payment:", payErr);
+        }
       }
 
       // Audit log with detailed previous vs new value tracking
@@ -1946,48 +2043,88 @@ export default function InvoiceBuilderPage() {
               </div>
             </div>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Invoice #</Label>
-                  <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
+              {Number(paymentTerms) === 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Invoice #</Label>
+                    <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Issue Date</Label>
+                    <Input
+                      type="date"
+                      value={issueDate}
+                      onChange={(e) => {
+                        setIssueDate(e.target.value);
+                        setDueDate(e.target.value);
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Payment Terms</Label>
-                  <Select value={String(paymentTerms)} onValueChange={(v) => setPaymentTerms(parseInt(v))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="15">Net 15</SelectItem>
-                      <SelectItem value="30">Net 30</SelectItem>
-                      <SelectItem value="45">Net 45</SelectItem>
-                      <SelectItem value="60">Net 60</SelectItem>
-                      <SelectItem value="0">Due on Receipt</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Issue Date</Label>
-                  <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Due Date</Label>
-                  <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Invoice #</Label>
+                      <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Payment Terms</Label>
+                      <Select value={String(paymentTerms)} onValueChange={(v) => {
+                        const parsed = parseInt(v);
+                        const val = isNaN(parsed) ? 0 : parsed;
+                        setPaymentTerms(val);
+                        if (val > 0) {
+                          const d = new Date(issueDate);
+                          d.setDate(d.getDate() + val);
+                          setDueDate(d.toISOString().split("T")[0]);
+                        } else {
+                          setDueDate(issueDate);
+                        }
+                      }}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Due on Receipt</SelectItem>
+                          <SelectItem value="15">Net 15</SelectItem>
+                          <SelectItem value="30">Net 30</SelectItem>
+                          <SelectItem value="45">Net 45</SelectItem>
+                          <SelectItem value="60">Net 60</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Issue Date</Label>
+                      <Input
+                        type="date"
+                        value={issueDate}
+                        onChange={(e) => {
+                          setIssueDate(e.target.value);
+                          if (paymentTerms > 0) {
+                            const d = new Date(e.target.value);
+                            d.setDate(d.getDate() + paymentTerms);
+                            setDueDate(d.toISOString().split("T")[0]);
+                          } else {
+                            setDueDate(e.target.value);
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Due Date</Label>
+                      <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      
-  
       {/* Custom Fields */}
-      <Card>
-        <CardContent className="pt-6">
-          <CustomFieldsForm entityType="invoice" entityId={id} onChange={setCustomFieldValues} />
-        </CardContent>
-      </Card>
+      <CustomFieldsForm entityType="invoice" entityId={id} onChange={setCustomFieldValues} />
 
       {/* Line Items */}
       <Card>
@@ -2019,23 +2156,13 @@ export default function InvoiceBuilderPage() {
                   onAddItem={() => setAddItemOpen(true)}
                   currency={org?.currency_code || "INR"}
                   org={org}
+                  onAutoAddLine={() => {
+                    if (index === lines.length - 1) addLine();
+                  }}
                 />
               ))}
             </SortableContext>
           </DndContext>
-          {/* Empty row placeholder */}
-          <div className="flex items-center gap-1 py-3 border-b text-muted-foreground">
-            <GripVertical className="h-3.5 w-3.5 opacity-30 shrink-0" />
-            <div className="grid flex-1 grid-cols-12 gap-2 items-center px-1">
-              <div className="col-span-5 text-xs italic cursor-pointer hover:text-foreground" onClick={addLine}>
-                Type or click to select an item.
-              </div>
-              <div className="col-span-2 text-center text-xs">1.00</div>
-              <div className="col-span-2 text-right text-xs">0.00</div>
-              {hasGst && <div className="col-span-3 text-right text-xs">0.00</div>}
-              {!hasGst && <div className="col-span-3 text-right text-xs">0.00</div>}
-            </div>
-          </div>
           {/* Live Calculation Totals Row */}
           {lines.length > 0 && (
             <div className="flex items-center gap-1 py-3 border-b border-t mt-[-1px] bg-slate-50/50 text-slate-700 font-medium">
@@ -2061,8 +2188,8 @@ export default function InvoiceBuilderPage() {
               </div>
             </div>
           )}
-          <Button variant="ghost" size="sm" onClick={addLine} className="mt-2">
-            <Plus className="mr-1 h-4 w-4" /> Add Line
+          <Button variant="ghost" size="sm" onClick={addLine} className="mt-2 text-primary hover:text-primary/80 font-medium">
+            <Plus className="mr-1 h-4 w-4" /> Click here to add new item
           </Button>
         </CardContent>
       </Card>
@@ -2156,80 +2283,184 @@ export default function InvoiceBuilderPage() {
       {/* Totals & Notes */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Notes</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes visible on invoice..." />
+          {/* Quick builder section toggles */}
+          <div className="flex items-center justify-between pb-2 text-xs text-muted-foreground border-b flex-wrap gap-2">
+            <span className="font-semibold text-slate-800 dark:text-slate-200">Invoice Sections:</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Button
+                type="button"
+                variant={prefShowNotes ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-[11px] font-normal"
+                onClick={() => {
+                  const next = !prefShowNotes;
+                  setPrefShowNotes(next);
+                  setShowNotes(next);
+                }}
+              >
+                {prefShowNotes ? "✓ Notes" : "+ Notes"}
+              </Button>
+              <Button
+                type="button"
+                variant={prefShowTerms ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-[11px] font-normal"
+                onClick={() => {
+                  const next = !prefShowTerms;
+                  setPrefShowTerms(next);
+                  setShowTerms(next);
+                }}
+              >
+                {prefShowTerms ? "✓ Terms" : "+ Terms"}
+              </Button>
+              <Button
+                type="button"
+                variant={prefShowBankDetails ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-[11px] font-normal"
+                onClick={() => {
+                  const next = !prefShowBankDetails;
+                  setPrefShowBankDetails(next);
+                  setShowBankDetails(next);
+                  if (!next) setIncludeBankDetails(false);
+                }}
+              >
+                {prefShowBankDetails ? "✓ Bank Details" : "+ Bank Details"}
+              </Button>
+              <Button
+                type="button"
+                variant={prefShowDisplayOptions ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-[11px] font-normal"
+                onClick={() => setPrefShowDisplayOptions(!prefShowDisplayOptions)}
+              >
+                {prefShowDisplayOptions ? "✓ Display Options" : "+ Display Options"}
+              </Button>
+              <Button
+                type="button"
+                variant={prefShowCompliance ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-[11px] font-normal"
+                onClick={() => setPrefShowCompliance(!prefShowCompliance)}
+              >
+                {prefShowCompliance ? "✓ Compliance" : "+ Compliance"}
+              </Button>
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>Terms & Conditions</Label>
-            <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms, late fees..." />
+
+          {/* Payment Mode (Compact on Left) */}
+          <div className="p-3 rounded-lg border bg-card/60 space-y-1.5 max-w-sm">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Wallet className="h-3.5 w-3.5 text-primary" />
+                Payment Mode
+              </Label>
+              {paymentMode && paymentMode !== "unpaid" && paymentMode !== "none" && (
+                <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                  Paid In Full ✓
+                </span>
+              )}
+            </div>
+            <Select value={paymentMode} onValueChange={setPaymentMode}>
+              <SelectTrigger className="h-8 text-xs bg-white dark:bg-background">
+                <SelectValue placeholder="Select Payment Mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unpaid">Unpaid / Collect Later</SelectItem>
+                <SelectItem value="bank_transfer">Bank Transfer / NEFT</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="upi">UPI / QR</SelectItem>
+                <SelectItem value="cheque">Cheque</SelectItem>
+                <SelectItem value="credit_card">Credit Card</SelectItem>
+                <SelectItem value="debit_card">Debit Card</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
+          {/* Customer Notes */}
+          {prefShowNotes && (
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes visible on invoice..." />
+            </div>
+          )}
+
+          {/* Terms & Conditions */}
+          {prefShowTerms && (
+            <div className="space-y-2">
+              <Label>Terms & Conditions</Label>
+              <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms, late fees..." />
+            </div>
+          )}
 
           {/* Bank Account Details */}
-          <div className="space-y-3 rounded-md border p-3.5 bg-card/60">
-            <label className="flex items-center justify-between cursor-pointer select-none">
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">Bank Account Details</span>
-              </div>
-              <Checkbox
-                checked={includeBankDetails}
-                onCheckedChange={(v) => setIncludeBankDetails(!!v)}
-              />
-            </label>
-            <p className="text-xs text-muted-foreground">
-              Display bank transfer &amp; payment instructions on this invoice. Saved automatically for this organization.
-            </p>
+          {prefShowBankDetails && (
+            <div className="space-y-3 rounded-md border p-3.5 bg-card/60">
+              <label className="flex items-center justify-between cursor-pointer select-none">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Bank Account Details</span>
+                </div>
+                <Checkbox
+                  checked={includeBankDetails}
+                  onCheckedChange={(v) => setIncludeBankDetails(!!v)}
+                />
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Display bank transfer &amp; payment instructions on this invoice. Saved automatically for this organization.
+              </p>
 
-            {includeBankDetails && (
-              <div className="space-y-4 pt-2">
-                <Select value={selectedBankAccountId || undefined} onValueChange={handleBankAccountSelect}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Select bank account" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {savedBankAccounts.map((acc) => (
-                      <SelectItem key={acc.id} value={acc.id}>
-                        {acc.bank_name} {acc.account_number ? `- ...${acc.account_number.slice(-4)}` : ""}
+              {includeBankDetails && (
+                <div className="space-y-4 pt-2">
+                  <Select value={selectedBankAccountId || undefined} onValueChange={handleBankAccountSelect}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Select bank account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {savedBankAccounts.map((acc) => (
+                        <SelectItem key={acc.id} value={acc.id}>
+                          {acc.bank_name} {acc.account_number ? `- ...${acc.account_number.slice(-4)}` : ""}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="add-new" className="text-primary font-medium">
+                        + Add New Account
                       </SelectItem>
-                    ))}
-                    <SelectItem value="add-new" className="text-primary font-medium">
-                      + Add New Account
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                    </SelectContent>
+                  </Select>
 
-                {selectedBankAccountId && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-xs">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Bank Name</Label>
-                      <div className="font-medium bg-muted/30 p-2 rounded-md">{bankName || "-"}</div>
+                  {selectedBankAccountId && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-xs">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Bank Name</Label>
+                        <div className="font-medium bg-muted/30 p-2 rounded-md">{bankName || "-"}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Account Holder Name</Label>
+                        <div className="font-medium bg-muted/30 p-2 rounded-md">{bankAccountName || "-"}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Account Number</Label>
+                        <div className="font-mono bg-muted/30 p-2 rounded-md">{bankAccountNumber || "-"}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">IFSC Code</Label>
+                        <div className="font-mono bg-muted/30 p-2 rounded-md uppercase">{bankIfsc || "-"}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Branch Name</Label>
+                        <div className="font-medium bg-muted/30 p-2 rounded-md">{bankBranch || "-"}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">UPI ID</Label>
+                        <div className="font-medium bg-muted/30 p-2 rounded-md">{bankUpiId || "-"}</div>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Account Holder Name</Label>
-                      <div className="font-medium bg-muted/30 p-2 rounded-md">{bankAccountName || "-"}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Account Number</Label>
-                      <div className="font-mono bg-muted/30 p-2 rounded-md">{bankAccountNumber || "-"}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">IFSC Code</Label>
-                      <div className="font-mono bg-muted/30 p-2 rounded-md uppercase">{bankIfsc || "-"}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Branch Name</Label>
-                      <div className="font-medium bg-muted/30 p-2 rounded-md">{bankBranch || "-"}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">UPI ID</Label>
-                      <div className="font-medium bg-muted/30 p-2 rounded-md">{bankUpiId || "-"}</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <Dialog open={addNewBankDialogOpen} onOpenChange={setAddNewBankDialogOpen}>
             <DialogContent className="sm:max-w-[425px]">
@@ -2269,7 +2500,9 @@ export default function InvoiceBuilderPage() {
             </DialogContent>
           </Dialog>
 
-          <div className="space-y-2 rounded-md border p-3">
+          {/* Display Options */}
+          {prefShowDisplayOptions && (
+            <div className="space-y-2 rounded-md border p-3">
               <div className="text-sm font-medium">Display Options</div>
               <p className="text-xs text-muted-foreground mb-2">Configure what appears on the invoice PDF.</p>
               
@@ -2277,23 +2510,30 @@ export default function InvoiceBuilderPage() {
                 <Checkbox checked={autoRoundOff} onCheckedChange={(v) => setAutoRoundOff(!!v)} />
                 <span className="text-sm font-medium">Auto Round Off Total</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
-                <Checkbox checked={showBankDetails} onCheckedChange={(v) => setShowBankDetails(!!v)} />
-                <span className="text-sm font-medium">Show Bank / UPI Details</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
-                <Checkbox checked={showTerms} onCheckedChange={(v) => setShowTerms(!!v)} />
-                <span className="text-sm font-medium">Show Terms & Conditions</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
-                <Checkbox checked={showNotes} onCheckedChange={(v) => setShowNotes(!!v)} />
-                <span className="text-sm font-medium">Show Notes</span>
-              </label>
+              {prefShowBankDetails && (
+                <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
+                  <Checkbox checked={showBankDetails} onCheckedChange={(v) => setShowBankDetails(!!v)} />
+                  <span className="text-sm font-medium">Show Bank / UPI Details</span>
+                </label>
+              )}
+              {prefShowTerms && (
+                <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
+                  <Checkbox checked={showTerms} onCheckedChange={(v) => setShowTerms(!!v)} />
+                  <span className="text-sm font-medium">Show Terms & Conditions</span>
+                </label>
+              )}
+              {prefShowNotes && (
+                <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
+                  <Checkbox checked={showNotes} onCheckedChange={(v) => setShowNotes(!!v)} />
+                  <span className="text-sm font-medium">Show Notes</span>
+                </label>
+              )}
             </div>
+          )}
 
-            <label className="flex items-start gap-2 rounded-md border p-3 cursor-pointer hover:bg-muted/40">
-              <Checkbox
-                checked={deductStock}
+          <label className="flex items-start gap-2 rounded-md border p-3 cursor-pointer hover:bg-muted/40">
+            <Checkbox
+              checked={deductStock}
               onCheckedChange={(v) => setDeductStock(!!v)}
               className="mt-0.5"
             />
@@ -2305,71 +2545,98 @@ export default function InvoiceBuilderPage() {
             </div>
           </label>
 
-          {/* Phase 5 — Opt-in Compliance */}
-          <div className="space-y-2 rounded-md border p-3">
-            <div className="text-sm font-medium">Compliance (optional)</div>
-            <p className="text-xs text-muted-foreground">
-              Tick to record IRN / E-way bill details. Nothing is generated automatically — paste the values you receive from the GST / NIC portal.
-            </p>
-
-            <label className="flex items-start gap-2 cursor-pointer mt-2">
-              <Checkbox checked={generateIrn} onCheckedChange={(v) => setGenerateIrn(!!v)} className="mt-0.5" />
-              <span className="text-sm font-medium">E-invoice (IRN) details</span>
-            </label>
-            {generateIrn && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pl-6">
-                <div className="md:col-span-3">
-                  <Label className="text-xs">IRN</Label>
-                  <Input value={irn} onChange={(e) => setIrn(e.target.value)} placeholder="64-char hash" className="h-8 text-xs font-mono" />
-                </div>
-                <div>
-                  <Label className="text-xs">Ack No.</Label>
-                  <Input value={ackNo} onChange={(e) => setAckNo(e.target.value)} className="h-8 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-xs">Ack Date</Label>
-                  <Input type="date" value={ackDate} onChange={(e) => setAckDate(e.target.value)} className="h-8 text-xs" />
-                </div>
-              </div>
-            )}
-
-            <label className="flex items-start gap-2 cursor-pointer mt-2">
-              <Checkbox checked={generateEway} onCheckedChange={(v) => setGenerateEway(!!v)} className="mt-0.5" />
-              <span className="text-sm font-medium">E-way bill details</span>
-            </label>
-            {generateEway && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pl-6">
-                <div>
-                  <Label className="text-xs">EWB No.</Label>
-                  <Input value={ewayBillNo} onChange={(e) => setEwayBillNo(e.target.value)} className="h-8 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-xs">Valid Until</Label>
-                  <Input type="date" value={ewayValidUntil} onChange={(e) => setEwayValidUntil(e.target.value)} className="h-8 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-xs">Vehicle No.</Label>
-                  <Input value={ewayVehicleNo} onChange={(e) => setEwayVehicleNo(e.target.value)} className="h-8 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-xs">Transport Mode</Label>
-                  <Select value={ewayTransportMode} onValueChange={setEwayTransportMode}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="road">Road</SelectItem>
-                      <SelectItem value="rail">Rail</SelectItem>
-                      <SelectItem value="air">Air</SelectItem>
-                      <SelectItem value="ship">Ship</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">Distance (km)</Label>
-                  <Input type="number" value={ewayDistanceKm} onChange={(e) => setEwayDistanceKm(e.target.value)} className="h-8 text-xs" />
-                </div>
-              </div>
+          {/* Include Authorized Signature */}
+          <div className="flex items-center justify-between rounded-md border p-3 hover:bg-muted/40 cursor-pointer">
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="invoice-show-signature" 
+                checked={showSignature} 
+                onCheckedChange={(checked) => {
+                  if (checked && (!org?.address?.signature_type || org.address.signature_type === 'none')) {
+                    toast({ title: "No signature found", description: "Please upload or configure your signature in Settings > Invoices" });
+                    return;
+                  }
+                  setShowSignature(!!checked);
+                }} 
+              />
+              <Label htmlFor="invoice-show-signature" className="cursor-pointer text-sm font-medium">
+                Include Authorized Signature
+              </Label>
+            </div>
+            {(!org?.address?.signature_type || org?.address?.signature_type === 'none') && (
+              <span className="text-xs text-amber-600 dark:text-amber-400">
+                (Setup in Settings &gt; Invoices)
+              </span>
             )}
           </div>
+
+          {/* Phase 5 — Opt-in Compliance */}
+          {prefShowCompliance && (
+            <div className="space-y-2 rounded-md border p-3">
+              <div className="text-sm font-medium">Compliance (optional)</div>
+              <p className="text-xs text-muted-foreground">
+                Tick to record IRN / E-way bill details. Nothing is generated automatically — paste the values you receive from the GST / NIC portal.
+              </p>
+
+              <label className="flex items-start gap-2 cursor-pointer mt-2">
+                <Checkbox checked={generateIrn} onCheckedChange={(v) => setGenerateIrn(!!v)} className="mt-0.5" />
+                <span className="text-sm font-medium">E-invoice (IRN) details</span>
+              </label>
+              {generateIrn && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pl-6">
+                  <div className="md:col-span-3">
+                    <Label className="text-xs">IRN</Label>
+                    <Input value={irn} onChange={(e) => setIrn(e.target.value)} placeholder="64-char hash" className="h-8 text-xs font-mono" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Ack No.</Label>
+                    <Input value={ackNo} onChange={(e) => setAckNo(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Ack Date</Label>
+                    <Input type="date" value={ackDate} onChange={(e) => setAckDate(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                </div>
+              )}
+
+              <label className="flex items-start gap-2 cursor-pointer mt-2">
+                <Checkbox checked={generateEway} onCheckedChange={(v) => setGenerateEway(!!v)} className="mt-0.5" />
+                <span className="text-sm font-medium">E-way bill details</span>
+              </label>
+              {generateEway && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pl-6">
+                  <div>
+                    <Label className="text-xs">EWB No.</Label>
+                    <Input value={ewayBillNo} onChange={(e) => setEwayBillNo(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Valid Until</Label>
+                    <Input type="date" value={ewayValidUntil} onChange={(e) => setEwayValidUntil(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Vehicle No.</Label>
+                    <Input value={ewayVehicleNo} onChange={(e) => setEwayVehicleNo(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Transport Mode</Label>
+                    <Select value={ewayTransportMode} onValueChange={setEwayTransportMode}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="road">Road</SelectItem>
+                        <SelectItem value="rail">Rail</SelectItem>
+                        <SelectItem value="air">Air</SelectItem>
+                        <SelectItem value="ship">Ship</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Distance (km)</Label>
+                    <Input type="number" value={ewayDistanceKm} onChange={(e) => setEwayDistanceKm(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <Card>
@@ -2530,38 +2797,10 @@ export default function InvoiceBuilderPage() {
               <span>Total</span>
               <span>{fmt(total)}</span>
             </div>
+
           </CardContent>
         </Card>
       </div>
-
-                      {/* Signature Toggle */}
-                <div className="flex items-center space-x-2 py-4 border-t mt-4">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="flex items-center space-x-2">
-                          <Checkbox 
-                            id="show-signature" 
-                            checked={showSignature} 
-                            onCheckedChange={(checked) => {
-                              if (checked && (!org?.address?.signature_type || org.address.signature_type === 'none')) {
-                                toast({ title: "No signature found", description: "Please upload or select your signature in Settings > Custom Fields" });
-                                return;
-                              }
-                              setShowSignature(!!checked);
-                            }} 
-                          />
-                          <Label htmlFor="show-signature" className="cursor-pointer">Include Authorized Signature</Label>
-                        </div>
-                      </TooltipTrigger>
-                      {(!org?.address?.signature_type || org?.address?.signature_type === 'none') && (
-                        <TooltipContent>
-                          <p>Please upload or select your signature in Settings {'>'} Custom Fields</p>
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
 
       {/* Fixed Bottom Action Bar */}
       <div className="sticky bottom-0 z-30 -mx-6 -mb-6 mt-8 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 border-t px-6 py-4 flex flex-wrap items-center justify-between gap-4 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.4)]">

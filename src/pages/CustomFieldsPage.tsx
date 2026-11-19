@@ -20,7 +20,6 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, ArrowLeft } from "lucide-react";
-import { SignatureSettingsTab } from "@/components/settings/SignatureSettingsTab";
 
 const ENTITY_TYPES = [
   { value: "invoice", label: "Invoice" },
@@ -28,7 +27,6 @@ const ENTITY_TYPES = [
   { value: "credit_note", label: "Credit Note" },
   { value: "client", label: "Client" },
   { value: "item", label: "Item" },
-  { value: "signature", label: "Signature" },
 ];
 
 const FIELD_TYPES = [
@@ -39,7 +37,7 @@ const FIELD_TYPES = [
   { value: "checkbox", label: "Checkbox" },
 ];
 
-export default function CustomFieldsPage() {
+export default function CustomFieldsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
   const org = useAppStore((s) => s.organization);
   const { toast } = useToast();
@@ -97,26 +95,36 @@ export default function CustomFieldsPage() {
   const filteredFields = fields.filter((f) => f.entity_type === activeTab);
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <PageHeader title="Custom Fields" description="Define custom fields for your documents and entities">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate("/settings")}>
-            <ArrowLeft className="mr-1 h-4 w-4" /> Back to Settings
-          </Button>
-          {activeTab !== "signature" && (
+    <div className={`space-y-6 ${embedded ? "w-full" : "max-w-3xl"}`}>
+      {!embedded ? (
+        <PageHeader title="Custom Fields" description="Define custom fields for your documents and entities">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/settings")}>
+              <ArrowLeft className="mr-1 h-4 w-4" /> Back to Settings
+            </Button>
             <Button onClick={() => setDialogOpen(true)} size="sm">
               <Plus className="mr-1 h-4 w-4" /> Add Field
             </Button>
-          )}
+          </div>
+        </PageHeader>
+      ) : (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b">
+          <div>
+            <h3 className="text-base font-semibold text-foreground">Custom Fields</h3>
+            <p className="text-xs text-muted-foreground">Define and manage custom fields across your invoices, quotations, credit notes, clients, and catalog items.</p>
+          </div>
+          <Button onClick={() => setDialogOpen(true)} size="sm" className="self-start sm:self-center">
+            <Plus className="mr-1.5 h-4 w-4" /> Add Field
+          </Button>
         </div>
-      </PageHeader>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           {ENTITY_TYPES.map((et) => (
             <TabsTrigger key={et.value} value={et.value}>
               {et.label}
-              {et.value !== "signature" && fields.filter((f) => f.entity_type === et.value).length > 0 && (
+              {fields.filter((f) => f.entity_type === et.value).length > 0 && (
                 <span className="ml-1 text-xs text-muted-foreground">
                   ({fields.filter((f) => f.entity_type === et.value).length})
                 </span>
@@ -127,9 +135,6 @@ export default function CustomFieldsPage() {
 
         {ENTITY_TYPES.map((et) => (
           <TabsContent key={et.value} value={et.value} className="mt-4">
-            {et.value === "signature" ? (
-              <SignatureSettingsTab />
-            ) : (
             <Card>
               <CardContent className="p-0">
                 {filteredFields.length === 0 ? (
@@ -172,7 +177,6 @@ export default function CustomFieldsPage() {
                 )}
               </CardContent>
             </Card>
-            )}
           </TabsContent>
         ))}
       </Tabs>

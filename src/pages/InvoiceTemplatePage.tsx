@@ -165,7 +165,7 @@ function TemplatePreviewBox({
   );
 }
 
-export default function InvoiceTemplatePage() {
+export default function InvoiceTemplatePage({ embedded = false }: { embedded?: boolean } = {}) {
   const org = useAppStore((s) => s.organization);
   const setOrganization = useAppStore((s) => s.setOrganization);
   const [selected, setSelected] = useState(org?.template_style || "standard_gst");
@@ -273,15 +273,29 @@ export default function InvoiceTemplatePage() {
 
   return (
     <div className="space-y-6">
-      <SEO title="Invoice Templates" description="Choose and customize invoice templates that match your brand identity." path="/templates" />
-      <PageHeader
-        title="Invoice Templates"
-        description="Choose a template style for your invoices, estimates, and credit notes. The previews below accurately match the actual generated documents."
-      >
-        <Button variant="outline" onClick={() => navigate("/templates/customize")}>
-          <Palette className="mr-1 h-4 w-4" /> Customize Colors & Logo
-        </Button>
-      </PageHeader>
+      {!embedded ? (
+        <>
+          <SEO title="Invoice Templates" description="Choose and customize invoice templates that match your brand identity." path="/templates" />
+          <PageHeader
+            title="Invoice Templates"
+            description="Choose a template style for your invoices, estimates, and credit notes. The previews below accurately match the actual generated documents."
+          >
+            <Button variant="outline" onClick={() => navigate("/templates/customize")}>
+              <Palette className="mr-1 h-4 w-4" /> Customize Colors & Logo
+            </Button>
+          </PageHeader>
+        </>
+      ) : (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b">
+          <div>
+            <h3 className="text-base font-semibold text-foreground">Invoice &amp; Document Templates</h3>
+            <p className="text-xs text-muted-foreground">Select default template design and paper size for your invoices, estimates, and credit notes.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate("/templates/customize")} className="self-start sm:self-center">
+            <Palette className="mr-1.5 h-4 w-4" /> Customize Colors &amp; Logo
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader className="pb-3">

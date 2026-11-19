@@ -425,8 +425,8 @@ IMPORTANT CONTACT RULES:
 
 9. PLATFORM ADMIN (Super Admin Only)
 - Location: Go to /platform-admin or click "Platform Admin" in the top header or "Platform Admin Panel" in the user profile menu. Platform Admins can seamlessly switch between the App Dashboard (invoicing & business software) and the Platform Admin panel with a single login ID without logging out. From the Platform Admin navbar, clicking "App Dashboard" instantly returns to invoicing.
-- All Users: Shows all registered users with their Account ID (#1XXXXX). Admins can search by Account ID to view users and all businesses associated with that account. You can click "Change Plan" to quickly upgrade/downgrade a user's subscription, or click "Manage" for a detailed dialog to change their roles and module access.
-- Businesses: Admins can search businesses by Account ID (#1XXXXX), business name, or owner email to find all businesses owned under a specific account.
+- All Users: Shows all registered users with their full contact details (both Email ID and Mobile Number provided at the time of registration, each with 1-click copy action) and Account ID (#1XXXXX). Admins can search by Email, Mobile Number, Name, or Account ID to quickly find users and all businesses associated with that account. You can click "Change Plan" to quickly upgrade/downgrade a user's subscription, or click "Manage" for a detailed dialog displaying Account ID, Mobile No., User ID, and role controls.
+- Businesses: Displays business cards with owner contact info (both Email and Mobile Number), Account ID (#1XXXXX), registration time, and plan. Admins can search businesses by Account ID (#1XXXXX), business name, owner email, or mobile number to find all businesses owned under a specific account.
 - Social Media: Admins can update the official social media links (YouTube, Facebook, Instagram) that appear in the landing page footer.
 - Contact Inquiries: Admins can see form submissions from the Contact Us page in the "Submitted Form Data" tab -> "Contact Inquiries".
 - Tickets, Ads, Reviews, Partners: Other tabs for managing platform operations.
@@ -688,6 +688,61 @@ IMPORTANT CONTACT RULES:
     - Every monthly card submitted to HR automatically gets a 6-digit unique Claim Tracking Number (claim_number: 1xxxxx starting with 1 = Local Travel / Local Expense Monthly Card, 9xxxxx starting with 9 = Outstation Tour Monthly Card; unique within each org_id, independent across separate organizations — explain this mapping in chat whenever a user asks which number belongs to which expense type).
     - Clicking any monthly card in the Employee Attendance Portal (Claim History) or Business HR Portal (Pending Approval Queue or All Claims Ledger) opens the unified Card Detail & Activity History modal displaying the 6-digit Claim Tracking #, every daily Local entry or Outstation trip inside the card (with dates, routes, KM/rates, itemized Outstation Travel/Hotel/Food/Other/Custom/DA breakdowns, uploaded receipts/bills, rejection/settlement details), and a chronological Activity History timeline. HR Admin can also search cards directly by their 6-digit Claim Tracking Number or by sub-entry details.
     - Employees can edit or delete individual sub-entries inside a monthly card (via the card Detail modal or row Edit icon) ONLY before HR approval; once approved or settled/paid, editing is locked in both the UI and database update check.
+  * Dedicated Inventory Management Tab & Invoice Builder Preferences:
+    - Dedicated "Inventory Management" Tab in Settings (/settings): Inventory controls have been moved out of Invoices Preferences into their own dedicated top-level tab in Settings with a Package icon. Users can toggle "Enable Inventory Tracking", set the "Low Stock Alert Threshold", enable "Sub-Units & Unit Conversions", and activate "Multi-Warehouse & Batch Tracking", then persist changes with the "Save Inventory Settings" button.
+    - Simplified Invoice Preferences: Unused "Payments" options (notify online, receipt thank-you, auto-thank-you) and "Zero-Value Line Items" options have been cleanly removed from Settings > Invoices > Preferences.
+    - Invoice Builder Section Visibility & Preferences: In Settings > Invoices > Preferences under "Invoice Builder Sections & Preferences", organizations can configure which builder modules are enabled by default:
+      1. Terms & Conditions: Toggle default display of terms and conditions in the invoice builder and PDF templates.
+      2. Customer Notes: Toggle customer notes and remarks section.
+      3. Bank Account Details: Control whether bank details and QR codes are included on invoices.
+      4. Display Options Panel: Show or hide on-the-fly column customizations (HSN/SAC, discount, cess, unit price) in the builder.
+      5. Compliance (IRN / E-Way Bill): Enable or disable IRN generation and E-Way Bill tracking fields.
+    - Live Builder & PDF Template Sync: When creating an invoice in the Invoice Builder (/invoices/new), sections load according to organization preferences and can be toggled on the fly. Whichever sections are selected/enabled are the ONLY ones rendered on the final generated invoice, PDF download, and print preview.
+  * In-Builder Payment Recording & Compact 0-Day Due Layout:
+    - Receive Payment in Invoice Builder: Users can record payment collected directly while creating an invoice by toggling "Receive Payment", entering the Amount Paid, selecting Payment Mode (Cash, UPI / QR, Bank Transfer / NEFT, Cheque, Card), setting Payment Date and Reference/Transaction #, and optional deposit bank account. The system automatically records the payment, updates invoice status ('paid' or 'partial') and creates a payment transaction entry in the database.
+    - 0-Day Payment Terms (Due on Receipt): Organizations can set default payment terms to 0 days in Settings > Invoices > Preferences. When payment terms are 0 days, the Invoice Builder hides the Payment Terms dropdown and Due Date input, placing Invoice # and Issue Date side-by-side in a single row to save space. Invoice templates also hide the Due Date row.
+    - Streamlined Line Items & Auto-Row Addition: Removed the redundant "+ Add Line" button and empty section boxes. Item selector now features an intuitive "Add new item" placeholder, automatically populates the unit saved with the item in the database, and automatically adds a fresh row upon selecting an item on the last line.
+    - Unified Invoice Settings: Defaults, Numbering, Payment Terms, Bank Accounts, and Section Preferences are unified under the single Invoices > Preferences tab with instant auto-save switches and dedicated Terms & Notes saving.
+  * Default Bank Account Selection & PDF Document Display Preferences:
+    - Primary / Default Bank Account: When multiple bank accounts are added in Settings > Invoices, any account can be designated as the primary account via "Set as Default". The active default account displays a prominent "★ Default" badge and is automatically selected by default when creating new invoices in the Invoice Builder.
+    - Dedicated Invoice PDF Document Display Options: In Settings > Invoices > Preferences, organizations have a dedicated "Invoice PDF & Document Display Options" card controlling what renders on generated documents and downloaded PDFs:
+      1. Show Bank Account & UPI Details on PDF: Print bank payment instructions, IFSC, and UPI QR code on generated documents.
+      2. Show Terms & Conditions on PDF: Print standard terms on generated documents.
+      3. Show Customer Notes on PDF: Print notes and thank-you messages on documents.
+      4. Auto Round Off Total on PDF: Automatically round off total payable to whole rupee.
+      5. Include Authorized Signature on PDF: Print signature block and company seal on documents.
+    - Automations & Live Overdue Verification: The Automations card is located at the bottom of the Invoices Preferences tab. Toggling "Automate Overdue Reminders" auto-saves immediately to the database. Users can click "Run Overdue Check Now" to test and trigger the overdue reminder engine on demand with real-time status feedback.
+    - Authorized Signature Configuration (/settings -> Invoices): Signature settings have been relocated from Custom Fields into the dedicated "Settings > Invoices" section. Businesses can choose between realistic handwriting fonts (Mrs Saint Delafield, Caveat, Great Vibes, etc.) or upload transparent PNG/JPG signature image files, complete with Signatory Name and live preview.
+    - Settings Unified Navigation & Tab Hierarchy:
+      1. Sidebar Clean-up: "Templates" and "Custom Fields" have been removed from the sidebar's "System & Settings" dropdown menu to streamline the main navigation.
+      2. Integrated Settings Tabs: Settings features a clean, single-row tab sequence:
+         - Profile (formerly Profile & Organization): User profile, identity, business details, and address.
+         - Invoices: Builder sections, PDF display options, signature setup, defaults & numbering, primary bank accounts, and automations.
+         - Purchases: Dedicated purchase builder sections, purchase PDF display options, purchase numbering & prefix, and default terms & notes.
+         - Inventory (formerly Inventory Management): Stock tracking, low stock thresholds, sub-units, multi-warehouse, plus embedded Official GST Slabs & Custom Tax Rates (moved from standalone tab into Inventory).
+         - Email Settings: Domain SES verification, custom SMTP, and test email.
+         - WhatsApp: WhatsApp integration and outreach alerts.
+         - Templates: Embedded visual document template styling and paper sizes.
+         - Custom Fields: Embedded custom fields configuration.
+         - Help & Support: Ticketing and support center.
+      3. Automatic URL Redirection: Accessing /templates or /custom-fields automatically routes directly to their corresponding tabs inside Settings. Visiting /settings?tab=taxes automatically opens the Inventory tab where tax rates reside.
+    - Purchase Invoice Item Auto-Creation & Inventory Integration:
+      1. Auto-Add to Catalog & Inventory: When creating or updating a Purchase Invoice/Bill (/purchase-invoices/new) with "Add stock to inventory" enabled, any new item entered is automatically created in the items catalog as a product item, with its stock quantity incremented in inventory and logged in stock movements with an audit trail.
+      2. Unit Selection & Sales Price Input: In the Purchase Invoice Builder line items, users have a dedicated Unit dropdown (supporting common standard units like PCS, BOX, KGS, MTR, LTR, PKT, etc.) and a dedicated "Sell Price (₹)" field alongside Buy Rate. When the bill is saved, the selling price is saved to the item's catalog rate (unit_price) so the item is immediately ready for sales invoicing with its selling price configured.
+      3. Direct Item Editing Link: For existing items, an "Edit in Items ↗" link provides instant 1-click access to the item in the Items catalog.
+      4. Streamlined Builder Layout: In the Purchase Invoice Builder, "Include Authorized Signature" is placed alongside "Add stock to inventory" in a balanced 2-column card layout to utilize empty space cleanly without hanging bottom bars.
+      5. Reliable Bill PDF Line Rendering: Purchase invoice line items, HSN/SAC codes, quantities, rates, and GST taxes are rendered reliably on printed documents and generated PDFs without blank lines or raw metadata leaking into notes.
+      6. Dedicated Purchases Tab in Settings (/settings?tab=purchases): Settings features a dedicated "Purchases" tab housing all Purchase-related settings:
+         - Purchase Invoice Builder Sections (Form Inputs): Toggle default visibility of Terms & Conditions (bill_show_terms), Notes (bill_show_notes), Display Options Panel (bill_show_display_options), Compliance IRN/E-Way (bill_show_compliance), and default state of "Add stock to inventory" (bill_default_add_stock).
+         - Purchase PDF & Document Display Options: Dedicated preferences card controlling what appears on generated purchase invoice PDFs and printed bills:
+           1. Show Bank Account & UPI Details on Bill / PDF (bill_pdf_show_bank_details)
+           2. Show Terms & Conditions on Bill / PDF (bill_pdf_show_terms)
+           3. Show Notes on Bill / PDF (bill_pdf_show_notes)
+           4. Auto Round Off Total on Bill / PDF (bill_pdf_auto_round_off)
+           5. Include Authorized Signature on Bill / PDF (bill_pdf_show_signature)
+         - Purchase Invoice Defaults & Numbering: Set purchase bill prefix (e.g. BILL, PUR), sequence counter (next_bill_number), and default payment terms (setting 0 days automatically enables compact single-row layout without due date in purchase builder).
+         - Default Terms & Notes for Purchase Invoices: Configure standard purchase terms & conditions and vendor notes pre-filled on new bills.
+         - Inventory & Stock Integration: Clear guidance and quick link to Inventory Management settings.
 
 --- END OF KNOWLEDGE BASE ---
 `;

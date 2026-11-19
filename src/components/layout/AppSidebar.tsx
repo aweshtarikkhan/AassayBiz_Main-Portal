@@ -18,10 +18,8 @@ import {
   BarChart3,
   FileMinus2,
   Coins,
-  Layout,
   FileSpreadsheet,
   ScrollText,
-  SlidersHorizontal,
   Plus,
   RefreshCw,
   PieChart,
@@ -149,10 +147,8 @@ const marketingItems = [
 ];
 
 const settingsItems = [
-  { title: "Templates", url: "/templates", icon: Layout },
-  { title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal },
-  { title: "Audit Logs", url: "/audit-logs", icon: ScrollText },
   { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Audit Logs", url: "/audit-logs", icon: ScrollText },
 ];
 
 // Map feature group key to sidebar items

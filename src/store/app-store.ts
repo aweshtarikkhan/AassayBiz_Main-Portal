@@ -36,6 +36,14 @@ interface Organization {
   low_stock_threshold: number;
   weekly_offs: number[];
   daily_wages_enabled?: boolean;
+  invoice_preferences?: {
+    show_notes?: boolean;
+    show_terms?: boolean;
+    show_bank_details?: boolean;
+    show_display_options?: boolean;
+    show_compliance?: boolean;
+    [key: string]: any;
+  };
   
   // Subscription fields
   subscription_plan?: 'free' | 'accounting' | 'hr' | 'crm' | 'promotion' | 'suite';

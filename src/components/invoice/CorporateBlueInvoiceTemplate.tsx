@@ -216,7 +216,7 @@ export function CorporateBlueInvoiceTemplate({
               <span style={{ fontWeight: 600, color: "#0f172a" }}>: {invoice.issue_date || invoice.bill_date || invoice.date || "-"}</span>
             </div>
 
-            {(type === "invoice" || type === "bill") && invoice.due_date && (
+            {(type === "invoice" || type === "bill") && invoice.due_date && !(invoice.metadata as any)?.hide_due_date && (invoice.metadata as any)?.payment_terms !== 0 && (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
                 <div style={{ background: lightBlueBg, color: primaryBlue, padding: 4, borderRadius: 4 }}>
                   <Calendar style={{ width: 14, height: 14 }} />
@@ -370,7 +370,7 @@ export function CorporateBlueInvoiceTemplate({
       <div style={{ display: "flex", gap: 32, marginBottom: 24, alignItems: "flex-start" }}>
         {/* Left Side: Notes */}
         <div style={{ flex: 1 }}>
-          {invoice.notes && invoice.notes.trim() ? (
+          {(invoice?.metadata?.show_notes !== false && invoice.notes && invoice.notes.trim()) ? (
             <div>
               <div style={{ fontSize: 11, fontWeight: 800, color: darkNavy, marginBottom: 4, textDecoration: "underline" }}>Notes:</div>
               <div style={{ fontSize: 11, color: "#334155", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
@@ -403,18 +403,20 @@ export function CorporateBlueInvoiceTemplate({
 
       {/* 5. Footer Grid: Bank Details, Terms, QR & Signature */}
       {(() => {
+        const showBank = invoice?.metadata?.show_bank_details !== false;
+        const showTerms = invoice?.metadata?.show_terms !== false;
         const invoiceBank = invoice?.bank_details;
-        const isBankDisabled = invoiceBank && invoiceBank.enabled === false;
+        const isBankDisabled = !showBank || (invoiceBank && invoiceBank.enabled === false);
         const bankAccName = invoiceBank?.bank_account_name || (!isBankDisabled ? (org?.bank_account_name || org?.name) : null);
         const bankName = invoiceBank?.bank_name || (!isBankDisabled ? org?.bank_name : null);
         const bankAccNum = invoiceBank?.bank_account_number || (!isBankDisabled ? org?.bank_account_number : null);
         const bankIfsc = invoiceBank?.bank_ifsc || (!isBankDisabled ? org?.bank_ifsc : null);
         const bankBranch = invoiceBank?.bank_branch || (!isBankDisabled ? org?.bank_branch : null);
-        const hasBankDetails = !isBankDisabled && Boolean(bankName || bankAccNum || bankIfsc);
+        const hasBankDetails = showBank && !isBankDisabled && Boolean(bankName || bankAccNum || bankIfsc);
 
-        const termsContent = (invoice?.terms_conditions || invoice?.terms || invoice?.default_terms || org?.default_terms)?.trim();
-        const upiId = invoiceBank?.bank_upi_id || org?.upi_id;
-        const showQr = Boolean(upiId || org?.qr_code_enabled);
+        const termsContent = showTerms ? (invoice?.terms_conditions || invoice?.terms || invoice?.default_terms || org?.default_terms)?.trim() : "";
+        const upiId = showBank ? (invoiceBank?.bank_upi_id || org?.upi_id) : "";
+        const showQr = Boolean((showBank && upiId) || org?.qr_code_enabled);
 
         return (
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: 20, paddingTop: 14, borderTop: "1.5px solid #cbd5e1", fontSize: 11 }}>

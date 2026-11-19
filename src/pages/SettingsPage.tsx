@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppStore } from "@/store/app-store";
@@ -22,15 +22,19 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Loader2, Search, Shield, Settings2, Receipt, Building2, Package, User, Mail, Phone, Globe, Warehouse, ExternalLink, Bell, Landmark, CreditCard, Pencil, LogOut, Copy, Check, MapPin, Hash, Lock } from "lucide-react";
+import { Plus, Trash2, Loader2, Search, Shield, Settings2, Receipt, Building2, Package, User, Mail, Phone, Globe, Warehouse, ExternalLink, Bell, Landmark, CreditCard, Pencil, LogOut, Copy, Check, MapPin, Hash, Lock, FileText, Printer, Play, CheckCircle2, Layout, SlidersHorizontal } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { fetchGstDetails } from "@/lib/gst-service";
 import { AddWarehouseDialog } from "@/components/shared/AddWarehouseDialog";
+import { SignatureSettingsTab } from "@/components/settings/SignatureSettingsTab";
 import { INDIAN_GST_SLABS } from "@/lib/constants";
 import { EmailSettingsTab } from "@/components/settings/EmailSettingsTab";
 import { WhatsAppSettingsTab } from "@/components/settings/WhatsAppSettingsTab";
 import SupportPage from "@/pages/SupportPage";
+import InvoiceTemplatePage from "@/pages/InvoiceTemplatePage";
+import CustomFieldsPage from "@/pages/CustomFieldsPage";
 import { useToast } from "@/hooks/use-toast";
 import { LockedFeature } from "@/components/subscription/LockedFeature";
 import { PlanSelectorModal } from "@/components/shared/PlanSelectorModal";
@@ -47,7 +51,7 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab") || "profile";
-  const currentTab = rawTab === "organization" ? "profile" : rawTab;
+  const currentTab = rawTab === "organization" ? "profile" : (rawTab === "taxes" ? "inventory" : rawTab);
   const [addWarehouseOpen, setAddWarehouseOpen] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const { subscriptionPlan } = useSubscription();
@@ -68,6 +72,8 @@ export default function SettingsPage() {
     name: "", email: "", phone: "", website: "", logo_url: "",
     tax_number: "", tax_name: "", currency_code: "INR",
     invoice_prefix: "INV", payment_terms: 30,
+    bill_prefix: "BILL", next_bill_number: 1, default_bill_payment_terms: 30,
+    default_bill_notes: "", default_bill_terms: "",
     default_notes: "", default_terms: "",
     address: { street: "", city: "", state: "", zip: "", country: "" },
     gst_enabled: false, gst_number: "", show_client_gst: false, qr_code_enabled: false,
@@ -77,8 +83,39 @@ export default function SettingsPage() {
     sub_unit_enabled: false,
     enable_individual_week_offs: false,
     automate_overdue_reminders: false,
+    invoice_preferences: {
+      show_notes: true,
+      show_terms: true,
+      show_bank_details: true,
+      show_display_options: true,
+      show_compliance: true,
+      pdf_show_bank_details: true,
+      pdf_show_terms: true,
+      pdf_show_notes: true,
+      auto_round_off: true,
+      pdf_show_signature: true,
+      default_bank_account_id: "",
+      bill_show_terms: true,
+      bill_show_notes: true,
+      bill_show_display_options: true,
+      bill_show_compliance: true,
+      bill_default_add_stock: true,
+      bill_default_payment_terms: 30,
+      default_bill_notes: "",
+      default_bill_terms: "",
+      bill_pdf_show_bank_details: true,
+      bill_pdf_show_terms: true,
+      bill_pdf_show_notes: true,
+      bill_pdf_auto_round_off: true,
+      bill_pdf_show_signature: true,
+    },
   });
   const [isFetchingGst, setIsFetchingGst] = useState(false);
+  const [isSavingTermsNotes, setIsSavingTermsNotes] = useState(false);
+  const [isSavingPurchaseTermsNotes, setIsSavingPurchaseTermsNotes] = useState(false);
+  const [isSavingPurchaseDefaults, setIsSavingPurchaseDefaults] = useState(false);
+  const [isRunningReminders, setIsRunningReminders] = useState(false);
+  const hasInitializedOrgIdRef = useRef<string | null>(null);
 
   // Tax rates
   const [taxRates, setTaxRates] = useState<any[]>([]);
@@ -124,7 +161,9 @@ export default function SettingsPage() {
       });
     }
 
-    if (org) {
+    // Only initialize orgForm once per organization to avoid wiping out user edits during background re-renders
+    if (org && hasInitializedOrgIdRef.current !== org.id) {
+      hasInitializedOrgIdRef.current = org.id;
       setOrgForm({
         name: org.name || "", 
         email: org.email || user?.email || "", 
@@ -135,7 +174,14 @@ export default function SettingsPage() {
         tax_name: org.tax_number || "",
         currency_code: "INR", 
         invoice_prefix: org.invoice_prefix || "INV",
-        payment_terms: org.payment_terms || 30, 
+        payment_terms: org.payment_terms !== undefined && org.payment_terms !== null ? Number(org.payment_terms) : 30, 
+        bill_prefix: (org as any).bill_prefix || "BILL",
+        next_bill_number: (org as any).next_bill_number || 1,
+        default_bill_payment_terms: (org as any)?.invoice_preferences?.bill_default_payment_terms !== undefined
+          ? Number((org as any).invoice_preferences.bill_default_payment_terms)
+          : (org.payment_terms !== undefined ? Number(org.payment_terms) : 30),
+        default_bill_notes: (org as any)?.invoice_preferences?.default_bill_notes || (org as any).default_bill_notes || org.default_notes || "",
+        default_bill_terms: (org as any)?.invoice_preferences?.default_bill_terms || (org as any).default_bill_terms || org.default_terms || "",
         default_notes: org.default_notes || "",
         default_terms: org.default_terms || "",
         address: { 
@@ -156,10 +202,38 @@ export default function SettingsPage() {
         sub_unit_enabled: (org as any).sub_unit_enabled || false,
         enable_individual_week_offs: (org as any).enable_individual_week_offs || false,
         automate_overdue_reminders: (org as any).automate_overdue_reminders || false,
+        invoice_preferences: {
+          show_notes: (org as any)?.invoice_preferences?.show_notes !== false,
+          show_terms: (org as any)?.invoice_preferences?.show_terms !== false,
+          show_bank_details: (org as any)?.invoice_preferences?.show_bank_details !== false,
+          show_display_options: (org as any)?.invoice_preferences?.show_display_options !== false,
+          show_compliance: (org as any)?.invoice_preferences?.show_compliance !== false,
+          pdf_show_bank_details: (org as any)?.invoice_preferences?.pdf_show_bank_details !== false,
+          pdf_show_terms: (org as any)?.invoice_preferences?.pdf_show_terms !== false,
+          pdf_show_notes: (org as any)?.invoice_preferences?.pdf_show_notes !== false,
+          auto_round_off: (org as any)?.invoice_preferences?.auto_round_off !== false,
+          pdf_show_signature: (org as any)?.invoice_preferences?.pdf_show_signature !== false,
+          default_bank_account_id: (org as any)?.invoice_preferences?.default_bank_account_id || "",
+          bill_show_terms: (org as any)?.invoice_preferences?.bill_show_terms !== false,
+          bill_show_notes: (org as any)?.invoice_preferences?.bill_show_notes !== false,
+          bill_show_display_options: (org as any)?.invoice_preferences?.bill_show_display_options !== false,
+          bill_show_compliance: (org as any)?.invoice_preferences?.bill_show_compliance !== false,
+          bill_default_add_stock: (org as any)?.invoice_preferences?.bill_default_add_stock !== false,
+          bill_default_payment_terms: (org as any)?.invoice_preferences?.bill_default_payment_terms !== undefined
+            ? Number((org as any).invoice_preferences.bill_default_payment_terms)
+            : 30,
+          default_bill_notes: (org as any)?.invoice_preferences?.default_bill_notes || "",
+          default_bill_terms: (org as any)?.invoice_preferences?.default_bill_terms || "",
+          bill_pdf_show_bank_details: (org as any)?.invoice_preferences?.bill_pdf_show_bank_details !== false,
+          bill_pdf_show_terms: (org as any)?.invoice_preferences?.bill_pdf_show_terms !== false,
+          bill_pdf_show_notes: (org as any)?.invoice_preferences?.bill_pdf_show_notes !== false,
+          bill_pdf_auto_round_off: (org as any)?.invoice_preferences?.bill_pdf_auto_round_off !== false,
+          bill_pdf_show_signature: (org as any)?.invoice_preferences?.bill_pdf_show_signature !== false,
+        },
       });
       fetchTaxRates();
     }
-  }, [profile, user, org]);
+  }, [profile, user, org?.id]);
 
   const handlePhoneChange = (val: string) => {
     const cleaned = val.replace(/\D/g, '').slice(0, 10);
@@ -289,7 +363,6 @@ export default function SettingsPage() {
     const { 
       sub_unit_enabled, 
       enable_individual_week_offs, 
-      automate_overdue_reminders,
       ...dbOrgForm 
     } = orgForm as any;
 
@@ -303,6 +376,244 @@ export default function SettingsPage() {
     } else {
       setOrganization({ ...org, ...orgForm, gst_enabled: dbOrgForm.gst_enabled || orgForm.gst_enabled } as any);
       toast({ title: "Settings saved!" });
+    }
+  };
+
+  const handleToggleAutomation = async (val: boolean) => {
+    setOrgForm((prev) => ({
+      ...prev,
+      automate_overdue_reminders: val,
+    }));
+
+    if (org?.id) {
+      setOrganization({
+        ...org,
+        automate_overdue_reminders: val,
+      } as any);
+
+      try {
+        const { error } = await supabase
+          .from("organizations")
+          .update({ 
+            automate_overdue_reminders: val,
+            invoice_preferences: {
+              ...(orgForm.invoice_preferences || {}),
+              automate_overdue_reminders: val,
+            }
+          } as any)
+          .eq("id", org.id);
+
+        if (error) {
+          toast({ title: "Error Saving Automation", description: error.message, variant: "destructive" });
+        } else {
+          toast({ 
+            title: val ? "Automated Overdue Reminders Active ✓" : "Overdue Reminders Disabled", 
+            description: val ? "Automated notifications will be sent for overdue invoices." : "Automated overdue notifications turned off.",
+            duration: 2500 
+          });
+        }
+      } catch (err: any) {
+        console.error("Failed to update automation:", err);
+      }
+    }
+  };
+
+  const handleRunOverdueReminders = async () => {
+    if (!org?.id) return;
+    setIsRunningReminders(true);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const { data: overdueInvs, error } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, total, amount_paid, due_date, status, last_reminder_sent_at")
+        .eq("org_id", org.id)
+        .in("status", ["sent", "overdue"])
+        .lt("due_date", today);
+
+      if (error) throw error;
+
+      const unpaidOverdue = (overdueInvs || []).filter(
+        (inv) => Number(inv.total) > Number(inv.amount_paid)
+      );
+
+      try {
+        await supabase.functions.invoke("process-overdue-reminders");
+      } catch (e) {
+        console.log("Edge function invoke:", e);
+      }
+
+      toast({
+        title: "Overdue Automation Active & Verified ✓",
+        description: `Automation engine scanned successfully. Found ${unpaidOverdue.length} overdue invoice(s) for ${org.name || "your organization"}.`,
+        duration: 4000,
+      });
+    } catch (err: any) {
+      toast({ title: "Automation Check Result", description: err.message });
+    } finally {
+      setIsRunningReminders(false);
+    }
+  };
+
+  const handleSetDefaultBank = async (account: any) => {
+    if (!org?.id) return;
+    try {
+      let notesData: any = {};
+      try {
+        if (account.notes) notesData = JSON.parse(account.notes);
+      } catch (e) {}
+
+      const updatedPrefs = {
+        ...(orgForm.invoice_preferences || {}),
+        default_bank_account_id: account.id,
+      };
+
+      setOrgForm(prev => ({
+        ...prev,
+        invoice_preferences: updatedPrefs,
+      }));
+
+      const orgUpdate: any = {
+        invoice_preferences: updatedPrefs,
+        bank_name: account.bank_name || "",
+        bank_account_name: account.name || notesData.account_holder_name || "",
+        bank_account_number: account.account_number || "",
+        bank_ifsc: account.ifsc || "",
+        bank_branch: notesData.branch || "",
+        upi_id: account.upi_id || org.upi_id || "",
+        bank_details_enabled: true,
+      };
+
+      const { error } = await supabase.from("organizations").update(orgUpdate).eq("id", org.id);
+      if (error) throw error;
+
+      setOrganization({
+        ...org,
+        ...orgUpdate,
+      } as any);
+
+      toast({
+        title: "Default Bank Account Set ★",
+        description: `${account.bank_name || "Account"} is now your default primary bank account for billing.`,
+      });
+    } catch (e: any) {
+      toast({ title: "Failed to set default bank", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleTogglePreference = async (key: string, val: boolean) => {
+    const nextPrefs = {
+      ...(orgForm.invoice_preferences || {}),
+      [key]: val,
+    };
+    // 1. Immediately update form state so switch visually reflects change
+    setOrgForm((prev) => ({
+      ...prev,
+      invoice_preferences: nextPrefs,
+    }));
+
+    // 2. Immediately update app-store so background sync retains this value
+    if (org?.id) {
+      setOrganization({
+        ...org,
+        invoice_preferences: nextPrefs,
+      } as any);
+
+      // 3. Immediately save to Supabase
+      try {
+        const { error } = await supabase
+          .from("organizations")
+          .update({ invoice_preferences: nextPrefs })
+          .eq("id", org.id);
+        if (error) {
+          console.error("Failed to auto-save preference:", error);
+          toast({ title: "Error Saving", description: error.message, variant: "destructive" });
+        } else {
+          toast({ title: "Preference Saved", duration: 1500 });
+        }
+      } catch (err: any) {
+        console.error("Preference update error:", err);
+      }
+    }
+  };
+
+  const saveTermsAndNotes = async () => {
+    if (!org?.id) return;
+    setIsSavingTermsNotes(true);
+    try {
+      const { error } = await supabase
+        .from("organizations")
+        .update({
+          default_terms: orgForm.default_terms,
+          default_notes: orgForm.default_notes,
+        })
+        .eq("id", org.id);
+
+      if (error) {
+        toast({ title: "Error Saving", description: error.message, variant: "destructive" });
+      } else {
+        setOrganization({
+          ...org,
+          default_terms: orgForm.default_terms,
+          default_notes: orgForm.default_notes,
+        } as any);
+        toast({ 
+          title: "Terms & Conditions Saved!", 
+          description: "Your default terms and customer notes have been saved and will appear on new invoices." 
+        });
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsSavingTermsNotes(false);
+    }
+  };
+
+  const handleSavePurchaseDefaults = async () => {
+    if (!org?.id) return;
+    setIsSavingPurchaseDefaults(true);
+    try {
+      const nextPrefs = {
+        ...(orgForm.invoice_preferences || {}),
+        bill_default_payment_terms: Number(orgForm.default_bill_payment_terms) || 0,
+      };
+      const updateData: any = {
+        bill_prefix: orgForm.bill_prefix || "BILL",
+        next_bill_number: Number(orgForm.next_bill_number) || 1,
+        invoice_preferences: nextPrefs,
+      };
+      const { error } = await supabase.from("organizations").update(updateData).eq("id", org.id);
+      if (error) throw error;
+      setOrganization({ ...org, ...updateData } as any);
+      toast({ title: "Purchase Defaults Saved", description: "Purchase prefix, sequence and payment terms updated successfully." });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsSavingPurchaseDefaults(false);
+    }
+  };
+
+  const handleSavePurchaseTermsNotes = async () => {
+    if (!org?.id) return;
+    setIsSavingPurchaseTermsNotes(true);
+    try {
+      const nextPrefs = {
+        ...(orgForm.invoice_preferences || {}),
+        default_bill_notes: orgForm.default_bill_notes || "",
+        default_bill_terms: orgForm.default_bill_terms || "",
+      };
+      const { error } = await supabase.from("organizations").update({
+        invoice_preferences: nextPrefs,
+      }).eq("id", org.id);
+      if (error) throw error;
+      setOrganization({
+        ...org,
+        invoice_preferences: nextPrefs,
+      } as any);
+      toast({ title: "Purchase Terms & Notes Saved", description: "Default notes and terms for purchase bills updated successfully." });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsSavingPurchaseTermsNotes(false);
     }
   };
 
@@ -480,7 +791,16 @@ export default function SettingsPage() {
 
       <Tabs value={currentTab} onValueChange={(tab) => setSearchParams({ tab })}>
         <TabsList className="flex flex-wrap gap-1 h-auto p-1.5">
-          <TabsTrigger value="profile">Profile & Organization</TabsTrigger>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="invoices">Invoices</TabsTrigger>
+          <TabsTrigger value="purchases" className="flex items-center gap-1.5">
+            <Receipt className="h-4 w-4" />
+            Purchases
+          </TabsTrigger>
+          <TabsTrigger value="inventory" className="flex items-center gap-1.5">
+            <Package className="h-4 w-4" />
+            Inventory
+          </TabsTrigger>
           <TabsTrigger value="email" className="flex items-center gap-1.5">
             Email Settings
             {!isIntegrationUnlocked && <Lock className="h-3 w-3 text-amber-500" />}
@@ -489,8 +809,14 @@ export default function SettingsPage() {
             WhatsApp
             {!isIntegrationUnlocked && <Lock className="h-3 w-3 text-amber-500" />}
           </TabsTrigger>
-          <TabsTrigger value="invoices">Invoices</TabsTrigger>
-          <TabsTrigger value="taxes">Tax Rates</TabsTrigger>
+          <TabsTrigger value="templates" className="flex items-center gap-1.5">
+            <Layout className="h-4 w-4" />
+            Templates
+          </TabsTrigger>
+          <TabsTrigger value="custom-fields" className="flex items-center gap-1.5">
+            <SlidersHorizontal className="h-4 w-4" />
+            Custom Fields
+          </TabsTrigger>
           <TabsTrigger value="support">Help & Support</TabsTrigger>
         </TabsList>
 
@@ -868,59 +1194,328 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="invoices" className="space-y-6 mt-4">
-          <Tabs defaultValue="preferences">
-            <TabsList>
-              <TabsTrigger value="preferences">Preferences</TabsTrigger>
-              <TabsTrigger value="defaults">Defaults & Numbering</TabsTrigger>
-              <TabsTrigger value="bank-accounts">Bank Accounts</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="preferences" className="space-y-6 mt-4">
+              {/* Invoice Builder Sections & Fields Customization */}
               <Card>
-                <CardHeader><CardTitle className="text-base">Payments</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Checkbox id="notify-online" defaultChecked />
-                    <Label htmlFor="notify-online">Get notified when customers pay online</Label>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Settings2 className="h-5 w-5 text-primary" />
+                    Invoice Builder Sections (Form Inputs)
+                  </CardTitle>
+                  <CardDescription>
+                    Control which optional input sections appear when creating or editing an invoice inside the builder.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Terms & Conditions */}
+                  <div className="flex items-center justify-between pb-3 border-b">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Terms &amp; Conditions Input</Label>
+                      <p className="text-xs text-muted-foreground">Show Terms &amp; Conditions editor block inside the invoice builder</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.show_terms !== false}
+                      onCheckedChange={(v) => handleTogglePreference("show_terms", v)}
+                    />
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Checkbox id="receipt-thankyou" defaultChecked />
-                    <Label htmlFor="receipt-thankyou">Include the payment receipt along with the Thank You note?</Label>
+
+                  {/* Customer Notes */}
+                  <div className="flex items-center justify-between pb-3 border-b">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Customer Notes Input</Label>
+                      <p className="text-xs text-muted-foreground">Show Notes textarea inside the invoice builder</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.show_notes !== false}
+                      onCheckedChange={(v) => handleTogglePreference("show_notes", v)}
+                    />
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Checkbox id="auto-thankyou" />
-                    <Label htmlFor="auto-thankyou">Automate thank you note to customer on receipt of online payment</Label>
+
+                  {/* Bank Account Details */}
+                  <div className="flex items-center justify-between pb-3 border-b">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Bank Account Selector</Label>
+                      <p className="text-xs text-muted-foreground">Show bank account selection dropdown &amp; controls in invoice builder</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.show_bank_details !== false}
+                      onCheckedChange={(v) => handleTogglePreference("show_bank_details", v)}
+                    />
+                  </div>
+
+                  {/* Display Options */}
+                  <div className="flex items-center justify-between pb-3 border-b">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Display Options Panel</Label>
+                      <p className="text-xs text-muted-foreground">Show quick display formatting panel inside the invoice builder</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.show_display_options !== false}
+                      onCheckedChange={(v) => handleTogglePreference("show_display_options", v)}
+                    />
+                  </div>
+
+                  {/* Compliance (optional) */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Compliance (IRN / E-Way Bill)</Label>
+                      <p className="text-xs text-muted-foreground">Show optional government compliance input fields (IRN hash, Ack No, E-Way Bill) in invoice builder</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.show_compliance !== false}
+                      onCheckedChange={(v) => handleTogglePreference("show_compliance", v)}
+                    />
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Invoice PDF & Print Document Options */}
               <Card>
-                <CardHeader><CardTitle className="text-base">Zero-Value Line Items</CardTitle></CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex items-center gap-3">
-                    <Checkbox id="hide-zero" />
-                    <Label htmlFor="hide-zero">Hide zero-value line items</Label>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Printer className="h-5 w-5 text-primary" />
+                    Invoice PDF &amp; Document Display Options
+                  </CardTitle>
+                  <CardDescription>
+                    Configure what sections and payment details appear on your downloaded invoice PDFs, printed bills, and client portal.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Bank & UPI Details on PDF */}
+                  <div className="flex items-center justify-between pb-3 border-b">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Show Bank Account &amp; UPI Details on PDF</Label>
+                      <p className="text-xs text-muted-foreground">Print your default bank account details, IFSC, and UPI payment instructions on generated invoice PDFs</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.pdf_show_bank_details !== false}
+                      onCheckedChange={(v) => handleTogglePreference("pdf_show_bank_details", v)}
+                    />
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 ml-7">
-                    Choose whether to hide zero-value line items in an invoice's PDF and the Customer Portal. They will still be visible while editing an invoice.
-                  </p>
+
+                  {/* Terms & Conditions on PDF */}
+                  <div className="flex items-center justify-between pb-3 border-b">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Show Terms &amp; Conditions on PDF</Label>
+                      <p className="text-xs text-muted-foreground">Print standard Terms &amp; Conditions block on generated invoice PDFs</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.pdf_show_terms !== false}
+                      onCheckedChange={(v) => handleTogglePreference("pdf_show_terms", v)}
+                    />
+                  </div>
+
+                  {/* Customer Notes on PDF */}
+                  <div className="flex items-center justify-between pb-3 border-b">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Show Customer Notes on PDF</Label>
+                      <p className="text-xs text-muted-foreground">Print customer notes, remarks, and thank you message on generated invoice PDFs</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.pdf_show_notes !== false}
+                      onCheckedChange={(v) => handleTogglePreference("pdf_show_notes", v)}
+                    />
+                  </div>
+
+                  {/* Auto Round Off on PDF */}
+                  <div className="flex items-center justify-between pb-3 border-b">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Auto Round Off Total on PDF</Label>
+                      <p className="text-xs text-muted-foreground">Automatically round off the final payable invoice total to the nearest whole rupee</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.auto_round_off !== false}
+                      onCheckedChange={(v) => handleTogglePreference("auto_round_off", v)}
+                    />
+                  </div>
+
+                  {/* Authorized Signature on PDF */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Include Authorized Signature on PDF</Label>
+                      <p className="text-xs text-muted-foreground">Print authorized signatory line, uploaded signature, and company stamp block on invoice documents</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.pdf_show_signature !== false}
+                      onCheckedChange={(v) => handleTogglePreference("pdf_show_signature", v)}
+                    />
+                  </div>
                 </CardContent>
               </Card>
 
+              {/* Authorized Signature Setup */}
+              <SignatureSettingsTab />
+
+              {/* Invoice Defaults & Numbering */}
               <Card>
-                <CardHeader><CardTitle className="text-base">Terms & Conditions</CardTitle></CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base">Invoice Defaults &amp; Numbering</CardTitle>
+                    <CardDescription className="text-xs">Configure default invoice prefix format and payment terms</CardDescription>
+                  </div>
+                  <Button size="sm" onClick={saveOrg}>Save Defaults</Button>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="col-span-1 md:col-span-2 space-y-2 mb-2">
+                      <Label>Invoice Number Format</Label>
+                      <Input value={orgForm.invoice_prefix} onChange={(e) => setOrgForm({ ...orgForm, invoice_prefix: e.target.value })} placeholder="e.g. INV-{YYYY}-{NNNN}" />
+                      <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                        Use placeholders to create a custom format. E.g. <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">INV-{`{YYYY}`}-{`{NNNN}`}</code> produces INV-2024-0001, <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">SALES-{`{YY}`}-{`{NN}`}</code> produces SALES-24-01. If no placeholders are used, we append the year and number automatically.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Payment Terms (days) — set 0 for Due on Receipt</Label>
+                      <Input 
+                        type="number" 
+                        min={0}
+                        value={orgForm.payment_terms} 
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const parsed = raw === "" ? 0 : parseInt(raw, 10);
+                          setOrgForm({ ...orgForm, payment_terms: isNaN(parsed) ? 0 : Math.max(0, parsed) });
+                        }} 
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {orgForm.payment_terms === 0 ? "⚡ 0 Days: Due on Receipt (Payment terms & Due Date hidden on invoice builder & documents)" : `Payment due within ${orgForm.payment_terms} days`}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Bank Accounts */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base">Bank Accounts</CardTitle>
+                    <CardDescription className="text-xs">Manage bank accounts and select which account is used by default for invoices</CardDescription>
+                  </div>
+                  <Button size="sm" onClick={() => {
+                    setBankForm({ bank_name: "", account_holder_name: "", account_number: "", ifsc: "", branch: "", upi_id: "" });
+                    setEditBankId(null);
+                    setBankDialogOpen(true);
+                  }}>
+                    <Plus className="mr-1 h-4 w-4" /> Add Bank Account
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {bankAccounts.length === 0 ? (
+                    <div className="p-8 text-center text-sm text-muted-foreground">
+                      No bank accounts added. Click 'Add Bank Account' to add one.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {bankAccounts.map((account) => {
+                        let notesData = { branch: "", account_holder_name: "" };
+                        try {
+                          if (account.notes) notesData = JSON.parse(account.notes);
+                        } catch (e) {}
+                        
+                        const isDefault = (orgForm.invoice_preferences?.default_bank_account_id === account.id) ||
+                          (!orgForm.invoice_preferences?.default_bank_account_id && orgForm.bank_name && account.account_number === org.bank_account_number) ||
+                          (bankAccounts.length === 1);
+
+                        return (
+                          <div key={account.id} className={`p-4 rounded-xl border relative transition-all ${isDefault ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-300 dark:border-blue-700 shadow-xs' : 'bg-slate-50 dark:bg-slate-900 border-border'}`}>
+                            <div className="absolute top-4 right-4 flex items-center gap-1.5">
+                              {isDefault ? (
+                                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-[11px] shadow-xs">
+                                  ★ Default
+                                </Badge>
+                              ) : (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-7 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-primary hover:text-white"
+                                  onClick={() => handleSetDefaultBank(account)}
+                                >
+                                  Set as Default
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleEditBankAccount(account)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteBankAccount(account.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <div className="flex items-center gap-3 mb-4 pr-32">
+                              <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${isDefault ? 'bg-blue-600 text-white' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'}`}>
+                                <Landmark className="h-5 w-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className="font-semibold truncate">{account.bank_name || "Unknown Bank"}</h4>
+                                <p className="text-xs text-muted-foreground truncate">{account.name}</p>
+                              </div>
+                            </div>
+                            <div className="space-y-1.5 text-xs">
+                              <div className="grid grid-cols-3 gap-1">
+                                <span className="text-muted-foreground">Account:</span>
+                                <span className="col-span-2 font-mono font-medium">
+                                  {account.account_number ? `••••${account.account_number.slice(-4)}` : "—"}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-1">
+                                <span className="text-muted-foreground">IFSC:</span>
+                                <span className="col-span-2 font-mono font-medium">{account.ifsc || "—"}</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-1">
+                                <span className="text-muted-foreground">Branch:</span>
+                                <span className="col-span-2">{notesData.branch || "—"}</span>
+                              </div>
+                              {account.upi_id && (
+                                <div className="grid grid-cols-3 gap-1">
+                                  <span className="text-muted-foreground">UPI ID:</span>
+                                  <span className="col-span-2 font-medium text-primary">{account.upi_id}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Terms & Conditions */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base">Terms &amp; Conditions</CardTitle>
+                    <CardDescription className="text-xs">Default terms and customer notes that will automatically appear on new invoices</CardDescription>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    onClick={saveTermsAndNotes}
+                    disabled={isSavingTermsNotes}
+                  >
+                    {isSavingTermsNotes ? "Saving..." : "Save Terms & Notes"}
+                  </Button>
+                </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Default Terms & Conditions</Label>
-                    <Textarea value={orgForm.default_terms} onChange={(e) => setOrgForm({ ...orgForm, default_terms: e.target.value })} rows={4} />
+                    <Label>Default Terms &amp; Conditions</Label>
+                    <Textarea 
+                      value={orgForm.default_terms} 
+                      onChange={(e) => setOrgForm({ ...orgForm, default_terms: e.target.value })} 
+                      placeholder="e.g. 1. Goods once sold will not be returned.&#10;2. Payment is due within 30 days." 
+                      rows={4} 
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Customer Notes</Label>
-                    <Textarea value={orgForm.default_notes} onChange={(e) => setOrgForm({ ...orgForm, default_notes: e.target.value })} placeholder="Thanks for your business." rows={4} />
+                    <Textarea 
+                      value={orgForm.default_notes} 
+                      onChange={(e) => setOrgForm({ ...orgForm, default_notes: e.target.value })} 
+                      placeholder="Thanks for your business." 
+                      rows={3} 
+                    />
                   </div>
                 </CardContent>
               </Card>
 
+              {/* GST Settings */}
               <Card>
                 <CardHeader><CardTitle className="text-base">GST Settings</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
@@ -946,153 +1541,51 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
-
-              <Card>
-                <CardHeader><CardTitle className="text-base">Inventory Management</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Enable Inventory Tracking</Label>
-                      <p className="text-xs text-slate-600 dark:text-slate-300">Turn on if you sell physical products. Stock auto-deducts on each invoice. Service businesses can leave this off.</p>
-                    </div>
-                    <Switch checked={orgForm.inventory_enabled} onCheckedChange={(v) => setOrgForm({ ...orgForm, inventory_enabled: v })} />
-                  </div>
-                  {orgForm.inventory_enabled && (
-                    <div className="space-y-2">
-                      <Label>Low Stock Alert Threshold</Label>
-                      <Input type="number" min={0} value={orgForm.low_stock_threshold} onChange={(e) => setOrgForm({ ...orgForm, low_stock_threshold: parseFloat(e.target.value) || 0 })} />
-                      <p className="text-xs text-slate-600 dark:text-slate-300">Items at or below this stock level appear in the dashboard low-stock alert.</p>
-                    </div>
-                  )}
-                  
-                  <div className="flex items-center justify-between border-t pt-4">
-                    <div>
-                      <Label>Enable Sub Units (e.g. 1 Box = 10 Packs)</Label>
-                      <p className="text-xs text-slate-600 dark:text-slate-300">Allows selling products in smaller sub-units.</p>
-                    </div>
-                    <Switch checked={orgForm.sub_unit_enabled} onCheckedChange={(v) => setOrgForm({ ...orgForm, sub_unit_enabled: v })} />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-slate-900 border-slate-800">
+              {/* Automations (Positioned at the very bottom) */}
+              <Card className="bg-slate-900 border-slate-800 text-slate-50">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-slate-50">
-                    <Bell className="h-5 w-5 text-purple-400" />
-                    Automations
-                  </CardTitle>
-                  <CardDescription className="text-slate-400">Automate tasks and reminders</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label className="text-base font-medium text-slate-50">Automate Overdue Reminders</Label>
-                      <p className="text-sm text-slate-400 dark:text-slate-300">Automatically send WhatsApp and Email reminders when invoices become overdue.</p>
-                    </div>
-                    <Switch checked={orgForm.automate_overdue_reminders} onCheckedChange={(v) => setOrgForm({ ...orgForm, automate_overdue_reminders: v })} />
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <CardTitle className="flex items-center gap-2 text-slate-50 text-base">
+                      <Bell className="h-5 w-5 text-purple-400" />
+                      Automations &amp; Scheduled Reminders
+                    </CardTitle>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white gap-1.5"
+                      onClick={handleRunOverdueReminders}
+                      disabled={isRunningReminders}
+                    >
+                      {isRunningReminders ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Checking Overdue...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-3.5 w-3.5 text-purple-400" />
+                          Run Overdue Check Now
+                        </>
+                      )}
+                    </Button>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Button onClick={saveOrg}>Save</Button>
-            </TabsContent>
-
-            <TabsContent value="defaults" className="space-y-6 mt-4">
-              <Card>
-                <CardHeader><CardTitle className="text-base">Invoice Defaults</CardTitle></CardHeader>
+                  <CardDescription className="text-slate-400">
+                    Automate notifications and reminders for your invoices and customers
+                  </CardDescription>
+                </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="col-span-1 md:col-span-2 space-y-2 mb-2">
-                      <Label>Invoice Number Format</Label>
-                      <Input value={orgForm.invoice_prefix} onChange={(e) => setOrgForm({ ...orgForm, invoice_prefix: e.target.value })} placeholder="e.g. INV-{YYYY}-{NNNN}" />
-                      <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
-                        Use placeholders to create a custom format. E.g. <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">INV-{`{YYYY}`}-{`{NNNN}`}</code> produces INV-2024-0001, <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">SALES-{`{YY}`}-{`{NN}`}</code> produces SALES-24-01. If no placeholders are used, we append the year and number automatically.
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/60 border border-slate-800">
+                    <div className="space-y-0.5 pr-4">
+                      <Label className="text-sm font-medium text-slate-100">Automate Overdue Reminders</Label>
+                      <p className="text-xs text-slate-400">
+                        Automatically send WhatsApp and Email payment reminders when invoices pass their due date.
                       </p>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Payment Terms (days)</Label>
-                      <Input type="number" value={orgForm.payment_terms} onChange={(e) => setOrgForm({ ...orgForm, payment_terms: parseInt(e.target.value) || 30 })} />
-                    </div>
+                    <Switch
+                      checked={orgForm.automate_overdue_reminders}
+                      onCheckedChange={handleToggleAutomation}
+                    />
                   </div>
-                  <Button onClick={saveOrg}>Save Changes</Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            
-            <TabsContent value="bank-accounts" className="space-y-6 mt-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base">Bank Accounts</CardTitle>
-                    <CardDescription className="text-xs">Manage bank details displayed on your invoices</CardDescription>
-                  </div>
-                  <Button size="sm" onClick={() => {
-                    setBankForm({ bank_name: "", account_holder_name: "", account_number: "", ifsc: "", branch: "", upi_id: "" });
-                    setEditBankId(null);
-                    setBankDialogOpen(true);
-                  }}>
-                    <Plus className="mr-1 h-4 w-4" /> Add Bank Account
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  {bankAccounts.length === 0 ? (
-                    <div className="p-8 text-center text-sm text-muted-foreground">
-                      No bank accounts added. Click 'Add Bank Account' to add one.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {bankAccounts.map((account) => {
-                        let notesData = { branch: "" };
-                        try {
-                          if (account.notes) notesData = JSON.parse(account.notes);
-                        } catch (e) {}
-                        
-                        return (
-                          <div key={account.id} className="p-4 rounded-xl border bg-slate-50 dark:bg-slate-900 relative">
-                            <div className="absolute top-4 right-4 flex gap-2">
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditBankAccount(account)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteBankAccount(account.id)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                            <div className="flex items-center gap-3 mb-4">
-                              <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
-                                <Landmark className="h-5 w-5" />
-                              </div>
-                              <div>
-                                <h4 className="font-semibold">{account.bank_name || "Unknown Bank"}</h4>
-                                <p className="text-xs text-muted-foreground">{account.name}</p>
-                              </div>
-                            </div>
-                            <div className="space-y-2 text-sm">
-                              <div className="grid grid-cols-3 gap-1">
-                                <span className="text-muted-foreground">Account:</span>
-                                <span className="col-span-2 font-mono">
-                                  {account.account_number ? `••••${account.account_number.slice(-4)}` : "—"}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-3 gap-1">
-                                <span className="text-muted-foreground">IFSC:</span>
-                                <span className="col-span-2 font-mono">{account.ifsc || "—"}</span>
-                              </div>
-                              <div className="grid grid-cols-3 gap-1">
-                                <span className="text-muted-foreground">Branch:</span>
-                                <span className="col-span-2">{notesData.branch || "—"}</span>
-                              </div>
-                              {account.upi_id && (
-                                <div className="grid grid-cols-3 gap-1">
-                                  <span className="text-muted-foreground">UPI ID:</span>
-                                  <span className="col-span-2">{account.upi_id}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
@@ -1131,12 +1624,370 @@ export default function SettingsPage() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-            </TabsContent>
 
-        </Tabs>
+              <div className="pt-2">
+                <Button onClick={saveOrg}>Save All Preferences</Button>
+              </div>
         </TabsContent>
 
-        <TabsContent value="taxes" className="space-y-6 mt-4">
+        <TabsContent value="purchases" className="space-y-6 mt-4">
+          {/* Purchase Invoice / Bill Builder Sections & Preferences */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Receipt className="h-5 w-5 text-primary" />
+                Purchase Invoice / Bill Builder Sections (Form Inputs)
+              </CardTitle>
+              <CardDescription>
+                Control which optional input sections appear when creating or editing a purchase bill in the builder.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Terms & Conditions */}
+              <div className="flex items-center justify-between pb-3 border-b">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Terms &amp; Conditions Input</Label>
+                  <p className="text-xs text-muted-foreground">Show Terms &amp; Conditions editor block inside the purchase invoice builder</p>
+                </div>
+                <Switch
+                  checked={orgForm.invoice_preferences?.bill_show_terms !== false}
+                  onCheckedChange={(v) => handleTogglePreference("bill_show_terms", v)}
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="flex items-center justify-between pb-3 border-b">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Notes Input</Label>
+                  <p className="text-xs text-muted-foreground">Show Notes textarea inside the purchase invoice builder</p>
+                </div>
+                <Switch
+                  checked={orgForm.invoice_preferences?.bill_show_notes !== false}
+                  onCheckedChange={(v) => handleTogglePreference("bill_show_notes", v)}
+                />
+              </div>
+
+              {/* Display Options */}
+              <div className="flex items-center justify-between pb-3 border-b">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Display Options Panel</Label>
+                  <p className="text-xs text-muted-foreground">Show Display Options formatting card (Auto Round Off, toggles) inside the purchase invoice builder</p>
+                </div>
+                <Switch
+                  checked={orgForm.invoice_preferences?.bill_show_display_options !== false}
+                  onCheckedChange={(v) => handleTogglePreference("bill_show_display_options", v)}
+                />
+              </div>
+
+              {/* Compliance */}
+              <div className="flex items-center justify-between pb-3 border-b">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Compliance (IRN / E-Way Bill)</Label>
+                  <p className="text-xs text-muted-foreground">Show optional government compliance input fields (IRN hash, Ack No, E-Way Bill) in purchase invoice builder</p>
+                </div>
+                <Switch
+                  checked={orgForm.invoice_preferences?.bill_show_compliance !== false}
+                  onCheckedChange={(v) => handleTogglePreference("bill_show_compliance", v)}
+                />
+              </div>
+
+              {/* Default Add Stock */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Default "Add stock to inventory"</Label>
+                  <p className="text-xs text-muted-foreground">Automatically keep "Add stock to inventory" checked by default when opening a new purchase bill</p>
+                </div>
+                <Switch
+                  checked={orgForm.invoice_preferences?.bill_default_add_stock !== false}
+                  onCheckedChange={(v) => handleTogglePreference("bill_default_add_stock", v)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Purchase PDF & Print Document Options */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Printer className="h-5 w-5 text-primary" />
+                Purchase PDF &amp; Document Display Options
+              </CardTitle>
+              <CardDescription>
+                Configure what sections and payment details appear on your downloaded purchase invoice PDFs, printed bills, and vendor records.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Bank & UPI Details on Bill / PDF */}
+              <div className="flex items-center justify-between pb-3 border-b">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Show Bank Account &amp; UPI Details on Bill / PDF</Label>
+                  <p className="text-xs text-muted-foreground">Print bank account and payment details on generated purchase invoice PDFs</p>
+                </div>
+                <Switch
+                  checked={orgForm.invoice_preferences?.bill_pdf_show_bank_details !== false}
+                  onCheckedChange={(v) => handleTogglePreference("bill_pdf_show_bank_details", v)}
+                />
+              </div>
+
+              {/* Terms & Conditions on Bill / PDF */}
+              <div className="flex items-center justify-between pb-3 border-b">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Show Terms &amp; Conditions on Bill / PDF</Label>
+                  <p className="text-xs text-muted-foreground">Print standard Purchase Terms &amp; Conditions block on generated purchase invoice PDFs</p>
+                </div>
+                <Switch
+                  checked={orgForm.invoice_preferences?.bill_pdf_show_terms !== false}
+                  onCheckedChange={(v) => handleTogglePreference("bill_pdf_show_terms", v)}
+                />
+              </div>
+
+              {/* Notes on Bill / PDF */}
+              <div className="flex items-center justify-between pb-3 border-b">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Show Notes on Bill / PDF</Label>
+                  <p className="text-xs text-muted-foreground">Print purchase notes, vendor remarks, and instructions on generated purchase invoice PDFs</p>
+                </div>
+                <Switch
+                  checked={orgForm.invoice_preferences?.bill_pdf_show_notes !== false}
+                  onCheckedChange={(v) => handleTogglePreference("bill_pdf_show_notes", v)}
+                />
+              </div>
+
+              {/* Auto Round Off on Bill / PDF */}
+              <div className="flex items-center justify-between pb-3 border-b">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Auto Round Off Total on Bill / PDF</Label>
+                  <p className="text-xs text-muted-foreground">Automatically round off the final purchase bill total to the nearest whole rupee</p>
+                </div>
+                <Switch
+                  checked={orgForm.invoice_preferences?.bill_pdf_auto_round_off !== false}
+                  onCheckedChange={(v) => handleTogglePreference("bill_pdf_auto_round_off", v)}
+                />
+              </div>
+
+              {/* Authorized Signature on Bill / PDF */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Include Authorized Signature on Bill / PDF</Label>
+                  <p className="text-xs text-muted-foreground">Print authorized signatory line, uploaded signature, and company stamp block on purchase bills</p>
+                </div>
+                <Switch
+                  checked={orgForm.invoice_preferences?.bill_pdf_show_signature !== false}
+                  onCheckedChange={(v) => handleTogglePreference("bill_pdf_show_signature", v)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Purchase Defaults & Numbering */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Hash className="h-5 w-5 text-primary" />
+                  Purchase Invoice Defaults &amp; Numbering
+                </CardTitle>
+                <CardDescription className="text-xs">Configure purchase bill prefix format, starting sequence number, and default payment terms</CardDescription>
+              </div>
+              <Button size="sm" onClick={handleSavePurchaseDefaults} disabled={isSavingPurchaseDefaults}>
+                {isSavingPurchaseDefaults ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                Save Defaults
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Purchase Invoice Prefix</Label>
+                  <Input 
+                    value={orgForm.bill_prefix} 
+                    onChange={(e) => setOrgForm({ ...orgForm, bill_prefix: e.target.value })} 
+                    placeholder="e.g. BILL or PUR" 
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Prefix used when auto-generating purchase invoice numbers (e.g. BILL-0001).
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Next Sequence Number</Label>
+                  <Input 
+                    type="number" 
+                    min={1} 
+                    value={orgForm.next_bill_number} 
+                    onChange={(e) => setOrgForm({ ...orgForm, next_bill_number: parseInt(e.target.value) || 1 })} 
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The sequence counter for the next purchase invoice created.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Default Payment Terms (days)</Label>
+                  <Input 
+                    type="number" 
+                    min={0} 
+                    value={orgForm.default_bill_payment_terms} 
+                    onChange={(e) => setOrgForm({ ...orgForm, default_bill_payment_terms: parseInt(e.target.value) || 0 })} 
+                    placeholder="e.g. 0 for Due on Receipt, 30"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Set 0 for "Due on Receipt" (automatically streamlines top layout by hiding Due Date).
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Default Terms & Notes for Purchases */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  Default Terms &amp; Notes for Purchase Invoices
+                </CardTitle>
+                <CardDescription className="text-xs">Standard notes and terms pre-filled whenever you create a new purchase bill</CardDescription>
+              </div>
+              <Button size="sm" onClick={handleSavePurchaseTermsNotes} disabled={isSavingPurchaseTermsNotes}>
+                {isSavingPurchaseTermsNotes ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                Save Terms &amp; Notes
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Default Purchase Notes</Label>
+                <Textarea 
+                  value={orgForm.default_bill_notes} 
+                  onChange={(e) => setOrgForm({ ...orgForm, default_bill_notes: e.target.value })} 
+                  rows={3} 
+                  placeholder="Standard purchase remarks, vendor instructions, receiving notes..." 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Default Purchase Terms &amp; Conditions</Label>
+                <Textarea 
+                  value={orgForm.default_bill_terms} 
+                  onChange={(e) => setOrgForm({ ...orgForm, default_bill_terms: e.target.value })} 
+                  rows={3} 
+                  placeholder="Standard purchase terms, goods inspection period, payment schedule, return conditions..." 
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Inventory & Stock Integration for Purchases */}
+          <Card className="border-blue-100 bg-blue-50/30 dark:bg-blue-950/20 dark:border-blue-900">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2 text-blue-900 dark:text-blue-300">
+                <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                Inventory &amp; Auto-Catalog Integration
+              </CardTitle>
+              <CardDescription className="text-xs text-blue-800/80 dark:text-blue-400">
+                How purchase invoices interact with your products catalog and inventory stock
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Auto-Add to Catalog:</strong> When you enter any new item in a purchase bill and save with "Add stock to inventory" enabled, it is automatically created in your Items catalog as a Product item.
+                </span>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Selling Price Pre-Configuration:</strong> You can enter the selling price (Sell Price ₹) directly in the purchase line item so it gets saved to the item's catalog rate immediately for future sales.
+                </span>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Stock Movements &amp; Audit Trail:</strong> Every purchased quantity automatically increments inventory stock and logs a verifiable stock movement entry linked to the bill.
+                </span>
+              </div>
+              <div className="pt-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setSearchParams({ tab: "inventory" })}
+                  className="bg-white dark:bg-background"
+                >
+                  <Package className="h-4 w-4 mr-1.5" /> Manage Inventory Settings ↗
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="inventory" className="space-y-6 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Package className="h-5 w-5 text-primary" />
+                Inventory Management &amp; Stock Tracking
+              </CardTitle>
+              <CardDescription>
+                Configure real-time stock deduction, low stock alert thresholds, sub-units, and multi-warehouse storage.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-base font-medium">Enable Inventory Tracking</Label>
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    Turn on if you sell physical products. Stock auto-deducts on each invoice. Service businesses can leave this off.
+                  </p>
+                </div>
+                <Switch checked={orgForm.inventory_enabled} onCheckedChange={(v) => setOrgForm({ ...orgForm, inventory_enabled: v })} />
+              </div>
+
+              {orgForm.inventory_enabled && (
+                <div className="space-y-2 p-4 rounded-lg bg-muted/40 border">
+                  <Label>Low Stock Alert Threshold</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={orgForm.low_stock_threshold}
+                    onChange={(e) => setOrgForm({ ...orgForm, low_stock_threshold: parseFloat(e.target.value) || 0 })}
+                  />
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    Items at or below this stock level appear in the dashboard low-stock alert.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between border-t pt-4">
+                <div>
+                  <Label className="text-base font-medium">Enable Sub Units (e.g. 1 Box = 10 Packs)</Label>
+                  <p className="text-xs text-slate-600 dark:text-slate-300">Allows selling products in smaller sub-units.</p>
+                </div>
+                <Switch checked={orgForm.sub_unit_enabled} onCheckedChange={(v) => setOrgForm({ ...orgForm, sub_unit_enabled: v })} />
+              </div>
+
+              <div className="flex items-center justify-between border-t pt-4">
+                <div>
+                  <Label className="text-base font-medium">Multi-Warehouse Support</Label>
+                  <p className="text-xs text-slate-600 dark:text-slate-300">Track and transfer inventory across multiple physical warehouses or godowns.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAddWarehouseOpen(true)}
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Add Warehouse
+                  </Button>
+                  <Switch checked={orgForm.multi_warehouse_enabled} onCheckedChange={(v) => setOrgForm({ ...orgForm, multi_warehouse_enabled: v })} />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <Button onClick={saveOrg} className="font-medium">
+                  Save Inventory Settings
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Tax Rates & GST Slabs Section (Embedded in Inventory) */}
           <Card className="border-indigo-100 bg-indigo-50/40">
             <CardHeader className="pb-3">
               <CardTitle className="text-base text-indigo-950">Official GST Slabs</CardTitle>
@@ -1171,7 +2022,7 @@ export default function SettingsPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-base">Custom / Saved Tax Rates</CardTitle>
-                <CardDescription className="text-xs">Database tax rate entries synced with your invoices</CardDescription>
+                <CardDescription className="text-xs">Database tax rate entries synced with your items and billing</CardDescription>
               </div>
               <Button size="sm" onClick={() => {
                 setTaxForm({ name: "", rate: 18, is_default: false });
@@ -1253,6 +2104,14 @@ export default function SettingsPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+        </TabsContent>
+
+        <TabsContent value="templates" className="space-y-6 mt-4">
+          <InvoiceTemplatePage embedded={true} />
+        </TabsContent>
+
+        <TabsContent value="custom-fields" className="space-y-6 mt-4">
+          <CustomFieldsPage embedded={true} />
         </TabsContent>
 
         <TabsContent value="support" className="space-y-6 mt-4">

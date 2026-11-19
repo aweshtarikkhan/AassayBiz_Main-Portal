@@ -55,6 +55,7 @@ interface UserData {
   first_name: string | null;
   last_name: string | null;
   email: string;
+  phone?: string | null;
   org_id: string | null;
   org_name: string | null;
   role: string | null;
@@ -73,7 +74,7 @@ interface OrgData {
   created_at: string;
   member_count: number;
   invoice_count: number;
-  owner: { email: string; name: string; account_id?: string | null } | null;
+  owner: { email: string; name: string; phone?: string | null; account_id?: string | null; id?: string } | null;
   subscription: {
     plan_name: string;
     enabled_features: string[];
@@ -498,12 +499,15 @@ export default function PlatformAdminPage() {
       
       let finalDashData = data as unknown as DashboardData;
       try {
-        const { data: profilesData } = await supabase.from("profiles").select("id, user_id, account_id");
+        const { data: profilesData } = await supabase.from("profiles").select("id, user_id, account_id, phone");
         if (profilesData && finalDashData) {
           const idMap = new Map<string, string>();
+          const phoneMap = new Map<string, string>();
           profilesData.forEach((p: any) => {
             if (p.id && p.account_id) idMap.set(p.id, p.account_id);
             if (p.user_id && p.account_id) idMap.set(p.user_id, p.account_id);
+            if (p.id && p.phone) phoneMap.set(p.id, p.phone);
+            if (p.user_id && p.phone) phoneMap.set(p.user_id, p.phone);
           });
 
           if (finalDashData.users) {
@@ -511,7 +515,8 @@ export default function PlatformAdminPage() {
               ...finalDashData,
               users: finalDashData.users.map(u => ({
                 ...u,
-                account_id: idMap.get(u.user_id) || idMap.get(u.id) || (u as any).account_id || null
+                account_id: idMap.get(u.user_id) || idMap.get(u.id) || (u as any).account_id || null,
+                phone: u.phone || phoneMap.get(u.user_id) || phoneMap.get(u.id) || null
               }))
             };
           }
@@ -519,13 +524,18 @@ export default function PlatformAdminPage() {
           if (finalDashData.organizations) {
             finalDashData = {
               ...finalDashData,
-              organizations: finalDashData.organizations.map(o => ({
-                ...o,
-                owner: o.owner ? {
-                  ...o.owner,
-                  account_id: (o.owner.id ? idMap.get(o.owner.id) : null) || o.owner.account_id || null
-                } : null
-              }))
+              organizations: finalDashData.organizations.map(o => {
+                const orgPhone = o.phone || (o.owner?.id ? phoneMap.get(o.owner.id) : null) || (o.owner as any)?.phone || null;
+                return {
+                  ...o,
+                  phone: orgPhone,
+                  owner: o.owner ? {
+                    ...o.owner,
+                    account_id: (o.owner.id ? idMap.get(o.owner.id) : null) || o.owner.account_id || null,
+                    phone: (o.owner as any)?.phone || (o.owner.id ? phoneMap.get(o.owner.id) : null) || orgPhone || null
+                  } : null
+                };
+              })
             };
           }
         }
@@ -1966,9 +1976,9 @@ export default function PlatformAdminPage() {
                                 <Mail className="w-3 h-3" /> {org.email}
                               </span>
                             )}
-                            {org.phone && (
-                              <span className="flex items-center gap-1">
-                                <Phone className="w-3 h-3" /> {org.phone}
+                            {(org.phone || (org.owner as any)?.phone) && (
+                              <span className="flex items-center gap-1 font-mono text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md">
+                                <Phone className="w-3 h-3 text-emerald-600" /> {org.phone || (org.owner as any)?.phone}
                               </span>
                             )}
                             
@@ -2299,6 +2309,7 @@ export default function PlatformAdminPage() {
                   const searchLower = userSearchQuery.toLowerCase().trim();
                   const matchesSearch = !searchLower || 
                     user.email?.toLowerCase().includes(searchLower) ||
+                    (user.phone && user.phone.toLowerCase().includes(searchLower)) ||
                     user.first_name?.toLowerCase().includes(searchLower) ||
                     user.last_name?.toLowerCase().includes(searchLower) ||
                     user.org_name?.toLowerCase().includes(searchLower) ||
@@ -2350,7 +2361,7 @@ export default function PlatformAdminPage() {
                       <thead>
                         <tr className="border-b border-slate-200 text-left text-slate-500 text-xs">
                           <th className="pb-3 pr-4 font-semibold">User Profile</th>
-                          <th className="pb-3 pr-4 font-semibold">Email & ID</th>
+                          <th className="pb-3 pr-4 font-semibold">Contact (Email & Mobile)</th>
                           <th className="pb-3 pr-4 font-semibold">Business</th>
                           <th className="pb-3 pr-4 font-semibold">Role</th>
                           <th className="pb-3 pr-4 font-semibold">Active Plan(s)</th>
@@ -2389,21 +2400,50 @@ export default function PlatformAdminPage() {
                                 </div>
                               </td>
 
-                              {/* Email & Copy */}
+                              {/* Contact: Email & Mobile */}
                               <td className="py-3.5 pr-4">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-slate-600 text-xs">{user.email}</span>
-                                  <button
-                                    onClick={() => copyText(user.email, user.user_id)}
-                                    title="Copy Email"
-                                    className="text-slate-500 hover:text-indigo-600"
-                                  >
-                                    {copiedUserId === user.user_id ? (
-                                      <Check className="w-3 h-3 text-emerald-600" />
-                                    ) : (
-                                      <Copy className="w-3 h-3" />
-                                    )}
-                                  </button>
+                                <div className="space-y-1.5 min-w-[200px]">
+                                  <div className="flex items-center gap-1.5">
+                                    <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span className="text-slate-700 text-xs font-medium truncate max-w-[170px]" title={user.email}>
+                                      {user.email}
+                                    </span>
+                                    <button
+                                      onClick={() => copyText(user.email, user.user_id + '-email')}
+                                      title="Copy Email"
+                                      className="text-slate-400 hover:text-indigo-600 transition-colors p-0.5 rounded hover:bg-slate-100"
+                                    >
+                                      {copiedUserId === user.user_id + '-email' ? (
+                                        <Check className="w-3 h-3 text-emerald-600" />
+                                      ) : (
+                                        <Copy className="w-3 h-3" />
+                                      )}
+                                    </button>
+                                  </div>
+                                  {user.phone ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      <span className="font-mono text-xs font-semibold text-slate-800 tracking-tight">
+                                        {user.phone}
+                                      </span>
+                                      <button
+                                        onClick={() => copyText(user.phone!, user.user_id + '-phone')}
+                                        title="Copy Mobile"
+                                        className="text-slate-400 hover:text-emerald-600 transition-colors p-0.5 rounded hover:bg-slate-100"
+                                      >
+                                        {copiedUserId === user.user_id + '-phone' ? (
+                                          <Check className="w-3 h-3 text-emerald-600" />
+                                        ) : (
+                                          <Copy className="w-3 h-3" />
+                                        )}
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1 text-[11px] text-slate-400 italic">
+                                      <Phone className="w-3 h-3 text-slate-300 shrink-0" />
+                                      <span>No mobile registered</span>
+                                    </div>
+                                  )}
                                 </div>
                               </td>
 
@@ -2478,7 +2518,10 @@ export default function PlatformAdminPage() {
                                       <div>
                                         <div className="border-b border-slate-200 pb-2.5 mb-3">
                                           <h4 className="text-xs font-bold text-slate-800 leading-snug">Change Plan for User</h4>
-                                          <p className="text-[11px] text-slate-500 truncate mt-0.5">{user.email}</p>
+                                          <p className="text-[11px] text-slate-500 truncate mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                            <span>{user.email}</span>
+                                            {user.phone && <span className="font-mono font-semibold text-emerald-700">({user.phone})</span>}
+                                          </p>
                                           {user.org_name && (
                                             <p className="text-[10px] text-indigo-600 font-semibold mt-0.5">Org: {user.org_name}</p>
                                           )}
@@ -2826,7 +2869,7 @@ export default function PlatformAdminPage() {
                     <Table>
                       <TableHeader className="bg-slate-50">
                         <TableRow>
-                          <TableHead>User Email</TableHead>
+                          <TableHead>User Contact (Email & Mobile)</TableHead>
                           <TableHead>Role</TableHead>
                           <TableHead>Joined At</TableHead>
                         </TableRow>
@@ -2834,7 +2877,20 @@ export default function PlatformAdminPage() {
                       <TableBody>
                         {dashData?.users?.map((user: any, idx: number) => (
                           <TableRow key={idx}>
-                            <TableCell className="font-medium">{user.email}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1.5 text-xs text-slate-800">
+                                  <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span>{user.email}</span>
+                                </div>
+                                {user.phone && (
+                                  <div className="flex items-center gap-1.5 text-xs font-mono font-semibold text-emerald-700">
+                                    <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
+                                    <span>{user.phone}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="bg-slate-100">{user.role}</Badge>
                             </TableCell>
@@ -3908,8 +3964,17 @@ export default function PlatformAdminPage() {
                         {selectedUserForModal.role ? selectedUserForModal.role.toUpperCase() : "NO ROLE"}
                       </Badge>
                     </DialogTitle>
-                    <DialogDescription className="text-slate-500 text-xs mt-0.5">
-                      {selectedUserForModal.email}
+                    <DialogDescription className="text-slate-500 text-xs mt-0.5 flex items-center gap-3 flex-wrap">
+                      <span className="flex items-center gap-1">
+                        <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                        {selectedUserForModal.email}
+                      </span>
+                      {selectedUserForModal.phone && (
+                        <span className="flex items-center gap-1 font-mono font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
+                          {selectedUserForModal.phone}
+                        </span>
+                      )}
                     </DialogDescription>
                   </div>
                 </div>
@@ -3918,7 +3983,7 @@ export default function PlatformAdminPage() {
 
             <div className="space-y-6 pt-4">
               {/* Profile Credentials Bar */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                 <div>
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">Account ID</span>
                   <div className="flex items-center gap-1 mt-0.5">
@@ -3933,6 +3998,21 @@ export default function PlatformAdminPage() {
                       </>
                     ) : (
                       <span className="text-slate-400 font-mono text-xs">—</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block">Mobile No.</span>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {selectedUserForModal.phone ? (
+                      <>
+                        <span className="font-mono font-semibold text-slate-800 text-xs">{selectedUserForModal.phone}</span>
+                        <button onClick={() => copyText(selectedUserForModal.phone!, 'modal_phone')} className="text-slate-500 hover:text-emerald-600">
+                          {copiedUserId === 'modal_phone' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-slate-400 text-xs italic">None</span>
                     )}
                   </div>
                 </div>

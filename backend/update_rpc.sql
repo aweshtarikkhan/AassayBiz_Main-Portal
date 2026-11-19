@@ -21,6 +21,7 @@ BEGIN
           'first_name', p.first_name,
           'last_name', p.last_name,
           'email', u.email,
+          'phone', COALESCE(NULLIF(p.phone, ''), NULLIF(u.phone, ''), NULLIF(u.raw_user_meta_data->>'phone', ''), NULLIF(u.raw_user_meta_data->>'mobile', ''), ''),
           'org_id', p.org_id,
           'org_name', o.name,
           'role', (SELECT ur.role FROM user_roles ur WHERE ur.user_id = p.user_id LIMIT 1),
@@ -38,7 +39,7 @@ BEGIN
           'id', o.id,
           'name', o.name,
           'email', o.email,
-          'phone', o.phone,
+          'phone', COALESCE(NULLIF(o.phone, ''), NULLIF(p2.phone, ''), NULLIF(u2.phone, ''), NULLIF(u2.raw_user_meta_data->>'phone', ''), NULLIF(u2.raw_user_meta_data->>'mobile', ''), ''),
           'currency_code', o.currency_code,
           'gst_enabled', o.gst_enabled,
           'gst_number', o.gst_number,
@@ -46,7 +47,11 @@ BEGIN
           'member_count', (SELECT count(*) FROM profiles pp WHERE pp.org_id = o.id),
           'invoice_count', (SELECT count(*) FROM invoices i WHERE i.org_id = o.id),
           'owner', (
-            SELECT json_build_object('email', u2.email, 'name', COALESCE(p2.first_name, '') || ' ' || COALESCE(p2.last_name, ''))
+            SELECT json_build_object(
+              'email', u2.email,
+              'name', COALESCE(p2.first_name, '') || ' ' || COALESCE(p2.last_name, ''),
+              'phone', COALESCE(NULLIF(p2.phone, ''), NULLIF(u2.phone, ''), NULLIF(u2.raw_user_meta_data->>'phone', ''), NULLIF(u2.raw_user_meta_data->>'mobile', ''), '')
+            )
             FROM profiles p2
             JOIN auth.users u2 ON u2.id = p2.user_id
             JOIN user_roles ur2 ON ur2.user_id = p2.user_id AND ur2.role = 'owner'

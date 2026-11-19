@@ -184,7 +184,7 @@ export default function TemplateCustomizationPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <PageHeader title="Template Customization" description="Customize the look of your invoices, estimates, and credit notes">
-        <Button variant="outline" size="sm" onClick={() => navigate("/templates")}>
+        <Button variant="outline" size="sm" onClick={() => navigate("/settings?tab=templates")}>
           <ArrowLeft className="mr-1 h-4 w-4" /> Back to Templates
         </Button>
         <Button onClick={handleSave}>Save Changes</Button>
