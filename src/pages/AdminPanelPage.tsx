@@ -27,6 +27,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { 
+  BusinessCategorySelector, 
+  CategoryConfirmationDialog 
+} from "@/components/shared/BusinessCategorySelector";
+import { BusinessCategory } from "@/lib/business-category";
+
 const ICON_MAP: Record<string, any> = {
   FileText, Package, ShoppingCart, Calculator,
   UserCog, Users, Send, BarChart3,
@@ -56,6 +62,8 @@ export default function AdminPanelPage() {
 
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [newBusinessName, setNewBusinessName] = useState("");
+  const [newBusinessCategory, setNewBusinessCategory] = useState<BusinessCategory>("industrial");
+  const [confirmCategoryOpen, setConfirmCategoryOpen] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState("Staff");
   const [newUserPermissions, setNewUserPermissions] = useState<string[]>([]);
@@ -458,19 +466,40 @@ export default function AdminPanelPage() {
     }
   };
 
+  const handleStartCreateBusiness = () => {
+    if (!newBusinessName.trim()) return;
+    setConfirmCategoryOpen(true);
+  };
+
   const handleCreateBusiness = async () => {
     if (!newBusinessName.trim()) return;
     
     setIsCreatingBusiness(true);
     try {
       const userId = session?.user?.id;
-      // 1. Create organization in Supabase explicitly with free plan and owner_id
+      // 1. Create organization in Supabase explicitly with free plan, owner_id, and category
       const { data, error } = await supabase
         .from("organizations")
         .insert([{ 
           name: newBusinessName.trim(),
           subscription_plan: 'free',
-          owner_id: userId
+          owner_id: userId,
+          org_type: newBusinessCategory,
+          payment_terms: newBusinessCategory === 'retail' ? 0 : 30,
+          address: {
+            business_category: newBusinessCategory,
+          },
+          invoice_preferences: {
+            business_category: newBusinessCategory,
+            ...(newBusinessCategory === 'retail' ? {
+              default_payment_terms: 0,
+              show_terms: false,
+              show_notes: true,
+              show_display_options: false,
+              pdf_show_terms: false,
+              pdf_show_due_date: false,
+            } : {})
+          }
         }])
         .select()
         .single();
@@ -480,6 +509,7 @@ export default function AdminPanelPage() {
       // Update our local tracking
       if (data && userId) {
         setNewBusinessName("");
+        setConfirmCategoryOpen(false);
         
         // 2. Ensure the user is in organization_members for this new business as Owner with all permissions
         const allFeatures = [...DEFAULT_FEATURE_GROUPS, ...ADMIN_FEATURE_GROUPS].map(g => g.key);
@@ -722,7 +752,8 @@ export default function AdminPanelPage() {
               }`}>
                 Total Users Used: {totalGlobalUsers} / {maxUsersAllowed} ({remainingInvites} Invites Remaining)
               </span>
-              <Button
+              {globalLimitReached && (
+                <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setShowPlanModal(true)}
@@ -730,6 +761,7 @@ export default function AdminPanelPage() {
               >
                 + Buy User Slots (₹99/mo)
               </Button>
+              )}
             </div>
           </div>
           <Card className="bg-white border-slate-200/80 shadow-2xs">
@@ -1054,21 +1086,28 @@ export default function AdminPanelPage() {
                 <div className="flex-1 space-y-4">
                   <div>
                     <h3 className="text-base font-semibold text-slate-900 mb-1">Create New Business</h3>
-                    <p className="text-xs text-slate-500">Create a new company or business account. Purchasing a new plan is mandatory.</p>
+                    <p className="text-xs text-slate-500">Create a new company or business account. Select operating category and proceed.</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="space-y-3">
                     <Input
                       placeholder="Business Name (e.g. ABC Pvt Ltd)"
                       value={newBusinessName}
                       onChange={(e) => setNewBusinessName(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleCreateBusiness()}
+                      onKeyDown={(e) => e.key === "Enter" && handleStartCreateBusiness()}
                       disabled={isCreatingBusiness}
                       className="bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 h-10 focus:border-indigo-500 focus:ring-indigo-500/20"
                     />
+
+                    <BusinessCategorySelector
+                      value={newBusinessCategory}
+                      onChange={setNewBusinessCategory}
+                      disabled={isCreatingBusiness}
+                    />
+
                     <Button
-                      onClick={handleCreateBusiness}
+                      onClick={handleStartCreateBusiness}
                       disabled={!newBusinessName.trim() || isCreatingBusiness}
-                      className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-2xs transition-colors shrink-0"
+                      className="w-full sm:w-auto h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-2xs transition-colors"
                     >
                       {isCreatingBusiness ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Plus className="h-4 w-4 mr-1.5" />}
                       Continue to Payment
@@ -1573,6 +1612,15 @@ export default function AdminPanelPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <CategoryConfirmationDialog
+        open={confirmCategoryOpen}
+        onOpenChange={setConfirmCategoryOpen}
+        category={newBusinessCategory}
+        businessName={newBusinessName.trim()}
+        onConfirm={handleCreateBusiness}
+        isConfirming={isCreatingBusiness}
+      />
     </div>
   );
 }

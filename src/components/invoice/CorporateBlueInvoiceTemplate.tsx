@@ -6,6 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { numberToWords } from "@/lib/number-to-words";
 import { INDIAN_STATES } from "@/lib/constants";
 import { MapPin, Phone, Mail, Globe, CreditCard, FileText, Calendar, Building2, User, ShieldCheck, QrCode } from "lucide-react";
+import { isRetailOrg } from "@/lib/business-category";
 
 interface CorporateBlueInvoiceTemplateProps {
   org: any;
@@ -48,9 +49,13 @@ export function CorporateBlueInvoiceTemplate({
     ? Boolean(snapshot.has_gst)
     : Boolean((org?.gst_number || org?.tax_number)?.trim() && org?.gst_enabled !== false);
 
-  const clientName = (invoice.clients as any)?.display_name || (invoice.clients as any)?.company_name || (invoice.vendors as any)?.name || (invoice.vendors as any)?.display_name || invoice.client_name || "Client Name";
+  const isRetailDoc = Boolean((invoice?.metadata as any)?.is_retail || isRetailOrg(org));
+  const rawBillToObj = invoice?.billing_address || (invoice?.clients as any)?.billing_address;
+  const parsedBillTo = typeof rawBillToObj === "string" ? (() => { try { return JSON.parse(rawBillToObj); } catch { return null; } })() : rawBillToObj;
+
+  const clientName = (invoice?.metadata as any)?.client_name || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.name : null) || (invoice.clients as any)?.display_name || (invoice.clients as any)?.company_name || (invoice.vendors as any)?.name || (invoice.vendors as any)?.display_name || invoice.client_name || "Client Name";
   const clientGst = (invoice.clients as any)?.tax_number || (invoice.vendors as any)?.tax_number || invoice.client_gst;
-  const clientPhone = (invoice.clients as any)?.phone || (invoice.vendors as any)?.phone || invoice.client_phone;
+  const clientPhone = (invoice?.metadata as any)?.client_mobile || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.phone : null) || (invoice.clients as any)?.phone || (invoice.vendors as any)?.phone || invoice.client_phone;
   const number = type === "estimate" ? invoice.estimate_number : (type === "po" ? invoice.po_number : (type === "bill" ? invoice.bill_number : invoice.invoice_number));
   const balanceDue = type === "estimate" ? Number(invoice.total) : Number(invoice.balance_due ?? invoice.total);
 
@@ -216,7 +221,7 @@ export function CorporateBlueInvoiceTemplate({
               <span style={{ fontWeight: 600, color: "#0f172a" }}>: {invoice.issue_date || invoice.bill_date || invoice.date || "-"}</span>
             </div>
 
-            {(type === "invoice" || type === "bill") && invoice.due_date && !(invoice.metadata as any)?.hide_due_date && (invoice.metadata as any)?.payment_terms !== 0 && (
+            {(type === "invoice" || type === "bill") && invoice.due_date && !isRetailDoc && !(invoice.metadata as any)?.hide_due_date && (invoice.metadata as any)?.payment_terms !== 0 && (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
                 <div style={{ background: lightBlueBg, color: primaryBlue, padding: 4, borderRadius: 4 }}>
                   <Calendar style={{ width: 14, height: 14 }} />
@@ -404,7 +409,7 @@ export function CorporateBlueInvoiceTemplate({
       {/* 5. Footer Grid: Bank Details, Terms, QR & Signature */}
       {(() => {
         const showBank = invoice?.metadata?.show_bank_details !== false;
-        const showTerms = invoice?.metadata?.show_terms !== false;
+        const showTerms = !isRetailDoc && invoice?.metadata?.show_terms !== false;
         const invoiceBank = invoice?.bank_details;
         const isBankDisabled = !showBank || (invoiceBank && invoiceBank.enabled === false);
         const bankAccName = invoiceBank?.bank_account_name || (!isBankDisabled ? (org?.bank_account_name || org?.name) : null);

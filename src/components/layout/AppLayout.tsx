@@ -43,14 +43,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { 
+  BusinessCategorySelector, 
+  CategoryConfirmationDialog 
+} from "@/components/shared/BusinessCategorySelector";
+import { BusinessCategory } from "@/lib/business-category";
 
 function OrgSetup({ onComplete, onDeleteAccount }: { onComplete: () => void; onDeleteAccount?: () => void }) {
   const { profile, signOut } = useAuth();
   const { toast } = useToast();
   const [name, setName] = useState("");
+  const [category, setCategory] = useState<BusinessCategory>("industrial");
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  const handleStartCreation = () => {
+    if (!name.trim() || !profile) return;
+    setConfirmDialogOpen(true);
+  };
 
   const handleCreate = async () => {
     if (!name.trim() || !profile) return;
@@ -62,14 +74,33 @@ function OrgSetup({ onComplete, onDeleteAccount }: { onComplete: () => void; onD
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
       setSaving(false);
+      setConfirmDialogOpen(false);
       return;
     }
 
-    // All newly created organizations strictly start on Free Plan for 6 months (180 days)
-    // Paid plans (HR, Suite, CRM, etc.) must be purchased via Razorpay in the plan modal.
     try {
       const orgId = orgData?.id;
       if (orgId) {
+        // Persist category and retail settings
+        await (supabase as any).from("organizations").update({
+          org_type: category,
+          payment_terms: category === "retail" ? 0 : 30,
+          address: {
+            business_category: category,
+          },
+          invoice_preferences: {
+            business_category: category,
+            ...(category === "retail" ? {
+              default_payment_terms: 0,
+              show_terms: false,
+              show_notes: true,
+              show_display_options: false,
+              pdf_show_terms: false,
+              pdf_show_due_date: false,
+            } : {})
+          }
+        }).eq("id", orgId);
+
         await supabase.rpc("start_org_trial", {
           p_org_id: orgId,
           p_plan_name: "free"
@@ -80,9 +111,10 @@ function OrgSetup({ onComplete, onDeleteAccount }: { onComplete: () => void; onD
       sessionStorage.removeItem("onboarding_plat");
       sessionStorage.removeItem("onboarding_billing");
     } catch (err) {
-      console.error("Failed to start trial:", err);
+      console.error("Failed to start trial or set category:", err);
     }
 
+    setConfirmDialogOpen(false);
     toast({ title: "Organization created!" });
     onComplete();
   };
@@ -95,26 +127,33 @@ function OrgSetup({ onComplete, onDeleteAccount }: { onComplete: () => void; onD
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-md shadow-lg border-border">
+      <Card className="w-full max-w-lg shadow-lg border-border">
         <CardHeader className="text-center">
           <div className="mx-auto w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-3">
             <Building2 className="h-6 w-6" />
           </div>
           <CardTitle className="text-xl">Welcome! Set up your business</CardTitle>
-          <CardDescription>Enter your business name to get started</CardDescription>
+          <CardDescription>Enter your business name and choose your operating model</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="space-y-2">
             <Label>Business / Organization Name *</Label>
             <Input
               placeholder="e.g. Acme Enterprises, Sharma Traders"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              onKeyDown={(e) => e.key === "Enter" && handleStartCreation()}
               autoFocus
             />
           </div>
-          <Button className="w-full" onClick={handleCreate} disabled={!name.trim() || saving}>
+
+          <BusinessCategorySelector
+            value={category}
+            onChange={setCategory}
+            disabled={saving}
+          />
+
+          <Button className="w-full" onClick={handleStartCreation} disabled={!name.trim() || saving}>
             {saving ? "Creating Business..." : "Continue"}
           </Button>
         </CardContent>
@@ -133,6 +172,15 @@ function OrgSetup({ onComplete, onDeleteAccount }: { onComplete: () => void; onD
           )}
         </CardFooter>
       </Card>
+
+      <CategoryConfirmationDialog
+        open={confirmDialogOpen}
+        onOpenChange={setConfirmDialogOpen}
+        category={category}
+        businessName={name.trim()}
+        onConfirm={handleCreate}
+        isConfirming={saving}
+      />
     </div>
   );
 }

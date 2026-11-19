@@ -729,11 +729,9 @@ export function PlanSelectorModal({
         
         const addonSummaryParts: string[] = [];
         if (extraEmployeesToAdd > 0) addonSummaryParts.push(`+${extraEmployeesToAdd} HR Employee${extraEmployeesToAdd > 1 ? "s" : ""}`);
-        if (hasTaskAddon) addonSummaryParts.push("Task Management Add-on (+₹599/mo)");
-        if (hasExpenseAddon) addonSummaryParts.push("Expense Management Add-on (+₹999/mo)");
         if (extraCrmMembersToAdd > 0) addonSummaryParts.push(`+${extraCrmMembersToAdd} CRM Member${extraCrmMembersToAdd > 1 ? "s" : ""}`);
-
-        let planDisplay = targetPlanNames.map((p) => {
+        if (extraPlatformEmployeesToAdd > 0) addonSummaryParts.push(`+${extraPlatformEmployeesToAdd} Platform User${extraPlatformEmployeesToAdd > 1 ? "s" : ""}`);
+let planDisplay = targetPlanNames.map((p) => {
           const found = plans.find((pl) => pl.name === p);
           return found ? found.display_name : p.toUpperCase();
         }).join(" + ");
@@ -793,11 +791,9 @@ export function PlanSelectorModal({
       // For paid purchases, navigate to the dedicated Checkout & Statutory Billing Information page
       const addonSummaryParts: string[] = [];
       if (extraEmployeesToAdd > 0) addonSummaryParts.push(`+${extraEmployeesToAdd} HR Employee${extraEmployeesToAdd > 1 ? "s" : ""}`);
-      if (hasTaskAddon) addonSummaryParts.push("Task Management Add-on (+₹599/mo)");
-      if (hasExpenseAddon) addonSummaryParts.push("Expense Management Add-on (+₹999/mo)");
       if (extraCrmMembersToAdd > 0) addonSummaryParts.push(`+${extraCrmMembersToAdd} CRM Member${extraCrmMembersToAdd > 1 ? "s" : ""}`);
-
-      let planDisplay = targetPlanNames
+        if (extraPlatformEmployeesToAdd > 0) addonSummaryParts.push(`+${extraPlatformEmployeesToAdd} Platform User${extraPlatformEmployeesToAdd > 1 ? "s" : ""}`);
+let planDisplay = targetPlanNames
         .map((p) => {
           const found = plans.find((pl) => pl.name === p);
           return found ? found.display_name : p.toUpperCase();
@@ -1425,21 +1421,6 @@ export function PlanSelectorModal({
                             <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                             <span>Platform access up to 3 employees</span>
                           </div>
-
-                          {/* Additional Platform Access Counter */}
-                          <div className="flex items-center justify-between w-full bg-orange-50/50 p-2 rounded-lg border border-orange-100/50 mt-2" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1.5">
-                              <Users className="w-4 h-4 text-[#e77817] shrink-0" />
-                              <span className="text-slate-700 font-semibold text-xs">
-                                + Additional Platform Access (₹{PLATFORM_ADDON_COST_PER_MONTH}/mo)
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setExtraPlatformEmployeesToAdd(Math.max(0, extraPlatformEmployeesToAdd - 1)); }} className="text-slate-400 hover:text-slate-700"><Minus className="w-3.5 h-3.5" /></button>
-                              <span className="font-bold text-xs w-4 text-center text-slate-800">{extraPlatformEmployeesToAdd}</span>
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setExtraPlatformEmployeesToAdd(extraPlatformEmployeesToAdd + 1); }} className="text-slate-400 hover:text-slate-700"><Plus className="w-3.5 h-3.5" /></button>
-                            </div>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -1628,21 +1609,6 @@ export function PlanSelectorModal({
                             <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                             <span>Platform access up to 3 employees</span>
                           </div>
-
-                          {/* Additional Platform Access Counter */}
-                          <div className="flex items-center justify-between w-full bg-orange-50/50 p-2 rounded-lg border border-orange-100/50 mt-2" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1.5">
-                              <Users className="w-4 h-4 text-[#e77817] shrink-0" />
-                              <span className="text-slate-700 font-semibold text-xs">
-                                + Additional Platform Access (₹{PLATFORM_ADDON_COST_PER_MONTH}/mo)
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setExtraPlatformEmployeesToAdd(Math.max(0, extraPlatformEmployeesToAdd - 1)); }} className="text-slate-400 hover:text-slate-700"><Minus className="w-3.5 h-3.5" /></button>
-                              <span className="font-bold text-xs w-4 text-center text-slate-800">{extraPlatformEmployeesToAdd}</span>
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setExtraPlatformEmployeesToAdd(extraPlatformEmployeesToAdd + 1); }} className="text-slate-400 hover:text-slate-700"><Plus className="w-3.5 h-3.5" /></button>
-                            </div>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -1799,21 +1765,6 @@ export function PlanSelectorModal({
                             <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                             <span>Platform access up to 3 employees</span>
                           </div>
-
-                          {/* Additional Platform Access Counter */}
-                          <div className="flex items-center justify-between w-full bg-orange-50/50 p-2 rounded-lg border border-orange-100/50 mt-2" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1.5">
-                              <Users className="w-4 h-4 text-[#e77817] shrink-0" />
-                              <span className="text-slate-700 font-semibold text-xs">
-                                + Additional Platform Access (₹{PLATFORM_ADDON_COST_PER_MONTH}/mo)
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setExtraPlatformEmployeesToAdd(Math.max(0, extraPlatformEmployeesToAdd - 1)); }} className="text-slate-400 hover:text-slate-700"><Minus className="w-3.5 h-3.5" /></button>
-                              <span className="font-bold text-xs w-4 text-center text-slate-800">{extraPlatformEmployeesToAdd}</span>
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setExtraPlatformEmployeesToAdd(extraPlatformEmployeesToAdd + 1); }} className="text-slate-400 hover:text-slate-700"><Plus className="w-3.5 h-3.5" /></button>
-                            </div>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -1945,21 +1896,6 @@ export function PlanSelectorModal({
                           <div className="flex items-center gap-2.5 text-slate-700 font-semibold pt-1">
                             <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                             <span>Platform access up to 3 employees</span>
-                          </div>
-
-                          {/* Additional Platform Access Counter */}
-                          <div className="flex items-center justify-between w-full bg-orange-50/50 p-2 rounded-lg border border-orange-100/50 mt-2" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1.5">
-                              <Users className="w-4 h-4 text-[#e77817] shrink-0" />
-                              <span className="text-slate-700 font-semibold text-xs">
-                                + Additional Platform Access (₹{PLATFORM_ADDON_COST_PER_MONTH}/mo)
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setExtraPlatformEmployeesToAdd(Math.max(0, extraPlatformEmployeesToAdd - 1)); }} className="text-slate-400 hover:text-slate-700"><Minus className="w-3.5 h-3.5" /></button>
-                              <span className="font-bold text-xs w-4 text-center text-slate-800">{extraPlatformEmployeesToAdd}</span>
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setExtraPlatformEmployeesToAdd(extraPlatformEmployeesToAdd + 1); }} className="text-slate-400 hover:text-slate-700"><Plus className="w-3.5 h-3.5" /></button>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -2149,17 +2085,6 @@ export function PlanSelectorModal({
                             <Check className="w-2.5 h-2.5 stroke-[3]" />
                           </div>
                           <span>Platform Access up to 5 employees</span>
-                        </div>
-                        <div className="flex items-center justify-between max-w-md bg-orange-50/50 p-2 rounded-lg border border-orange-100/50" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-[#e77817] shrink-0" />
-                            <span className="text-slate-700 font-semibold text-xs">+ Additional Platform Access (₹99/mo)</span>
-                          </div>
-                          <div className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
-                            <button type="button" onClick={(e) => { e.stopPropagation(); setExtraPlatformEmployeesToAdd(Math.max(0, extraPlatformEmployeesToAdd - 1)); }} className="text-slate-400 hover:text-slate-700"><Minus className="w-3.5 h-3.5" /></button>
-                            <span className="font-bold text-xs w-5 text-center text-slate-800">{extraPlatformEmployeesToAdd}</span>
-                            <button type="button" onClick={(e) => { e.stopPropagation(); setExtraPlatformEmployeesToAdd(extraPlatformEmployeesToAdd + 1); }} className="text-slate-400 hover:text-slate-700"><Plus className="w-3.5 h-3.5" /></button>
-                          </div>
                         </div>
                       </div>
 

@@ -174,7 +174,7 @@ function SortableLineItem({
     onChange(index, "discount_type", "percentage");
     onChange(index, "unit", (item.unit || "PCS").toUpperCase());
     onChange(index, "primary_unit", (item.unit || "PCS").toUpperCase());
-    onChange(index, "base_unit_price", Number(item.purchase_price || item.unit_price) || 0);
+    onChange(index, "base_unit_price", __rate);
     onChange(index, "hsn_code", item.hsn_code || "");
     onChange(index, "tax_id", item.tax_id || null);
     onChange(index, "sub_unit", item.sub_unit || "");
@@ -321,8 +321,9 @@ function SortableLineItem({
                       onChange(index, "rate", targetRate);
                     } else {
                       const targetUnit = line.sub_unit;
-                      const base = line.base_unit_price || line.rate;
-                      const targetRate = Number((base / (line.sub_unit_conversion_rate || 1)).toFixed(2));
+                      const baseRate = line.rate;
+                      onChange(index, "base_unit_price", baseRate);
+                      const targetRate = Number((baseRate / (line.sub_unit_conversion_rate || 1)).toFixed(2));
                       onChange(index, "unit", targetUnit);
                       onChange(index, "rate", targetRate);
                     }
@@ -366,7 +367,13 @@ function SortableLineItem({
               className="h-7 text-xs text-right font-medium" 
               value={line.rate}
               onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
-              onChange={(e) => onChange(index, "rate", e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0))} 
+              onChange={(e) => {
+                const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
+                onChange(index, "rate", val);
+                if (!isSellingInSubUnit && typeof val === "number") {
+                  onChange(index, "base_unit_price", val);
+                }
+              }} 
               min={0} 
               step="0.01" 
             />

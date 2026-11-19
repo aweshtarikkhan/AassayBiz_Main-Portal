@@ -5,6 +5,7 @@ import { ArrowUpCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { SocialMediaLinks } from "@/components/shared/SocialMediaLinks";
 import { AassayBizBrand } from "@/components/shared/AassayBizBrand";
+import { isRetailOrg } from "@/lib/business-category";
 import {
   LayoutDashboard,
   Users,
@@ -168,6 +169,16 @@ export function AppSidebar() {
     const { profile, session } = useAuth();
   const { subscriptionPlan } = useSubscription();
   const org = useAppStore((s) => s.organization);
+  const isRetail = isRetailOrg(org);
+  const [activeRetailSuite, setActiveRetailSuite] = useState<string>("business_management");
+
+  const retailSuites = [
+    { key: "business_management", label: "Business Accounting", shortLabel: "Accounts", icon: Calculator },
+    { key: "people", label: "Business HR", shortLabel: "HR", icon: UserCog },
+    { key: "crm", label: "Business CRM", shortLabel: "CRM", icon: Briefcase },
+    { key: "marketing", label: "Business Marketing", shortLabel: "Marketing", icon: Send },
+    { key: "outreach", label: "Business Integration", shortLabel: "Connect", icon: MessageCircle },
+  ];
   const myOrganizations = useAppStore((s) => s.myOrganizations);
   const userRole = useAppStore((s) => s.userRole);
   const globalPermissions = useAppStore((s) => s.userPermissions);
@@ -422,12 +433,67 @@ export function AppSidebar() {
   
   const isAllBmLocked = bmSubGroups.length > 0 && bmSubGroups.every(g => (g as any).isLocked);
   
-  const sidebarGroups = bmSubGroups.length > 0 
+  const rawSidebarGroups = bmSubGroups.length > 0 
     ? [
         { key: "business_management", label: "Business Accounting", items: [], subGroups: bmSubGroups, isLocked: isAllBmLocked },
         ...otherGroups
       ]
     : otherGroups;
+
+  // Auto-sync active retail suite with current route so current page is never hidden
+  useEffect(() => {
+    if (!isRetail) return;
+    const path = location.pathname;
+    if (["/employees", "/attendance", "/tasks", "/leaves", "/employee-expenses", "/shifts", "/employee-documents", "/payroll", "/hr-reports"].some(p => path === p || path.startsWith(p + "/"))) {
+      setActiveRetailSuite("people");
+    } else if (["/crm-report", "/leads", "/crm-team", "/calendar", "/crm/automations", "/tickets", "/crm/integrations"].some(p => path === p || path.startsWith(p + "/"))) {
+      setActiveRetailSuite("crm");
+    } else if (["/promotion-reports", "/marketing/posters", "/campaigns", "/marketing/templates", "/journeys", "/message-logs"].some(p => path === p || path.startsWith(p + "/"))) {
+      setActiveRetailSuite("marketing");
+    } else if (["/emails", "/chats"].some(p => path === p || path.startsWith(p + "/"))) {
+      setActiveRetailSuite("outreach");
+    } else if (["/invoices", "/quotations", "/clients", "/credit-notes", "/payments", "/delivery-challans", "/recurring-invoices", "/vendors", "/purchase-orders", "/grns", "/purchase-invoices", "/vendor-payments", "/purchase-returns", "/expenses", "/accounts", "/journal", "/bank-accounts", "/cash-flow", "/items", "/inventory", "/warehouses", "/branches", "/reports", "/sales-reports", "/purchase-accounting-reports", "/inventory-reports", "/accounting-reports", "/business-report", "/profit-loss", "/gst-returns", "/tds", "/inventory-valuation", "/aging-details", "/statements"].some(p => path === p || path.startsWith(p + "/"))) {
+      setActiveRetailSuite("business_management");
+    }
+  }, [location.pathname, isRetail]);
+
+  // Auto-open selected/active groups & subgroups
+  useEffect(() => {
+    if (isRetail) {
+      setOpenGroups(prev => ({
+        ...prev,
+        [activeRetailSuite]: true,
+        ...(activeRetailSuite === "business_management" ? {
+          sales: prev.sales !== undefined ? prev.sales : true,
+          catalog: prev.catalog !== undefined ? prev.catalog : true,
+          purchases: prev.purchases !== undefined ? prev.purchases : true,
+          accounting: prev.accounting !== undefined ? prev.accounting : true,
+          reports: prev.reports !== undefined ? prev.reports : true,
+        } : {})
+      }));
+    } else {
+      rawSidebarGroups.forEach(g => {
+        const hasActiveItem = g.items?.some(item => isActive(item.url) || (item.addUrl && isActive(item.addUrl)));
+        const activeSub = g.subGroups?.find(sub => sub.items?.some(item => isActive(item.url) || (item.addUrl && isActive(item.addUrl))));
+        if (hasActiveItem || activeSub) {
+          setOpenGroups(prev => ({
+            ...prev,
+            [g.key]: true,
+            ...(activeSub ? { [activeSub.key]: true } : {})
+          }));
+        }
+      });
+    }
+  }, [location.pathname, activeRetailSuite, isRetail]);
+
+  // In Retail mode:
+  // 1. Hide Business Feedback (feedback) and Business Analysis (ai-analysis)
+  // 2. Only show the currently active suite's pages in the sidebar (one group at a time)
+  const sidebarGroups = isRetail
+    ? rawSidebarGroups
+        .filter(g => g.key !== "feedback" && g.key !== "ai-analysis")
+        .filter(g => g.key === activeRetailSuite)
+    : rawSidebarGroups;
 
   const getSubGroupIcon = (key: string) => {
     switch (key) {
@@ -552,7 +618,8 @@ export function AppSidebar() {
 
         {sidebarGroups.map((g) => {
           const isActiveGroup = g.items.some((item) => isActive(item.url) || (item.addUrl && isActive(item.addUrl))) || g.subGroups?.some(sub => sub.items.some(item => isActive(item.url) || (item.addUrl && isActive(item.addUrl))));
-          const isOpen = openGroups[g.key] !== undefined ? openGroups[g.key] : isActiveGroup;
+          const isSelectedRetail = isRetail && g.key === activeRetailSuite;
+          const isOpen = openGroups[g.key] !== undefined ? openGroups[g.key] : (isSelectedRetail || isActiveGroup);
 
           return (
             <SidebarGroup key={g.key} id={`group-${g.key}`} className={cn("p-0 mt-2", collapsed && "flex flex-col items-center")}>
@@ -711,7 +778,7 @@ export function AppSidebar() {
                     const isSubActive = sub.items.some(item => isActive(item.url) || (item.addUrl && isActive(item.addUrl)));
                     const isSubOpen = openGroups[sub.key] !== undefined 
                       ? openGroups[sub.key] 
-                      : (!isSubLocked && isSubActive);
+                      : (!isSubLocked && (isSelectedRetail || isSubActive));
                     const SubIcon = getSubGroupIcon(sub.key);
 
                     return (
@@ -916,12 +983,67 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className={cn("border-t border-slate-800/50 flex flex-col gap-3", collapsed ? "p-2 items-center" : "p-4 pb-6")}>
+      <SidebarFooter className={cn("border-t border-slate-800/50 flex flex-col gap-3", collapsed ? "p-2 items-center" : (isRetail ? "p-2 pb-4" : "p-4 pb-6"))}>
         {!collapsed && (
-          <div className="px-1 pt-1 border-t border-slate-800/60 flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Official Channels</span>
-            <SocialMediaLinks iconSize="sm" />
-          </div>
+          isRetail ? (
+            <div className="px-1 pt-1 border-t border-slate-800/60 flex flex-col gap-2">
+              <div className="flex items-center justify-between px-0.5">
+                <span className="text-[10px] uppercase tracking-wider text-slate-300 font-bold">Business Suites</span>
+                <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">Retail</span>
+              </div>
+              <div className="grid grid-cols-5 gap-1 p-1 bg-slate-950/80 rounded-xl border border-slate-800">
+                {retailSuites.map((suite) => {
+                  const Icon = suite.icon;
+                  const isSelected = activeRetailSuite === suite.key;
+                  return (
+                    <button
+                      key={suite.key}
+                      type="button"
+                      onClick={() => {
+                        setActiveRetailSuite(suite.key);
+                        setOpenGroups(prev => ({
+                          ...prev,
+                          [suite.key]: true,
+                          ...(suite.key === "business_management" ? {
+                            sales: true,
+                            catalog: true,
+                            purchases: true,
+                            accounting: true,
+                            reports: true,
+                          } : {})
+                        }));
+                      }}
+                      className={cn(
+                        "flex flex-col items-center justify-center py-2 px-0.5 rounded-lg transition-all text-center group min-w-0 select-none",
+                        isSelected
+                          ? "bg-amber-500 text-slate-950 font-extrabold shadow-md ring-1 ring-amber-400"
+                          : "text-slate-200 hover:text-white hover:bg-slate-800/90"
+                      )}
+                      title={suite.label}
+                    >
+                      <Icon className={cn("h-4 w-4 shrink-0 transition-transform group-hover:scale-110", isSelected ? "text-slate-950 stroke-[2.5]" : "text-slate-300 group-hover:text-white")} />
+                      <span 
+                        className={cn(
+                          "mt-1 font-bold text-center leading-none tracking-tight block w-full whitespace-nowrap overflow-visible",
+                          isSelected ? "text-slate-950 font-black" : "text-slate-200 group-hover:text-white"
+                        )}
+                        style={{
+                          fontSize: suite.shortLabel.length >= 9 ? '8px' : (suite.shortLabel.length >= 7 ? '8.5px' : '10px')
+                        }}
+                      >
+                        {suite.shortLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="px-1 pt-1 border-t border-slate-800/60 flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Official Channels</span>
+              <SocialMediaLinks iconSize="sm" />
+            </div>
+          )
         )}
         <div className={cn("flex items-center", collapsed ? "justify-center py-1" : "justify-between px-3 mt-1")}>
           {!collapsed ? (

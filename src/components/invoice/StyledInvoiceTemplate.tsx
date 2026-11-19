@@ -9,6 +9,7 @@ import { ClassicTabularInvoiceTemplate } from "./ClassicTabularInvoiceTemplate";
 import { ModernNavyInvoiceTemplate } from "./ModernNavyInvoiceTemplate";
 import { ModernTealInvoiceTemplate } from "./ModernTealInvoiceTemplate";
 import { ModernCrimsonInvoiceTemplate } from "./ModernCrimsonInvoiceTemplate";
+import { isRetailOrg } from "@/lib/business-category";
 
 
 interface StyledInvoiceTemplateProps {
@@ -76,7 +77,11 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
   const showLogo = org?.template_show_logo !== false;
 
   const { line1: orgLine1, line2: orgLine2 } = splitCompanyNameIntoTwoLines(org?.name);
-  const clientName = (invoice.clients as any)?.display_name || (invoice.clients as any)?.company_name || (invoice.clients as any)?.name || (invoice as any)?.client_name || "";
+  const isRetailDoc = Boolean((invoice?.metadata as any)?.is_retail || isRetailOrg(org));
+  const rawBillTo = invoice?.billing_address || (invoice?.clients as any)?.billing_address;
+  const parsedBillTo = typeof rawBillTo === "string" ? (() => { try { return JSON.parse(rawBillTo); } catch { return null; } })() : rawBillTo;
+  const clientName = (invoice?.metadata as any)?.client_name || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.name : null) || (invoice.clients as any)?.display_name || (invoice.clients as any)?.company_name || (invoice.clients as any)?.name || (invoice as any)?.client_name || "";
+  const clientPhone = (invoice?.metadata as any)?.client_mobile || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.phone : null) || (invoice.clients as any)?.phone || (invoice.clients as any)?.mobile || "";
   const clientGst = (invoice.clients as any)?.tax_number;
   const number = type === "estimate" ? invoice.estimate_number : (type === "po" ? invoice.po_number : invoice.invoice_number);
   const balanceDue = type === "estimate" ? Number(invoice.total) : Number(invoice.balance_due ?? invoice.total);
@@ -96,7 +101,6 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
     } catch {}
   }
 
-  const rawBillTo = invoice?.billing_address || (invoice?.clients as any)?.billing_address;
   const billToAddressLines: string[] = [];
   if (rawBillTo) {
     try {
@@ -181,7 +185,7 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
             <span style={{ fontSize: 11, color: "#71717a", marginRight: 8 }}>Date:</span>
             <span style={{ fontWeight: 600 }}>{invoice.issue_date}</span>
           </div>
-          {type === "invoice" && invoice.due_date && !(invoice.metadata as any)?.hide_due_date && (invoice.metadata as any)?.payment_terms !== 0 && (
+          {type === "invoice" && invoice.due_date && !isRetailDoc && !(invoice.metadata as any)?.hide_due_date && (invoice.metadata as any)?.payment_terms !== 0 && (
             <div>
               <span style={{ fontSize: 11, color: "#71717a", marginRight: 8 }}>Due Date:</span>
               <span style={{ fontWeight: 600 }}>{invoice.due_date}</span>
@@ -213,9 +217,11 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
           {clientGst && org?.gst_enabled && org?.show_client_gst !== false && (
             <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4 }}>GSTIN: {clientGst}</div>
           )}
-          {(invoice.clients as any)?.phone && (
+          {clientPhone ? (
+            <div style={{ fontSize: 11, color: "#3f3f46" }}>Phone: {clientPhone}</div>
+          ) : ((invoice.clients as any)?.phone && (
             <div style={{ fontSize: 11, color: "#3f3f46" }}>Phone: {(invoice.clients as any).phone}</div>
-          )}
+          ))}
           {(invoice.clients as any)?.email && (
             <div style={{ fontSize: 11, color: "#3f3f46" }}>Email: {(invoice.clients as any).email}</div>
           )}
@@ -351,7 +357,7 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
         {/* Left Side: Notes & Bank Details & QR */}
         {(() => {
           const showBank = invoice?.metadata?.show_bank_details !== false;
-          const showTerms = invoice?.metadata?.show_terms !== false;
+          const showTerms = !isRetailDoc && invoice?.metadata?.show_terms !== false;
           const showNotes = invoice?.metadata?.show_notes !== false;
           return (
             <div style={{ flex: 1 }}>

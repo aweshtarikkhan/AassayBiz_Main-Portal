@@ -40,6 +40,7 @@ import { LockedFeature } from "@/components/subscription/LockedFeature";
 import { PlanSelectorModal } from "@/components/shared/PlanSelectorModal";
 import { useSubscription } from "@/hooks/use-subscription";
 import { hasModuleAccess } from "@/lib/subscription";
+import { getOrgCategory, BUSINESS_CATEGORIES } from "@/lib/business-category";
 
 
 
@@ -302,12 +303,24 @@ export default function SettingsPage() {
           sub_unit_enabled, 
           enable_individual_week_offs, 
           automate_overdue_reminders,
+          default_bill_notes,
+          default_bill_terms,
+          default_bill_payment_terms,
           ...dbOrgForm 
         } = orgForm as any;
 
         const isGstPresent = Boolean(orgForm.gst_number && orgForm.gst_number.trim().length > 0);
+        const mergedPrefs = {
+          ...(orgForm.invoice_preferences || {}),
+          default_bill_notes: default_bill_notes || orgForm.invoice_preferences?.default_bill_notes || "",
+          default_bill_terms: default_bill_terms || orgForm.invoice_preferences?.default_bill_terms || "",
+          bill_default_payment_terms: default_bill_payment_terms !== undefined ? Number(default_bill_payment_terms) : (orgForm.invoice_preferences?.bill_default_payment_terms || 30),
+          automate_overdue_reminders: Boolean(automate_overdue_reminders),
+        };
+
         const updatedOrgData = {
           ...dbOrgForm,
+          invoice_preferences: mergedPrefs,
           gst_enabled: isGstPresent ? true : Boolean(orgForm.gst_enabled),
           name: orgForm.name.trim(),
           phone: contactPhone,
@@ -363,6 +376,10 @@ export default function SettingsPage() {
     const { 
       sub_unit_enabled, 
       enable_individual_week_offs, 
+      default_bill_notes,
+      default_bill_terms,
+      default_bill_payment_terms,
+      automate_overdue_reminders,
       ...dbOrgForm 
     } = orgForm as any;
 
@@ -370,11 +387,26 @@ export default function SettingsPage() {
       dbOrgForm.gst_enabled = true;
     }
 
+    // Merge purchase defaults and reminder automation into invoice_preferences
+    const mergedPrefs = {
+      ...(orgForm.invoice_preferences || {}),
+      default_bill_notes: default_bill_notes || orgForm.invoice_preferences?.default_bill_notes || "",
+      default_bill_terms: default_bill_terms || orgForm.invoice_preferences?.default_bill_terms || "",
+      bill_default_payment_terms: default_bill_payment_terms !== undefined ? Number(default_bill_payment_terms) : (orgForm.invoice_preferences?.bill_default_payment_terms || 30),
+      automate_overdue_reminders: Boolean(automate_overdue_reminders),
+    };
+    dbOrgForm.invoice_preferences = mergedPrefs;
+
     const { error } = await supabase.from("organizations").update(dbOrgForm).eq("id", org.id);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
-      setOrganization({ ...org, ...orgForm, gst_enabled: dbOrgForm.gst_enabled || orgForm.gst_enabled } as any);
+      setOrganization({ 
+        ...org, 
+        ...orgForm, 
+        invoice_preferences: mergedPrefs,
+        gst_enabled: dbOrgForm.gst_enabled || orgForm.gst_enabled 
+      } as any);
       toast({ title: "Settings saved!" });
     }
   };
@@ -987,6 +1019,37 @@ export default function SettingsPage() {
                     placeholder="e.g. Assay Solutions Pvt Ltd" 
                     required 
                   />
+                </div>
+
+                {/* Business Operating Category (Permanent & Read-only) */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                      <span>Business Category</span>
+                      <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Label>
+                    <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+                      <Lock className="h-3 w-3" /> Locked (Permanent setting)
+                    </span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl border bg-muted/40 text-sm">
+                    <div className="flex items-center gap-2.5">
+                      <Badge 
+                        variant={getOrgCategory(org) === "retail" ? "secondary" : "default"} 
+                        className={getOrgCategory(org) === "retail" ? "bg-amber-100 text-amber-900 border-amber-300 font-semibold" : "bg-primary/10 text-primary border-primary/20 font-semibold"}
+                      >
+                        {BUSINESS_CATEGORIES[getOrgCategory(org)].title}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {BUSINESS_CATEGORIES[getOrgCategory(org)].subtitle}
+                      </span>
+                    </div>
+                    <span className="text-xs text-muted-foreground italic sm:text-right">
+                      {getOrgCategory(org) === "retail" 
+                        ? "Optimized for retail counter billing & quick client checkout." 
+                        : "Full business workflow with client catalog & custom credit terms."}
+                    </span>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Official Business Email</Label>

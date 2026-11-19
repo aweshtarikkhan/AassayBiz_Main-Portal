@@ -25,10 +25,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Eye, Trash2, Plus, GripVertical, Printer, Share2, Clock, ChevronDown, AlertTriangle, Layers, Check, CreditCard, Mail, MessageCircle, ArrowLeft, Lock, RefreshCw, Wallet } from "lucide-react";
+import { Save, Eye, Trash2, Plus, GripVertical, Printer, Share2, Clock, ChevronDown, AlertTriangle, Layers, Check, CreditCard, Mail, MessageCircle, ArrowLeft, Lock, RefreshCw, Wallet, User, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { InvoiceSettingsSheet } from "@/components/shared/InvoiceSettingsSheet";
+import { isRetailOrg } from "@/lib/business-category";
 
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -189,7 +191,7 @@ function SortableLineItem({
     const itemUnit = item.unit || "pcs";
     onChange(index, "unit", itemUnit);
     onChange(index, "primary_unit", itemUnit);
-    onChange(index, "base_unit_price", Number(item.unit_price) || 0);
+    onChange(index, "base_unit_price", __rate);
     onChange(index, "hsn_code", hasGst ? (item.hsn_code || "") : "");
     onChange(index, "tax_id", hasGst ? (item.tax_id || null) : null);
     onChange(index, "sub_unit", item.sub_unit || "");
@@ -339,8 +341,9 @@ function SortableLineItem({
                         } else {
                           // Switch to Sub-Unit (e.g. PCS)
                           const targetUnit = line.sub_unit;
-                          const base = line.base_unit_price || line.rate;
-                          const targetRate = Number((base / (line.sub_unit_conversion_rate || 1)).toFixed(2));
+                          const baseRate = line.rate;
+                          onChange(index, "base_unit_price", baseRate);
+                          const targetRate = Number((baseRate / (line.sub_unit_conversion_rate || 1)).toFixed(2));
                           onChange(index, "unit", targetUnit);
                           onChange(index, "rate", targetRate);
                         }
@@ -382,7 +385,13 @@ function SortableLineItem({
         <div className="col-span-2 space-y-0.5">
           <Input placeholder="0" type="number" className="h-8 text-xs text-right" value={line.rate}
             onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
-            onChange={(e) => onChange(index, "rate", e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0))} min={0} step="0.01" />
+            onChange={(e) => {
+              const val = e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value) || 0);
+              onChange(index, "rate", val);
+              if (!isSellingInSubUnit && typeof val === "number") {
+                onChange(index, "base_unit_price", val);
+              }
+            }} min={0} step="0.01" />
           {Number(line.discount) > 0 && (
             <div className="flex flex-col items-end mt-1 text-[10px]">
               <span className="text-emerald-600 font-semibold">{line.discount_type === 'percentage' ? `${line.discount}%` : `₹${line.discount}`} discount</span>
@@ -490,9 +499,13 @@ export default function InvoiceBuilderPage() {
   const [shippingZip, setShippingZip] = useState("");
   const [shippingPhone, setShippingPhone] = useState("");
   const [shippingGst, setShippingGst] = useState("");
+  const isRetail = isRetailOrg(org);
+  const [retailCustomerName, setRetailCustomerName] = useState("");
+  const [retailCustomerPhone, setRetailCustomerPhone] = useState("");
+  const [retailUseExistingClient, setRetailUseExistingClient] = useState(false);
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
-  const [paymentTerms, setPaymentTerms] = useState<number>(() => org?.payment_terms !== undefined && org?.payment_terms !== null ? Number(org.payment_terms) : 30);
+  const [paymentTerms, setPaymentTerms] = useState<number>(() => isRetail ? 0 : (org?.payment_terms !== undefined && org?.payment_terms !== null ? Number(org.payment_terms) : 30));
   const [notes, setNotes] = useState(org?.default_notes || "");
   const [terms, setTerms] = useState(org?.default_terms || "");
   const [discount, setDiscount] = useState(0);
@@ -508,13 +521,13 @@ export default function InvoiceBuilderPage() {
   const initialPrefs = (org as any)?.invoice_preferences || {};
   const [autoRoundOff, setAutoRoundOff] = useState<boolean>(initialPrefs.auto_round_off !== false);
   const [showBankDetails, setShowBankDetails] = useState<boolean>(initialPrefs.pdf_show_bank_details !== false && initialPrefs.show_bank_details !== false);
-  const [showTerms, setShowTerms] = useState<boolean>(initialPrefs.pdf_show_terms !== false);
+  const [showTerms, setShowTerms] = useState<boolean>(isRetail ? false : initialPrefs.pdf_show_terms !== false);
   const [showNotes, setShowNotes] = useState<boolean>(initialPrefs.pdf_show_notes !== false);
 
-  const [prefShowTerms, setPrefShowTerms] = useState<boolean>(initialPrefs.show_terms !== false);
+  const [prefShowTerms, setPrefShowTerms] = useState<boolean>(isRetail ? false : initialPrefs.show_terms !== false);
   const [prefShowNotes, setPrefShowNotes] = useState<boolean>(initialPrefs.show_notes !== false);
   const [prefShowBankDetails, setPrefShowBankDetails] = useState<boolean>(initialPrefs.show_bank_details !== false);
-  const [prefShowDisplayOptions, setPrefShowDisplayOptions] = useState<boolean>(initialPrefs.show_display_options !== false);
+  const [prefShowDisplayOptions, setPrefShowDisplayOptions] = useState<boolean>(isRetail ? false : initialPrefs.show_display_options !== false);
   const [prefShowCompliance, setPrefShowCompliance] = useState<boolean>(initialPrefs.show_compliance !== false);
   const [lines, setLines] = useState<LineItem[]>([createEmptyLine()]);
   const [deductStock, setDeductStock] = useState(true);
@@ -618,9 +631,9 @@ export default function InvoiceBuilderPage() {
           num = maxExisting + 1;
         }
         setInvoiceNumber(formatSequenceNumber(prefix, num, "INV"));
-        const rawTerms = freshOrg?.payment_terms !== undefined && freshOrg?.payment_terms !== null 
+        const rawTerms = isRetail ? 0 : (freshOrg?.payment_terms !== undefined && freshOrg?.payment_terms !== null 
           ? Number(freshOrg.payment_terms) 
-          : (org?.payment_terms !== undefined && org?.payment_terms !== null ? Number(org.payment_terms) : 30);
+          : (org?.payment_terms !== undefined && org?.payment_terms !== null ? Number(org.payment_terms) : 30));
         setPaymentTerms(rawTerms);
         setNotes(freshOrg?.default_notes || org.default_notes || "");
         setTerms(freshOrg?.default_terms || org.default_terms || "");
@@ -628,10 +641,10 @@ export default function InvoiceBuilderPage() {
         const effectivePrefs = (freshOrg as any)?.invoice_preferences || (org as any)?.invoice_preferences;
         if (effectivePrefs) {
           // Builder input sections
-          if (effectivePrefs.show_terms !== undefined) setPrefShowTerms(effectivePrefs.show_terms !== false);
+          if (effectivePrefs.show_terms !== undefined) setPrefShowTerms(isRetail ? false : effectivePrefs.show_terms !== false);
           if (effectivePrefs.show_notes !== undefined) setPrefShowNotes(effectivePrefs.show_notes !== false);
           if (effectivePrefs.show_bank_details !== undefined) setPrefShowBankDetails(effectivePrefs.show_bank_details !== false);
-          if (effectivePrefs.show_display_options !== undefined) setPrefShowDisplayOptions(effectivePrefs.show_display_options !== false);
+          if (effectivePrefs.show_display_options !== undefined) setPrefShowDisplayOptions(isRetail ? false : effectivePrefs.show_display_options !== false);
           if (effectivePrefs.show_compliance !== undefined) setPrefShowCompliance(effectivePrefs.show_compliance !== false);
 
           // PDF document display defaults
@@ -639,10 +652,17 @@ export default function InvoiceBuilderPage() {
             setShowBankDetails(effectivePrefs.pdf_show_bank_details !== false);
             setIncludeBankDetails(effectivePrefs.pdf_show_bank_details !== false);
           }
-          if (effectivePrefs.pdf_show_terms !== undefined) setShowTerms(effectivePrefs.pdf_show_terms !== false);
+          if (effectivePrefs.pdf_show_terms !== undefined) setShowTerms(isRetail ? false : effectivePrefs.pdf_show_terms !== false);
           if (effectivePrefs.pdf_show_notes !== undefined) setShowNotes(effectivePrefs.pdf_show_notes !== false);
           if (effectivePrefs.auto_round_off !== undefined) setAutoRoundOff(effectivePrefs.auto_round_off !== false);
           if (effectivePrefs.pdf_show_signature !== undefined) setShowSignature(effectivePrefs.pdf_show_signature !== false);
+        }
+
+        if (isRetail) {
+          setPaymentTerms(0);
+          setPrefShowTerms(false);
+          setShowTerms(false);
+          setPrefShowDisplayOptions(false);
         }
 
         // Auto-select Default / Primary Bank Account
@@ -704,9 +724,30 @@ export default function InvoiceBuilderPage() {
         .single();
       if (!inv) return;
 
+      if (inv.billing_address) {
+        try {
+          const parsed = typeof inv.billing_address === "string" ? JSON.parse(inv.billing_address) : inv.billing_address;
+          if (parsed && typeof parsed === "object") {
+            if (parsed.name) setRetailCustomerName(parsed.name);
+            if (parsed.phone) setRetailCustomerPhone(parsed.phone);
+          }
+        } catch {}
+      }
+      if ((inv.metadata as any)?.client_name) {
+        setRetailCustomerName((inv.metadata as any).client_name);
+      }
+      if ((inv.metadata as any)?.client_mobile) {
+        setRetailCustomerPhone((inv.metadata as any).client_mobile);
+      }
+
       setClientId(inv.client_id);
       const matchedClient = (inv as any)?.clients?.display_name || clients.find((c) => c.id === inv.client_id)?.display_name;
-      if (matchedClient) setClientSearch(matchedClient);
+      if (matchedClient) {
+        setClientSearch(matchedClient);
+        if (isRetail && matchedClient !== "Cash Sale / Walk-in Customer") {
+          setRetailUseExistingClient(true);
+        }
+      }
       
       if (inv.metadata && (inv.metadata as any).shipping_same_as_billing !== undefined) {
         setShippingSameAsBilling((inv.metadata as any).shipping_same_as_billing);
@@ -1185,8 +1226,41 @@ export default function InvoiceBuilderPage() {
       return;
     }
 
-    if (!clientId) {
-      toast({ title: "Select a client", variant: "destructive" });
+    let effectiveClientId = (isRetail && !retailUseExistingClient) ? "" : clientId;
+    if (isRetail && !effectiveClientId) {
+      // Find or create default walk-in client for retail organization
+      const { data: existingWalkIn } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("org_id", org!.id)
+        .eq("display_name", "Cash Sale / Walk-in Customer")
+        .maybeSingle();
+
+      if (existingWalkIn?.id) {
+        effectiveClientId = existingWalkIn.id;
+      } else {
+        const { data: createdWalkIn } = await supabase
+          .from("clients")
+          .insert({
+            org_id: org!.id,
+            display_name: "Cash Sale / Walk-in Customer",
+            currency_code: org?.currency_code || "INR",
+            billing_address: {
+              name: retailCustomerName.trim() || "Walk-in Customer",
+              phone: retailCustomerPhone.trim() || undefined,
+              state: orgState || null,
+            }
+          })
+          .select("id")
+          .single();
+        if (createdWalkIn?.id) {
+          effectiveClientId = createdWalkIn.id;
+        }
+      }
+    }
+
+    if (!effectiveClientId) {
+      toast({ title: isRetail ? "Please provide customer name" : "Select a client", variant: "destructive" });
       return;
     }
 
@@ -1260,15 +1334,29 @@ export default function InvoiceBuilderPage() {
       ? "paid" 
       : (paidVal > 0 ? (calculatedBalance <= 0.01 ? "paid" : "partial") : status);
 
+    const effectiveClientName = isRetail 
+      ? (retailUseExistingClient && selectedClient ? selectedClient.display_name : (retailCustomerName.trim() || selectedClient?.display_name || "Walk-in Customer"))
+      : (selectedClient?.display_name || "");
+
+    const effectiveClientPhone = isRetail 
+      ? (retailUseExistingClient && selectedClient ? (selectedClient.phone || (selectedClient as any).mobile || "") : (retailCustomerPhone.trim() || selectedClient?.phone || ""))
+      : (selectedClient?.phone || "");
+
+    const retailBillingAddress = isRetail ? {
+      name: effectiveClientName,
+      phone: effectiveClientPhone || undefined,
+      state: clientState || orgState || null,
+    } : null;
+
     const invoicePayload = {
       org_id: org!.id,
-      client_id: clientId,
-      billing_address: selectedClient?.billing_address ? {
+      client_id: effectiveClientId,
+      billing_address: (isRetail && !retailUseExistingClient) ? retailBillingAddress : (selectedClient?.billing_address ? {
         ...(typeof selectedClient.billing_address === 'object' ? selectedClient.billing_address : {}),
         state: clientState || (selectedClient.billing_address as any)?.state || null
-      } : (clientState ? { state: clientState } : null),
+      } : (clientState ? { state: clientState } : (retailBillingAddress || null))),
       shipping_address: shippingSameAsBilling
-        ? (selectedClient?.shipping_address || selectedClient?.billing_address || null)
+        ? ((isRetail && !retailUseExistingClient) ? retailBillingAddress : (selectedClient?.shipping_address || selectedClient?.billing_address || null))
         : {
             name: shippingName.trim(),
             street: shippingStreet.trim(),
@@ -1288,7 +1376,7 @@ export default function InvoiceBuilderPage() {
         auto_round_off: autoRoundOff,
         round_off: finalAdjustment,
         show_bank_details: isBankPrinting,
-        show_terms: prefShowTerms && showTerms,
+        show_terms: isRetail ? false : (prefShowTerms && showTerms),
         show_notes: prefShowNotes && showNotes,
         show_signature: showSignature,
         pref_show_compliance: prefShowCompliance,
@@ -1296,13 +1384,16 @@ export default function InvoiceBuilderPage() {
         tds_tcs_type: tdsTcsType,
         tds_tcs_rate: cleanTdsTcsRate,
         tds_tcs_amount: tdsTcsAmount,
-        hide_due_date: Number(paymentTerms) === 0,
-        payment_terms: Number(paymentTerms),
+        hide_due_date: isRetail ? true : Number(paymentTerms) === 0,
+        payment_terms: isRetail ? 0 : Number(paymentTerms),
         payment_mode: paymentMode,
+        is_retail: isRetail,
+        client_name: isRetail ? effectiveClientName : undefined,
+        client_mobile: isRetail ? effectiveClientPhone : undefined,
       },
       invoice_number: invoiceNumber,
       issue_date: issueDate,
-      due_date: dueDate,
+      due_date: isRetail ? issueDate : dueDate,
       currency_code: org!.currency_code,
       discount,
       discount_type: discountType,
@@ -1332,7 +1423,7 @@ export default function InvoiceBuilderPage() {
       balance_due: calculatedBalance,
       status: finalStatus,
       notes: prefShowNotes ? notes : null,
-      terms_conditions: prefShowTerms ? terms : null,
+      terms_conditions: isRetail ? null : (prefShowTerms ? terms : null),
       ...(status === "sent" ? { sent_at: new Date().toISOString() } : {}),
     };
 
@@ -1743,102 +1834,257 @@ export default function InvoiceBuilderPage() {
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Client *</Label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Input
-                      className="h-9"
-                      placeholder="Type to search clients..."
-                      value={clientSearch}
-                      onChange={(e) => {
-                        setClientSearch(e.target.value);
-                        setClientDropdownOpen(true);
-                        if (!e.target.value) setClientId("");
-                      }}
-                      onFocus={() => setClientDropdownOpen(true)}
-                      onBlur={() => setTimeout(() => setClientDropdownOpen(false), 200)}
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-0 top-0 h-9 w-8 flex items-center justify-center text-muted-foreground hover:text-foreground"
-                      onClick={() => setClientDropdownOpen(!clientDropdownOpen)}
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                    </button>
-                    {clientDropdownOpen && (
-                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-y-auto">
-                        {clients
-                          .filter((c) => !clientSearch.trim() || c.display_name.toLowerCase().includes(clientSearch.toLowerCase()) || (c.company_name && c.company_name.toLowerCase().includes(clientSearch.toLowerCase())))
-                          .map((c) => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              className={`w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${clientId === c.id ? "bg-accent/50 font-medium" : ""}`}
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => {
-                                setClientId(c.id);
-                                setClientSearch(c.display_name);
-                                setClientDropdownOpen(false);
-                                setClientStateOverride("");
-                              }}
-                            >
-                              <div className="font-medium">{c.display_name}</div>
-                              {c.company_name && <div className="text-xs text-muted-foreground">{c.company_name}</div>}
-                            </button>
-                          ))}
-                        {clients.filter((c) => !clientSearch.trim() || c.display_name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 && (
-                          <div className="px-3 py-2 text-sm text-muted-foreground">No clients found</div>
+              {isRetail ? (
+                <div className="space-y-3 p-4 rounded-xl border border-amber-200/90 bg-amber-50/40 dark:bg-amber-950/20 dark:border-amber-900/60 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <User className="h-4 w-4 text-amber-600" />
+                      <span>{retailUseExistingClient ? "Customer Details (From Client Master)" : "Customer Details (Retail Fast Checkout)"}</span>
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const nextState = !retailUseExistingClient;
+                          setRetailUseExistingClient(nextState);
+                          if (!nextState) {
+                            setClientId("");
+                            setClientSearch("");
+                          }
+                        }}
+                        className="h-6 text-[11px] font-semibold px-2.5 py-0 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/50 dark:hover:bg-amber-900/80 shadow-2xs gap-1.5 cursor-pointer"
+                      >
+                        {retailUseExistingClient ? (
+                          <>
+                            <User className="h-3 w-3" />
+                            Type Directly (Counter Bill)
+                          </>
+                        ) : (
+                          <>
+                            <Users className="h-3 w-3" />
+                            Choose from Clients
+                          </>
+                        )}
+                      </Button>
+                      <Badge variant="outline" className="text-[10px] bg-amber-100/80 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 border-amber-300 font-medium">
+                        {retailUseExistingClient ? "Registered Client" : "Direct Counter Bill"}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {!retailUseExistingClient ? (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium">Customer Name</Label>
+                          <Input
+                            placeholder="e.g. Walk-in Customer, Rahul"
+                            value={retailCustomerName}
+                            onChange={(e) => setRetailCustomerName(e.target.value)}
+                            className="h-9 text-sm bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium">Mobile Number (Optional)</Label>
+                          <Input
+                            placeholder="e.g. 9876543210"
+                            value={retailCustomerPhone}
+                            onChange={(e) => setRetailCustomerPhone(e.target.value)}
+                            className="h-9 text-sm bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                          />
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-0.5">
+                        <span>Invoice prints customer name and mobile directly without saving to client master.</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2 pt-1">
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            className="h-9 text-sm bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                            placeholder="Type to search clients..."
+                            value={clientSearch}
+                            onChange={(e) => {
+                              setClientSearch(e.target.value);
+                              setClientDropdownOpen(true);
+                              if (!e.target.value) {
+                                setClientId("");
+                                setRetailCustomerName("");
+                                setRetailCustomerPhone("");
+                              }
+                            }}
+                            onFocus={() => setClientDropdownOpen(true)}
+                            onBlur={() => setTimeout(() => setClientDropdownOpen(false), 200)}
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-0 top-0 h-9 w-8 flex items-center justify-center text-muted-foreground hover:text-foreground"
+                            onClick={() => setClientDropdownOpen(!clientDropdownOpen)}
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                          {clientDropdownOpen && (
+                            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-y-auto">
+                              {clients
+                                .filter((c) => !clientSearch.trim() || c.display_name.toLowerCase().includes(clientSearch.toLowerCase()) || (c.company_name && c.company_name.toLowerCase().includes(clientSearch.toLowerCase())))
+                                .map((c) => (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    className={`w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${clientId === c.id ? "bg-accent/50 font-medium" : ""}`}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                      setClientId(c.id);
+                                      setClientSearch(c.display_name);
+                                      setRetailCustomerName(c.display_name);
+                                      setRetailCustomerPhone(c.billing_address?.phone || c.phone || (c as any).mobile || "");
+                                      setClientDropdownOpen(false);
+                                      setClientStateOverride("");
+                                    }}
+                                  >
+                                    <div className="font-medium">{c.display_name}</div>
+                                    {c.company_name && <div className="text-xs text-muted-foreground">{c.company_name}</div>}
+                                  </button>
+                                ))}
+                              {clients.filter((c) => !clientSearch.trim() || c.display_name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 && (
+                                <div className="px-3 py-2 text-sm text-muted-foreground">No clients found</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <Button type="button" variant="outline" size="icon" onClick={() => setAddClientOpen(true)} title="Add New Client">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {selectedClient && (
+                        <div className="rounded-lg border border-amber-300/80 bg-white/80 dark:bg-slate-900/80 p-2.5 text-xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-foreground text-sm">
+                              {selectedClient.company_name ? `${selectedClient.display_name} (${selectedClient.company_name})` : selectedClient.display_name}
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 font-medium">From Client Profile</span>
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                            {(selectedClient.phone || (selectedClient as any).mobile) && (
+                              <div><strong className="text-foreground">Phone:</strong> {selectedClient.phone || (selectedClient as any).mobile}</div>
+                            )}
+                            {selectedClient.tax_number && (
+                              <div><strong className="text-foreground">GSTIN:</strong> {selectedClient.tax_number}</div>
+                            )}
+                            {selectedClient.email && (
+                              <div><strong className="text-foreground">Email:</strong> {selectedClient.email}</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Client *</Label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        className="h-9"
+                        placeholder="Type to search clients..."
+                        value={clientSearch}
+                        onChange={(e) => {
+                          setClientSearch(e.target.value);
+                          setClientDropdownOpen(true);
+                          if (!e.target.value) setClientId("");
+                        }}
+                        onFocus={() => setClientDropdownOpen(true)}
+                        onBlur={() => setTimeout(() => setClientDropdownOpen(false), 200)}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-0 top-0 h-9 w-8 flex items-center justify-center text-muted-foreground hover:text-foreground"
+                        onClick={() => setClientDropdownOpen(!clientDropdownOpen)}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                      {clientDropdownOpen && (
+                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-y-auto">
+                          {clients
+                            .filter((c) => !clientSearch.trim() || c.display_name.toLowerCase().includes(clientSearch.toLowerCase()) || (c.company_name && c.company_name.toLowerCase().includes(clientSearch.toLowerCase())))
+                            .map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                className={`w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${clientId === c.id ? "bg-accent/50 font-medium" : ""}`}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setClientId(c.id);
+                                  setClientSearch(c.display_name);
+                                  setClientDropdownOpen(false);
+                                  setClientStateOverride("");
+                                }}
+                              >
+                                <div className="font-medium">{c.display_name}</div>
+                                {c.company_name && <div className="text-xs text-muted-foreground">{c.company_name}</div>}
+                              </button>
+                            ))}
+                          {clients.filter((c) => !clientSearch.trim() || c.display_name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 && (
+                            <div className="px-3 py-2 text-sm text-muted-foreground">No clients found</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <Button type="button" variant="outline" size="icon" onClick={() => setAddClientOpen(true)} title="Add New Client">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Bill To Card (Fed Client Data) */}
+                  {selectedClient && (
+                    <div className="rounded-lg border border-border/80 bg-muted/30 p-3 text-xs space-y-1.5 mt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Bill To (Client Details)</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">From Client Profile</span>
+                      </div>
+                      <div className="font-semibold text-foreground text-sm">
+                        {selectedClient.company_name ? `${selectedClient.display_name} (${selectedClient.company_name})` : selectedClient.display_name}
+                      </div>
+                      <div className="text-muted-foreground leading-relaxed">
+                        {(() => {
+                          const addr = selectedClient.billing_address;
+                          const clientResolvedState = extractEntityState(selectedClient);
+                          const stateStr = clientResolvedState ? formatStateWithCode(clientResolvedState) : ((addr && typeof addr === 'object') ? (addr as any).state : "");
+                          if (!addr && !stateStr) return <span className="italic">No billing address saved for this client</span>;
+                          if (typeof addr === "string") return addr;
+                          const parts = [
+                            (addr as any)?.street, 
+                            (addr as any)?.city, 
+                            stateStr, 
+                            (addr as any)?.zip
+                          ].filter(Boolean);
+                          return parts.length > 0 ? parts.join(", ") : <span className="italic">No billing address saved</span>;
+                        })()}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-muted-foreground">
+                        {selectedClient.tax_number && (
+                          <div><strong className="text-foreground">GSTIN:</strong> {selectedClient.tax_number}</div>
+                        )}
+                        {(selectedClient.phone || (selectedClient as any).mobile) && (
+                          <div><strong className="text-foreground">Phone:</strong> {selectedClient.phone || (selectedClient as any).mobile}</div>
+                        )}
+                        {selectedClient.email && (
+                          <div><strong className="text-foreground">Email:</strong> {selectedClient.email}</div>
                         )}
                       </div>
-                    )}
-                  </div>
-                  <Button type="button" variant="outline" size="icon" onClick={() => setAddClientOpen(true)} title="Add New Client">
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                    </div>
+                  )}
                 </div>
+              )}
 
-                {/* Bill To Card (Fed Client Data) */}
-                {selectedClient && (
-                  <div className="rounded-lg border border-border/80 bg-muted/30 p-3 text-xs space-y-1.5 mt-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Bill To (Client Details)</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">From Client Profile</span>
-                    </div>
-                    <div className="font-semibold text-foreground text-sm">
-                      {selectedClient.company_name ? `${selectedClient.display_name} (${selectedClient.company_name})` : selectedClient.display_name}
-                    </div>
-                    <div className="text-muted-foreground leading-relaxed">
-                      {(() => {
-                        const addr = selectedClient.billing_address;
-                        const clientResolvedState = extractEntityState(selectedClient);
-                        const stateStr = clientResolvedState ? formatStateWithCode(clientResolvedState) : ((addr && typeof addr === 'object') ? (addr as any).state : "");
-                        if (!addr && !stateStr) return <span className="italic">No billing address saved for this client</span>;
-                        if (typeof addr === "string") return addr;
-                        const parts = [
-                          (addr as any)?.street, 
-                          (addr as any)?.city, 
-                          stateStr, 
-                          (addr as any)?.zip
-                        ].filter(Boolean);
-                        return parts.length > 0 ? parts.join(", ") : <span className="italic">No billing address saved</span>;
-                      })()}
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-muted-foreground">
-                      {selectedClient.tax_number && (
-                        <div><strong className="text-foreground">GSTIN:</strong> {selectedClient.tax_number}</div>
-                      )}
-                      {(selectedClient.phone || (selectedClient as any).mobile) && (
-                        <div><strong className="text-foreground">Phone:</strong> {selectedClient.phone || (selectedClient as any).mobile}</div>
-                      )}
-                      {selectedClient.email && (
-                        <div><strong className="text-foreground">Email:</strong> {selectedClient.email}</div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Ship To Section */}
+              {/* Ship To Section */}
+              {!isRetail && (
                 <div className="pt-2 border-t border-border/50 space-y-3">
                   <div className="flex items-center space-x-2">
                     <Checkbox
@@ -1958,6 +2204,7 @@ export default function InvoiceBuilderPage() {
                     </div>
                   )}
                 </div>
+              )}
                 <AddClientDialog open={addClientOpen} onOpenChange={setAddClientOpen} onClientAdded={(c) => { setClients(prev => [...prev, c]); setClientId(c.id); setClientSearch(c.display_name); }} />
                 <ItemFormDialog open={addItemOpen} onOpenChange={setAddItemOpen} onItemSaved={(item) => { if(item) setCatalogItems(prev => [...prev, item]); }} />
                 {clientId && clientAgingSummary && clientAgingSummary.totalDue > 0 && (
@@ -2041,7 +2288,6 @@ export default function InvoiceBuilderPage() {
                   </div>
                 )}
               </div>
-            </div>
             <div className="space-y-4">
               {Number(paymentTerms) === 0 ? (
                 <div className="grid grid-cols-2 gap-3">
@@ -2300,19 +2546,21 @@ export default function InvoiceBuilderPage() {
               >
                 {prefShowNotes ? "✓ Notes" : "+ Notes"}
               </Button>
-              <Button
-                type="button"
-                variant={prefShowTerms ? "default" : "outline"}
-                size="sm"
-                className="h-6 px-2 text-[11px] font-normal"
-                onClick={() => {
-                  const next = !prefShowTerms;
-                  setPrefShowTerms(next);
-                  setShowTerms(next);
-                }}
-              >
-                {prefShowTerms ? "✓ Terms" : "+ Terms"}
-              </Button>
+              {!isRetail && (
+                <Button
+                  type="button"
+                  variant={prefShowTerms ? "default" : "outline"}
+                  size="sm"
+                  className="h-6 px-2 text-[11px] font-normal"
+                  onClick={() => {
+                    const next = !prefShowTerms;
+                    setPrefShowTerms(next);
+                    setShowTerms(next);
+                  }}
+                >
+                  {prefShowTerms ? "✓ Terms" : "+ Terms"}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant={prefShowBankDetails ? "default" : "outline"}
@@ -2327,15 +2575,17 @@ export default function InvoiceBuilderPage() {
               >
                 {prefShowBankDetails ? "✓ Bank Details" : "+ Bank Details"}
               </Button>
-              <Button
-                type="button"
-                variant={prefShowDisplayOptions ? "default" : "outline"}
-                size="sm"
-                className="h-6 px-2 text-[11px] font-normal"
-                onClick={() => setPrefShowDisplayOptions(!prefShowDisplayOptions)}
-              >
-                {prefShowDisplayOptions ? "✓ Display Options" : "+ Display Options"}
-              </Button>
+              {!isRetail && (
+                <Button
+                  type="button"
+                  variant={prefShowDisplayOptions ? "default" : "outline"}
+                  size="sm"
+                  className="h-6 px-2 text-[11px] font-normal"
+                  onClick={() => setPrefShowDisplayOptions(!prefShowDisplayOptions)}
+                >
+                  {prefShowDisplayOptions ? "✓ Display Options" : "+ Display Options"}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant={prefShowCompliance ? "default" : "outline"}
@@ -2387,7 +2637,7 @@ export default function InvoiceBuilderPage() {
           )}
 
           {/* Terms & Conditions */}
-          {prefShowTerms && (
+          {!isRetail && prefShowTerms && (
             <div className="space-y-2">
               <Label>Terms & Conditions</Label>
               <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms, late fees..." />
@@ -2501,7 +2751,7 @@ export default function InvoiceBuilderPage() {
           </Dialog>
 
           {/* Display Options */}
-          {prefShowDisplayOptions && (
+          {!isRetail && prefShowDisplayOptions && (
             <div className="space-y-2 rounded-md border p-3">
               <div className="text-sm font-medium">Display Options</div>
               <p className="text-xs text-muted-foreground mb-2">Configure what appears on the invoice PDF.</p>
