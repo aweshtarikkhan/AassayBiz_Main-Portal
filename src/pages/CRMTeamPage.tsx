@@ -31,6 +31,7 @@ import { useFeatureStore } from "@/store/feature-store";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { CRM_BASE_PORTAL_USERS_LIMIT, CRM_ADDITIONAL_USER_COST_PER_MONTH } from "@/lib/subscription";
+import { usePlatformPricing } from "@/lib/platform-pricing";
 import { PlanSelectorModal } from "@/components/shared/PlanSelectorModal";
 import {
   Table,
@@ -76,6 +77,8 @@ export default function CRMTeamPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const org = useAppStore((state) => state.organization);
   const { toast } = useToast();
+  const { pricing } = usePlatformPricing();
+  const crmExtraCost = pricing.crmExtraMemberPrice || CRM_ADDITIONAL_USER_COST_PER_MONTH;
 
   const [team, setTeam] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -277,7 +280,7 @@ export default function CRMTeamPage() {
           if (accessCount >= crmPortalLimit) {
             toast({
               title: "Portal Access Limit Reached",
-              description: `Your CRM plan includes ${crmPortalLimit} portal accounts (currently ${accessCount}/${crmPortalLimit} in use). Additional member costs ₹${CRM_ADDITIONAL_USER_COST_PER_MONTH}/Mo. Executive created without portal access.`,
+              description: `Your CRM plan includes ${crmPortalLimit} portal accounts (currently ${accessCount}/${crmPortalLimit} in use). Additional member costs ₹${crmExtraCost}/Mo. Executive created without portal access.`,
               variant: "destructive",
             });
             setLimitModalOpen(true);
@@ -599,7 +602,7 @@ export default function CRMTeamPage() {
                 )}
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                Base CRM includes 2 Sales Team portal logins. Additional members are ₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/Month per executive account.
+                Base CRM includes 2 Sales Team portal logins. Additional members are ₹{crmExtraCost}/Month per executive account.
               </p>
             </div>
           </div>
@@ -610,7 +613,7 @@ export default function CRMTeamPage() {
               onClick={() => setLimitModalOpen(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
             >
-              + Add Member Slot (₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/mo)
+              + Add Member Slot (₹{crmExtraCost}/mo)
             </Button>
           </div>
         </div>
@@ -892,7 +895,7 @@ export default function CRMTeamPage() {
                         CRM Portal Limit Reached ({accessCount}/{crmPortalLimit} Used)
                       </div>
                       <p className="text-[11px] text-amber-800 dark:text-amber-300">
-                        CRM includes 2 Sales Team logins. Additional members cost ₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/Month. You can still add this executive for pipeline tracking without portal login.
+                        CRM includes 2 Sales Team logins. Additional members cost ₹${crmExtraCost}/Month. You can still add this executive for pipeline tracking without portal login.
                       </p>
                     </div>
                     <Button
@@ -1348,7 +1351,7 @@ export default function CRMTeamPage() {
               </div>
               <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-blue-900 dark:text-blue-300 font-semibold">
                 <span>Additional Sales Member Cost:</span>
-                <span className="font-bold text-blue-600 dark:text-blue-400">₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/Month per user</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400">₹{crmExtraCost}/Month per user</span>
               </div>
             </div>
 
@@ -1381,7 +1384,7 @@ export default function CRMTeamPage() {
               }}
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs"
             >
-              + Add Member Slot (₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/mo)
+              + Add Member Slot (₹{crmExtraCost}/mo)
             </Button>
           </DialogFooter>
         </DialogContent>

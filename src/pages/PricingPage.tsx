@@ -435,7 +435,7 @@ export default function PricingPage() {
                           <div className="flex items-center gap-2">
                              <Users className="w-4 h-4 text-emerald-600 shrink-0" />
                              <span className="text-slate-700 font-semibold">
-                               + Extra Employee (₹49/mo)
+                               + Extra Employee (₹{pricing.hrExtraEmployeePrice || 49}/mo)
                              </span>
                           </div>
                           <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
@@ -570,7 +570,7 @@ export default function PricingPage() {
                           <div className="flex items-center gap-2">
                             <Users className="w-4 h-4 text-blue-600 shrink-0" />
                             <span className="text-slate-800 font-semibold text-xs sm:text-[13px]">
-                              + Extra CRM Member (₹99/mo)
+                              + Extra CRM Member (₹{pricing.crmExtraMemberPrice || 99}/mo)
                             </span>
                           </div>
                           <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
@@ -982,13 +982,13 @@ export default function PricingPage() {
                         <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0">
                           <Check className="w-2.5 h-2.5 stroke-[3]" />
                         </div>
-                        <span>CRM Portal: 2 Sales Team Logins (Extra @ ₹99/mo)</span>
+                        <span>CRM Portal: 2 Sales Team Logins (Extra @ ₹{pricing.crmExtraMemberPrice || 99}/mo)</span>
                       </div>
                       <div className="flex items-center justify-between max-w-md bg-blue-50/50 p-2 rounded-lg border border-blue-100/50" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
                           <Users className="w-4 h-4 text-blue-600 shrink-0" />
                           <span className="text-slate-700 font-semibold text-xs sm:text-[13px]">
-                            + Additional CRM Sales Team (₹99/mo)
+                            + Additional CRM Sales Team (₹{pricing.crmExtraMemberPrice || 99}/mo)
                           </span>
                         </div>
                         <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">

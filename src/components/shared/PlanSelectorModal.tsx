@@ -469,7 +469,7 @@ export function PlanSelectorModal({
       if (plan.name === "hr") {
         toast({
           title: "HR is Already Active",
-          description: "Business HR and Business Suite include 10 employees by default. Use the counter inside the HR card below to add extra employees at ₹49/mo each.",
+          description: `Business HR and Business Suite include 10 employees by default. Use the counter inside the HR card below to add extra employees at ₹${pricing.hrExtraEmployeePrice || HR_EXTRA_EMPLOYEE_COST_PER_MONTH}/mo each.`,
         });
       } else {
         toast({
@@ -1613,7 +1613,7 @@ let planDisplay = targetPlanNames.map((p) => {
                               <div className="flex items-center gap-1.5">
                                 <Users className="w-4 h-4 text-emerald-600 shrink-0" />
                                 <span className="text-slate-800 font-bold text-xs">
-                                  + Extra Employee (₹{HR_EXTRA_EMPLOYEE_COST_PER_MONTH}/mo)
+                                  + Extra Employee (₹{pricing.hrExtraEmployeePrice || HR_EXTRA_EMPLOYEE_COST_PER_MONTH}/mo)
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
@@ -2130,13 +2130,13 @@ let planDisplay = targetPlanNames.map((p) => {
                           <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0">
                             <Check className="w-2.5 h-2.5 stroke-[3]" />
                           </div>
-                          <span>CRM Portal: 2 Sales Team Logins (Extra @ ₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/mo)</span>
+                          <span>CRM Portal: 2 Sales Team Logins (Extra @ ₹{pricing.crmExtraMemberPrice || CRM_ADDITIONAL_USER_COST_PER_MONTH}/mo)</span>
                         </div>
                         <div className="flex items-center justify-between max-w-md bg-blue-50/50 p-2 rounded-lg border border-blue-100/50" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-2">
                             <Users className="w-4 h-4 text-blue-600 shrink-0" />
                             <span className="text-slate-700 font-semibold text-xs">
-                              + Additional CRM Sales Team (₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/mo)
+                              + Additional CRM Sales Team (₹{pricing.crmExtraMemberPrice || CRM_ADDITIONAL_USER_COST_PER_MONTH}/mo)
                             </span>
                           </div>
                           <div className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
@@ -2179,7 +2179,7 @@ let planDisplay = targetPlanNames.map((p) => {
                         Extra Admin / Platform Users
                       </h3>
                       <p className="text-xs text-slate-600 mt-1 max-w-md">
-                        Your paid plan includes standard platform access. Need to invite more managers to the Admin Panel? Add them here for ₹{PLATFORM_ADDON_COST_PER_MONTH}/user/month.
+                        Your paid plan includes standard platform access. Need to invite more managers to the Admin Panel? Add them here for ₹{pricing.platformExtraUserPrice || PLATFORM_ADDON_COST_PER_MONTH}/user/month.
                       </p>
                     </div>
                     <div className="flex flex-col items-center gap-2 min-w-[140px]">
@@ -2226,7 +2226,7 @@ let planDisplay = targetPlanNames.map((p) => {
                         Extra CRM Sales Team Members
                       </h3>
                       <p className="text-xs text-slate-600 mt-1 max-w-md">
-                        CRM & Suite include 2 Sales Team logins. Need more executive accounts? Add extra CRM member access for ₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/user/month.
+                        CRM & Suite include 2 Sales Team logins. Need more executive accounts? Add extra CRM member access for ₹{pricing.crmExtraMemberPrice || CRM_ADDITIONAL_USER_COST_PER_MONTH}/user/month.
                       </p>
                     </div>
                     <div className="flex flex-col items-center gap-2 min-w-[140px]">
