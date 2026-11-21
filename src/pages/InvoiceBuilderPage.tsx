@@ -533,7 +533,7 @@ export default function InvoiceBuilderPage() {
   const [deductStock, setDeductStock] = useState(true);
   const [prevDeductStock, setPrevDeductStock] = useState(true);
   const [amountPaid, setAmountPaid] = useState(0);
-  const [paymentMode, setPaymentMode] = useState<string>("unpaid");
+  const [paymentMode, setPaymentMode] = useState<string>("cash");
   const [paymentDate, setPaymentDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
   const [paymentRef, setPaymentRef] = useState<string>("");
   const [paymentNotes, setPaymentNotes] = useState<string>("");
@@ -809,8 +809,8 @@ export default function InvoiceBuilderPage() {
       setDeductStock((inv as any).deduct_stock !== undefined && (inv as any).deduct_stock !== null ? !!(inv as any).deduct_stock : true);
       setPrevDeductStock((inv as any).deduct_stock !== undefined && (inv as any).deduct_stock !== null ? !!(inv as any).deduct_stock : true);
       setAmountPaid(duplicateId ? 0 : Number(inv.amount_paid || 0));
-      const loadedPayMode = (inv.metadata as any)?.payment_mode || (inv.status === "paid" ? "bank_transfer" : "unpaid");
-      setPaymentMode(duplicateId ? "unpaid" : loadedPayMode);
+      const loadedPayMode = (inv.metadata as any)?.payment_mode || (inv.status === "paid" ? "bank_transfer" : "cash");
+      setPaymentMode(duplicateId ? "cash" : loadedPayMode);
 
       if (inv.bank_details && typeof inv.bank_details === "object") {
         setIncludeBankDetails(!!inv.bank_details.enabled);

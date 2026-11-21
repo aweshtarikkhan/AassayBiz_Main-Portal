@@ -53,7 +53,7 @@ export function PosCleanInvoiceTemplate({
     : "02/11/26 04:13";
 
   // Payment mode
-  const paymentMode = (invoice?.metadata as any)?.payment_mode || invoice.payment_mode || "UPI";
+  const paymentMode = (invoice?.metadata as any)?.payment_mode || invoice.payment_mode || "Cash";
 
   // Compute CGST / SGST (half of GST if not interstate)
   const totalTax = Number(invoice.tax_total ?? invoice.total_tax ?? 0);
