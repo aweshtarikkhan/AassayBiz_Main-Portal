@@ -46,9 +46,10 @@ IMPORTANT CONTACT RULES:
   * Free Plan (₹0 for 6 months - Free for 6 Months - Mandatory Active Base Plan for ALL Organizations):
     - Always remains active as the foundational base plan for every organization (new and existing). Any purchased modular plan (such as Business HR, Business CRM, Business Promotion, or Business Accounting) acts as an additional benefit on top of the Free Plan, so Free Plan benefits never get locked when buying a single module.
     - 100 Invoices Free (also 100 Quotations, 100 Purchase Invoices, 100 Purchase Orders).
-    - 3 Employee Attendance.
+    - 3 Employee Attendance (Default on Free Plan; new accounts show 3 Staff, not 25).
     - Festive Posts.
     - Up to 50 Leads.
+    - CRM Sales Team (Logins): 0 logins included (Locked & Disabled on Free Plan; activates only with Business CRM or Business Suite plan).
     - Platform Access: 0 platform users (Admin Panel is locked; cannot invite staff or share platform).
     - Business Integration (Outreach) & Business Promotion (Marketing campaigns/journeys): Locked on Free Plan.
     - Settings: WhatsApp and Email configuration tabs are locked (🔒).
@@ -107,7 +108,7 @@ IMPORTANT CONTACT RULES:
     - Base 10 Employee Attendance capacity for all new accounts (+ ₹49/employee/mo or ₹588/employee/yr for extra employees beyond 10). Note: All existing customer accounts subscribed prior to this policy change retain their 25-employee attendance capacity.
     - Includes 2 CRM Sales Team Member logins (+ ₹99/user/mo or ₹1,188/user/yr for extra CRM sales team members).
     - Full access to Business Integration, Marketing campaigns, and Settings.
-    - Platform Admin Feature & Quota Management: Platform Administrators can control access to Task Management, Expense Management, CRM Sales Team, and Attendance Portal on an organization-by-organization basis from Platform Admin (/admin-panel -> Organizations -> Adjust Limits & Quota). Admins can toggle each module on/off and configure custom employee-wise limits (Attendance Staff Limit, Task Assigned Employee Limit, Expense Claim Employee Limit, and CRM Sales Executive Logins Limit). When Platform Admin enables Task Management or Expense Management for a business, those modules automatically unlock in the organization's sidebar and routes with their configured employee limits.
+    - Platform Admin Feature & Quota Management: Platform Administrators can control access to Task Management, Expense Management, CRM Sales Team, and Attendance Portal on an organization-by-organization basis from Platform Admin (/admin-panel -> Organizations -> Adjust Limits & Quota). Admins can toggle each module on/off and configure custom employee-wise limits (Attendance Staff Limit, Task Assigned Employee Limit, Expense Claim Employee Limit, and CRM Sales Executive Logins Limit). On the Free Plan, Attendance defaults to 3 Staff (not 25) and CRM Sales Team is strictly Disabled (0 Logins). CRM Sales Team activates automatically only when the organization subscribes to Business CRM or Business Suite (2 logins included), or when the Platform Administrator explicitly enables it for that business. When Platform Admin enables Task Management or Expense Management for a business, those modules automatically unlock in the organization's sidebar and routes with their configured employee limits.
   * Add-ons & Mid-Cycle Proration Rules:
     - Extra Employee: ₹49/mo (₹588/yr = ₹49 × 12) per additional employee attendance slot beyond 10 under Business HR or Suite.
     - Extra CRM Sales Team Member: ₹99/mo (₹1,188/yr = ₹99 × 12) per additional sales executive portal login beyond the 2 included accounts in Business CRM or Suite.

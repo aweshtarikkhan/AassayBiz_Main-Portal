@@ -30,7 +30,8 @@ import { useAppStore } from "@/store/app-store";
 import { useFeatureStore } from "@/store/feature-store";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { CRM_BASE_PORTAL_USERS_LIMIT, CRM_ADDITIONAL_USER_COST_PER_MONTH } from "@/lib/subscription";
+import { useSubscription } from "@/hooks/use-subscription";
+import { hasUnlimitedLeads, CRM_BASE_PORTAL_USERS_LIMIT, CRM_ADDITIONAL_USER_COST_PER_MONTH } from "@/lib/subscription";
 import { usePlatformPricing } from "@/lib/platform-pricing";
 import { PlanSelectorModal } from "@/components/shared/PlanSelectorModal";
 import {
@@ -78,6 +79,7 @@ export default function CRMTeamPage() {
   const org = useAppStore((state) => state.organization);
   const { toast } = useToast();
   const { pricing } = usePlatformPricing();
+  const { plan } = useSubscription();
   const crmExtraCost = pricing.crmExtraMemberPrice || CRM_ADDITIONAL_USER_COST_PER_MONTH;
 
   const [team, setTeam] = useState<any[]>([]);
@@ -205,16 +207,25 @@ export default function CRMTeamPage() {
       try {
         const { data: subData } = await supabase
           .from("subscriptions")
-          .select("manual_override_features")
+          .select("manual_override_features, plan_id, plans(name)")
           .eq("org_id", org.id)
           .eq("status", "active");
 
-        const maxCrm = Math.max(
-          CRM_BASE_PORTAL_USERS_LIMIT,
-          globalCrmLimit,
-          ...(subData || []).map((s: any) => Number(s.manual_override_features?.crm_team_limit) || 0)
+        const activePlans = (subData || []).map((s: any) => s.plans?.name || "").filter(Boolean);
+        const hasCrmOrSuite = hasUnlimitedLeads(plan, activePlans);
+
+        const adminCrmEnabled = (subData || []).some((s: any) => s.manual_override_features?.crm_team_enabled === true) || Boolean(org.invoice_preferences?.crm_team_enabled === true);
+        const adminCrmDisabled = (subData || []).some((s: any) => s.manual_override_features?.crm_team_enabled === false) || org.invoice_preferences?.crm_team_enabled === false;
+
+        const isCrmActive = !adminCrmDisabled && (hasCrmOrSuite || adminCrmEnabled);
+
+        const customLimit = Math.max(
+          ...(subData || []).map((s: any) => Number(s.manual_override_features?.crm_team_limit) || 0),
+          Number(org.invoice_preferences?.crm_team_limit) || 0
         );
-        setCrmPortalLimit(maxCrm);
+
+        const effectiveLimit = isCrmActive ? Math.max(CRM_BASE_PORTAL_USERS_LIMIT, customLimit, globalCrmLimit) : 0;
+        setCrmPortalLimit(effectiveLimit);
       } catch {}
       await ensureAdminInCrmTeam(org.id, null, org.email || undefined);
       const { data, error } = await supabase
@@ -277,7 +288,14 @@ export default function CRMTeamPage() {
 
         // Auto grant portal access if checked
         if (formData.grant_portal_access && cleanEmail && formData.portal_password?.length >= 6) {
-          if (accessCount >= crmPortalLimit) {
+          if (crmPortalLimit === 0) {
+            toast({
+              title: "Sales Team Access Locked",
+              description: "Sales team portal login access is not available in the Free Plan (0 Logins). Upgrade to Business CRM or Business Suite to activate sales team logins.",
+              variant: "destructive",
+            });
+            setIsPlanModalOpen(true);
+          } else if (accessCount >= crmPortalLimit) {
             toast({
               title: "Portal Access Limit Reached",
               description: `Your CRM plan includes ${crmPortalLimit} portal accounts (currently ${accessCount}/${crmPortalLimit} in use). Additional member costs ₹${crmExtraCost}/Mo. Executive created without portal access.`,
@@ -376,9 +394,20 @@ export default function CRMTeamPage() {
 
   // Open Grant Access Dialog
   const openGrantAccess = (member: any) => {
-    if (accessCount >= crmPortalLimit && !member.auth_user_id) {
-      setLimitModalOpen(true);
-      return;
+    if (!member.auth_user_id) {
+      if (crmPortalLimit === 0) {
+        toast({
+          title: "Sales Team Access Locked",
+          description: "Sales team portal login access is not available in the Free Plan (0 Logins). Upgrade to Business CRM or Business Suite to activate sales team logins.",
+          variant: "destructive",
+        });
+        setIsPlanModalOpen(true);
+        return;
+      }
+      if (accessCount >= crmPortalLimit) {
+        setLimitModalOpen(true);
+        return;
+      }
     }
     setGrantMember(member);
     setGrantEmail(member.email || "");
@@ -589,11 +618,15 @@ export default function CRMTeamPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  CRM Portal Access: {accessCount} / {crmPortalLimit} Accounts Used
+                  {crmPortalLimit === 0 ? "CRM Portal Access: Locked (Free Plan)" : `CRM Portal Access: ${accessCount} / ${crmPortalLimit} Accounts Used`}
                 </h3>
-                {accessCount >= crmPortalLimit ? (
+                {crmPortalLimit === 0 ? (
                   <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 text-[11px] font-semibold">
-                    Included Limit Reached (2/2)
+                    0 Accounts (Requires CRM/Suite Plan)
+                  </Badge>
+                ) : accessCount >= crmPortalLimit ? (
+                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 text-[11px] font-semibold">
+                    Included Limit Reached ({accessCount}/{crmPortalLimit})
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 text-[11px] font-semibold">
@@ -602,19 +635,32 @@ export default function CRMTeamPage() {
                 )}
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                Base CRM includes 2 Sales Team portal logins. Additional members are ₹{crmExtraCost}/Month per executive account.
+                {crmPortalLimit === 0
+                  ? "Sales team portal login access is not available in the Free Plan (0 Logins). Upgrade to Business CRM or Business Suite to activate sales team accounts."
+                  : `Base CRM includes 2 Sales Team portal logins. Additional members are ₹${crmExtraCost}/Month per executive account.`
+                }
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 self-end md:self-center">
-            <Button
-              size="sm"
-              onClick={() => setLimitModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
-            >
-              + Add Member Slot (₹{crmExtraCost}/mo)
-            </Button>
+            {crmPortalLimit === 0 ? (
+              <Button
+                size="sm"
+                onClick={() => setIsPlanModalOpen(true)}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shadow-xs"
+              >
+                Upgrade to CRM / Suite
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => setLimitModalOpen(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
+              >
+                + Add Member Slot (₹{crmExtraCost}/mo)
+              </Button>
+            )}
           </div>
         </div>
 
@@ -886,7 +932,32 @@ export default function CRMTeamPage() {
 
             {/* If creating new executive, offer instant portal access toggle */}
             {!editingId && (
-              accessCount >= crmPortalLimit ? (
+              crmPortalLimit === 0 ? (
+                <div className="p-3 bg-amber-50/90 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-900 space-y-2 mt-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 font-semibold text-xs text-amber-900 dark:text-amber-200">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        Sales Team Logins Locked (Free Plan)
+                      </div>
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                        Sales team portal logins are not included in the Free Plan (0 Logins). Upgrade to Business CRM or Business Suite to activate sales team accounts.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        setIsDialogOpen(false);
+                        setIsPlanModalOpen(true);
+                      }}
+                      className="h-7 px-2 text-[11px] bg-amber-600 hover:bg-amber-700 text-white font-semibold shrink-0"
+                    >
+                      Upgrade Plan
+                    </Button>
+                  </div>
+                </div>
+              ) : accessCount >= crmPortalLimit ? (
                 <div className="p-3 bg-amber-50/90 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-900 space-y-2 mt-1">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-0.5">
@@ -895,7 +966,7 @@ export default function CRMTeamPage() {
                         CRM Portal Limit Reached ({accessCount}/{crmPortalLimit} Used)
                       </div>
                       <p className="text-[11px] text-amber-800 dark:text-amber-300">
-                        CRM includes 2 Sales Team logins. Additional members cost ₹${crmExtraCost}/Month. You can still add this executive for pipeline tracking without portal login.
+                        CRM includes 2 Sales Team logins. Additional members cost ₹{crmExtraCost}/Month. You can still add this executive for pipeline tracking without portal login.
                       </p>
                     </div>
                     <Button
@@ -1332,10 +1403,16 @@ export default function CRMTeamPage() {
               <KeyRound className="w-6 h-6" />
             </div>
             <DialogTitle className="text-center text-lg font-bold">
-              CRM Portal Access Limit Reached ({crmPortalLimit} / {crmPortalLimit} Used)
+              {crmPortalLimit === 0
+                ? "Sales Team Portal Access Locked (Free Plan)"
+                : `CRM Portal Access Limit Reached (${crmPortalLimit} / ${crmPortalLimit} Used)`
+              }
             </DialogTitle>
             <DialogDescription className="text-center text-xs text-slate-500 pt-1">
-              Your business CRM subscription includes <strong>{crmPortalLimit} official Sales Team member accounts</strong> with login access.
+              {crmPortalLimit === 0
+                ? "Sales team portal logins are not included in the Free Plan (0 Logins). Upgrade to Business CRM or Business Suite to activate official sales executive logins."
+                : `Your business CRM subscription includes ${crmPortalLimit} official Sales Team member accounts with login access.`
+              }
             </DialogDescription>
           </DialogHeader>
 
@@ -1343,15 +1420,19 @@ export default function CRMTeamPage() {
             <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
               <div className="flex justify-between items-center text-slate-700 dark:text-slate-300">
                 <span>Included Portal Accounts:</span>
-                <span className="font-bold text-slate-900 dark:text-white">{crmPortalLimit} Executives</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {crmPortalLimit === 0 ? "0 (Locked on Free)" : `${crmPortalLimit} Executives`}
+                </span>
               </div>
               <div className="flex justify-between items-center text-slate-700 dark:text-slate-300">
                 <span>Currently Active Logins:</span>
                 <span className="font-bold text-amber-600 dark:text-amber-400">{accessCount} / {crmPortalLimit}</span>
               </div>
               <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-blue-900 dark:text-blue-300 font-semibold">
-                <span>Additional Sales Member Cost:</span>
-                <span className="font-bold text-blue-600 dark:text-blue-400">₹{crmExtraCost}/Month per user</span>
+                <span>{crmPortalLimit === 0 ? "Unlock With Plan:" : "Additional Sales Member Cost:"}</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400">
+                  {crmPortalLimit === 0 ? "Business CRM / Business Suite" : `₹${crmExtraCost}/Month per user`}
+                </span>
               </div>
             </div>
 
@@ -1379,12 +1460,12 @@ export default function CRMTeamPage() {
             </Button>
             <Button
               onClick={() => {
-             setLimitModalOpen(false);
-             setIsPlanModalOpen(true);
+                setLimitModalOpen(false);
+                setIsPlanModalOpen(true);
               }}
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs"
             >
-              + Add Member Slot (₹{crmExtraCost}/mo)
+              {crmPortalLimit === 0 ? "Upgrade to CRM / Suite" : `+ Add Member Slot (₹${crmExtraCost}/mo)`}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -573,38 +573,61 @@ export default function PlatformAdminPage() {
           .from("subscriptions")
           .select("id, org_id, employee_count, platform_employee_count, manual_override_features, status, billing_cycle, current_period_start, current_period_end, plan_id, plans(name)");
 
-        if (allActiveSubs && finalDashData?.organizations) {
-          const subMap = new Map<string, any[]>();
+        const subMap = new Map<string, any[]>();
+        if (allActiveSubs) {
           allActiveSubs.forEach((s: any) => {
             if (!subMap.has(s.org_id)) subMap.set(s.org_id, []);
             subMap.get(s.org_id)!.push(s);
           });
+        }
 
+        if (finalDashData?.organizations) {
           finalDashData = {
             ...finalDashData,
             organizations: finalDashData.organizations.map(o => {
               const oSubs = subMap.get(o.id) || [];
               const activePaidSub = oSubs.find((s: any) => s.status === 'active' && s.plans?.name !== 'free' && (!s.current_period_end || new Date(s.current_period_end).getTime() > Date.now())) || oSubs.find((s: any) => s.status === 'active') || oSubs[0];
               const pName = (o.subscription?.plan_name || (o as any).subscription_plan || 'free').toLowerCase();
-              const isSuite = pName.includes('suite');
-              const isHr = pName.includes('hr');
-              const defaultEmp = (isSuite || isHr) ? 25 : 3;
+              const rawPlans = (o as any).subscription_plan_names || (oSubs.length > 0 ? oSubs.map((s: any) => s.plans?.name).filter(Boolean) : [pName]);
+              const isSuite = rawPlans.some((p: string) => p.includes('suite') || p === 'plan_3');
+              const isHr = rawPlans.some((p: string) => p.includes('hr') || p === 'plan_4');
+              const isCrm = rawPlans.some((p: string) => p.includes('crm') || p === 'plan_5');
+              const hasCrmPlan = isSuite || isCrm;
+
+              const defaultEmp = (isSuite || isHr) ? 10 : 3;
               const defaultPlat = isSuite ? 5 : 3;
 
-              const empLimit = Math.max(
-                defaultEmp,
-                o.subscription?.employee_limit || 0,
-                ...oSubs.map((s: any) => Number(s.employee_count || s.manual_override_features?.employee_limit) || 0)
+              // Manual override limits configured by platform admin
+              const adminEmpOverride = Math.max(
+                ...oSubs.map((s: any) => Number(s.manual_override_features?.employee_limit) || 0),
+                Number(o.invoice_preferences?.employee_limit) || 0
               );
 
-              const crmLimit = Math.max(
-                2,
-                ...oSubs.map((s: any) => Number(s.manual_override_features?.crm_team_limit) || 0)
-              );
+              const empLimit = adminEmpOverride > 0
+                ? adminEmpOverride
+                : (isSuite || isHr)
+                  ? Math.max(10, o.subscription?.employee_limit || 0, ...oSubs.map((s: any) => Number(s.employee_count) || 0))
+                  : (o.subscription?.employee_limit || 3);
+
+              const adminCrmOverride = oSubs.some((s: any) => s.manual_override_features?.crm_team_enabled === true) || Boolean(o.invoice_preferences?.crm_team_enabled === true);
+              const adminCrmDisabled = oSubs.some((s: any) => s.manual_override_features?.crm_team_enabled === false) || o.invoice_preferences?.crm_team_enabled === false;
+
+              // CRM team enabled ONLY if org has CRM/Suite plan OR platform admin explicitly enabled it!
+              // For Free plan without admin override: crmTeamEnabled is false!
+              const crmTeamEnabled = !adminCrmDisabled && (hasCrmPlan || adminCrmOverride);
+
+              const crmLimit = crmTeamEnabled
+                ? Math.max(
+                    2,
+                    ...oSubs.map((s: any) => Number(s.manual_override_features?.crm_team_limit) || 0),
+                    Number(o.invoice_preferences?.crm_team_limit) || 0
+                  )
+                : 0;
 
               const platLimit = Math.max(
                 defaultPlat,
-                ...oSubs.map((s: any) => Number(s.platform_employee_count || s.manual_override_features?.platform_user_limit) || 0)
+                ...oSubs.map((s: any) => Number(s.platform_employee_count || s.manual_override_features?.platform_user_limit) || 0),
+                Number(o.invoice_preferences?.platform_user_limit) || 0
               );
 
               const taskEnabled = oSubs.some((s: any) => s.manual_override_features?.task_management_enabled === true) || Boolean(o.invoice_preferences?.task_management_enabled);
@@ -622,12 +645,12 @@ export default function PlatformAdminPage() {
               );
 
               const attendanceEnabled = oSubs.every((s: any) => s.manual_override_features?.attendance_enabled !== false) && o.invoice_preferences?.attendance_portal_enabled !== false;
-              const crmTeamEnabled = oSubs.every((s: any) => s.manual_override_features?.crm_team_enabled !== false) && o.invoice_preferences?.crm_team_enabled !== false;
 
               return {
                 ...o,
                 subscription: {
                   ...o.subscription,
+                  employee_limit: empLimit,
                   billing_cycle: activePaidSub?.billing_cycle || (o.subscription as any)?.billing_cycle || 'yearly',
                   current_period_start: activePaidSub?.current_period_start || null,
                   current_period_end: activePaidSub?.current_period_end || null,
@@ -649,7 +672,7 @@ export default function PlatformAdminPage() {
           };
         }
       } catch (subErr) {
-        console.warn("Could not augment orgs with subscription limits", subErr);
+        console.warn("Could not augment organizations with subscription custom limits", subErr);
       }
 
       setDashData(finalDashData);
@@ -1316,18 +1339,28 @@ export default function PlatformAdminPage() {
   const handleOpenQuotaModal = (org: OrgData) => {
     setSelectedOrgForQuota(org);
     const pName = (org.subscription?.plan_name || (org as any).subscription_plan || 'free').toLowerCase();
-    const isSuite = pName.includes('suite');
-    const isHr = pName.includes('hr');
-    const defaultEmp = (isSuite || isHr) ? 25 : 3;
+    const rawPlans = (org as any).subscription_plan_names || [pName];
+    const isSuite = rawPlans.some((p: string) => p.includes('suite') || p === 'plan_3');
+    const isHr = rawPlans.some((p: string) => p.includes('hr') || p === 'plan_4');
+    const isCrm = rawPlans.some((p: string) => p.includes('crm') || p === 'plan_5');
+    const hasCrmPlan = isSuite || isCrm;
+
+    const defaultEmp = (isSuite || isHr) ? (org.custom_limits?.employee_limit || 10) : 3;
     const defaultPlat = isSuite ? 5 : 3;
 
     const limits = org.custom_limits;
     const prefs = org.invoice_preferences || {};
 
-    setQuotaEmpLimit(limits?.employee_limit || defaultEmp);
+    setQuotaEmpLimit(limits?.employee_limit || org.subscription?.employee_limit || defaultEmp);
     setQuotaAttendanceEnabled(limits?.attendance_enabled ?? prefs.attendance_portal_enabled ?? true);
-    setQuotaCrmLimit(limits?.crm_team_limit || 2);
-    setQuotaCrmEnabled(limits?.crm_team_enabled ?? prefs.crm_team_enabled ?? true);
+
+    // CRM Team: Free plan has 0 access (disabled) by default; only enabled if CRM/Suite plan or explicit admin toggle
+    const initialCrmEnabled = limits?.crm_team_enabled !== undefined
+      ? limits.crm_team_enabled
+      : (prefs.crm_team_enabled !== undefined ? prefs.crm_team_enabled : hasCrmPlan);
+
+    setQuotaCrmEnabled(initialCrmEnabled);
+    setQuotaCrmLimit(initialCrmEnabled ? (limits?.crm_team_limit || prefs.crm_team_limit || 2) : 0);
     setQuotaPlatUserLimit(limits?.platform_user_limit || defaultPlat);
     setQuotaTaskEnabled(limits?.task_management_enabled ?? prefs.task_management_enabled ?? false);
     setQuotaTaskLimit(limits?.task_employee_limit || prefs.task_employee_limit || 10);
@@ -2240,7 +2273,7 @@ export default function PlatformAdminPage() {
                             {/* Active Custom Capacity Quota Badges */}
                             <div className="px-2.5 py-1 rounded bg-indigo-50/80 border border-indigo-200/70 text-center">
                               <p className="text-sm font-bold text-indigo-700">
-                                {org.custom_limits?.attendance_enabled !== false ? `${org.custom_limits?.employee_limit || 25} Staff` : "Disabled"}
+                                {org.custom_limits?.attendance_enabled !== false ? `${org.custom_limits?.employee_limit || sub.employee_limit || 3} Staff` : "Disabled"}
                               </p>
                               <p className="text-[10px] text-indigo-600 font-medium">Attendance</p>
                             </div>
@@ -2258,7 +2291,7 @@ export default function PlatformAdminPage() {
                             </div>
                             <div className="px-2.5 py-1 rounded bg-emerald-50/80 border border-emerald-200/70 text-center">
                               <p className="text-sm font-bold text-emerald-700">
-                                {org.custom_limits?.crm_team_enabled !== false ? `${org.custom_limits?.crm_team_limit || 2} Logins` : "Disabled"}
+                                {org.custom_limits?.crm_team_enabled ? `${org.custom_limits?.crm_team_limit || 2} Logins` : "Disabled"}
                               </p>
                               <p className="text-[10px] text-emerald-600 font-medium">Sales Team</p>
                             </div>
@@ -4812,7 +4845,12 @@ export default function PlatformAdminPage() {
                 </div>
                 <Switch
                   checked={quotaCrmEnabled}
-                  onCheckedChange={setQuotaCrmEnabled}
+                  onCheckedChange={(checked) => {
+                    setQuotaCrmEnabled(checked);
+                    if (checked && (!quotaCrmLimit || quotaCrmLimit <= 0)) {
+                      setQuotaCrmLimit(2);
+                    }
+                  }}
                   className="data-[state=checked]:bg-emerald-600"
                 />
               </div>
