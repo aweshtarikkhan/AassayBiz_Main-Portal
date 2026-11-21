@@ -326,10 +326,10 @@ serve(async (req) => {
       throw new Error('Failed to resolve auth user ID');
     }
 
-    // 4. Update the employee record with auth_user_id
+    // 4. Update the employee record with auth_user_id and guarantee is_active is true
     const { data: employeeData, error: dbError } = await supabaseAdmin
       .from('employees')
-      .update({ auth_user_id, email: cleanEmail })
+      .update({ auth_user_id, email: cleanEmail, is_active: true })
       .eq('id', employee_id)
       .select()
       .single()
