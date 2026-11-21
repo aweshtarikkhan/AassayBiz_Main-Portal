@@ -16,11 +16,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Check, FileText, Palette, ArrowLeft } from "lucide-react";
 import { PAPER_SIZES } from "@/lib/document-templates";
+import { isRetailOrg } from "@/lib/business-category";
 
 const TEMPLATE_STYLES = [
+  { id: "retail_a5", name: "Retail A5 Invoice", description: "Official retail A5 invoice with diagonal header banner, branded contact icons, boxed invoice metadata, and curved footer." },
+  { id: "pos_clean", name: "POS Thermal Slip (Clean Receipt)", description: "Clean high-contrast 80mm thermal receipt with company header, bill row, item price table, and grand total." },
+  { id: "pos_detailed", name: "POS Tax Invoice (Detailed GST Summary)", description: "Comprehensive 80mm POS slip featuring HSN codes, Salesman details, GST Summary table breakdown, and Terms & Conditions." },
   { id: "standard_gst", name: "Standard GST", description: "Indian GST compliant invoice with HSN/SAC, explicit CGST/SGST/IGST breakdown, and E-Way Bill details." },
   { id: "corporate_blue", name: "Corporate Blue GST", description: "Modern professional blue GST template with detailed tax breakdown, amount in words, bank details & QR code." },
-    { id: "professional_navy", name: "Professional Navy GST", description: "Classic professional navy template matching standard business format with strict table borders." },
+  { id: "professional_navy", name: "Professional Navy GST", description: "Classic professional navy template matching standard business format with strict table borders." },
   { id: "classic_tabular", name: "Classic Tabular", description: "Detailed tabular format matching standard Indian tax invoice." },
   { id: "modern_navy", name: "Modern Navy Yellow", description: "Sleek navy and yellow themed template." },
   { id: "modern_teal", name: "Modern Teal", description: "Professional teal themed modern invoice." },
@@ -127,6 +131,28 @@ export default function TemplateCustomizationPage() {
   const [logoUrl, setLogoUrl] = useState("");
   const [paperSize, setPaperSize] = useState("a4");
   const [uploading, setUploading] = useState(false);
+  const isRetail = isRetailOrg(org);
+
+  const visibleStyles = TEMPLATE_STYLES.filter((tpl) => {
+    if (paperSize === "a5") return tpl.id === "retail_a5";
+    if (paperSize === "pos80") return tpl.id === "pos_clean" || tpl.id === "pos_detailed";
+    if (isRetail) return tpl.id === "retail_a5" || tpl.id === "pos_clean" || tpl.id === "pos_detailed";
+    return tpl.id !== "retail_a5" && tpl.id !== "pos_clean" && tpl.id !== "pos_detailed";
+  });
+
+  const handleSelectStyle = (tplId: string) => {
+    setStyle(tplId);
+    if (tplId === "retail_a5") setPaperSize("a5");
+    if (tplId === "pos_clean" || tplId === "pos_detailed") setPaperSize("pos80");
+  };
+
+  const handlePaperSizeChange = (sizeId: string) => {
+    setPaperSize(sizeId);
+    if (sizeId === "a5") setStyle("retail_a5");
+    if (sizeId === "pos80" && style !== "pos_clean" && style !== "pos_detailed") {
+      setStyle("pos_clean");
+    }
+  };
 
   useEffect(() => {
     if (!org) return;
@@ -225,13 +251,13 @@ export default function TemplateCustomizationPage() {
         <CardHeader><CardTitle className="text-base">Template Style</CardTitle></CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3">
-            {TEMPLATE_STYLES.map((tpl) => (
+            {visibleStyles.map((tpl) => (
               <div
                 key={tpl.id}
                 className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
                   style === tpl.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
                 }`}
-                onClick={() => setStyle(tpl.id)}
+                onClick={() => handleSelectStyle(tpl.id)}
               >
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-medium text-sm">{tpl.name}</span>
@@ -295,7 +321,7 @@ export default function TemplateCustomizationPage() {
               <button
                 key={size.id}
                 type="button"
-                onClick={() => setPaperSize(size.id)}
+                onClick={() => handlePaperSizeChange(size.id)}
                 className={`rounded-lg border p-4 text-left transition-all ${paperSize === size.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -323,7 +349,7 @@ export default function TemplateCustomizationPage() {
           </div>
         </CardHeader>
         <CardContent className="flex justify-center bg-slate-100/70 p-4 sm:p-8 rounded-b-lg overflow-x-auto border-t">
-          <div className="w-full max-w-[794px] bg-white rounded-lg shadow-md border overflow-hidden">
+          <div className={`w-full ${style === 'pos_clean' || style === 'pos_detailed' || paperSize === 'pos80' ? 'max-w-[320px]' : style === 'retail_a5' || paperSize === 'a5' ? 'max-w-[580px]' : 'max-w-[794px]'} bg-white rounded-lg shadow-md border overflow-hidden`}>
             <StyledInvoiceTemplate
               org={{
                 ...org,

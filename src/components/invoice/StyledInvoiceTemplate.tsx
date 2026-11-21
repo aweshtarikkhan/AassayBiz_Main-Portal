@@ -9,6 +9,9 @@ import { ClassicTabularInvoiceTemplate } from "./ClassicTabularInvoiceTemplate";
 import { ModernNavyInvoiceTemplate } from "./ModernNavyInvoiceTemplate";
 import { ModernTealInvoiceTemplate } from "./ModernTealInvoiceTemplate";
 import { ModernCrimsonInvoiceTemplate } from "./ModernCrimsonInvoiceTemplate";
+import { RetailA5InvoiceTemplate } from "./RetailA5InvoiceTemplate";
+import { PosCleanInvoiceTemplate } from "./PosCleanInvoiceTemplate";
+import { PosDetailedInvoiceTemplate } from "./PosDetailedInvoiceTemplate";
 import { isRetailOrg } from "@/lib/business-category";
 
 
@@ -31,6 +34,53 @@ const getTitleText = (type: string, hasGst = true) => {
 };
 
 export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoice", taxBreakdown, isInterstate, showSignature = true }: StyledInvoiceTemplateProps) {
+  const paperSize = org?.template_paper_size || (invoice?.metadata as any)?.template_paper_size;
+  const tplStyle = org?.template_style || (invoice?.metadata as any)?.template_style;
+
+  // Dedicated Retail A5 & POS Templates
+  if (tplStyle === "retail_a5" || (paperSize === "a5" && (isRetailOrg(org) || tplStyle === "retail_a5" || !tplStyle || tplStyle === "standard_gst"))) {
+    return (
+      <RetailA5InvoiceTemplate
+        org={org}
+        invoice={invoice}
+        lines={lines}
+        fmt={fmt}
+        type={type}
+        taxBreakdown={taxBreakdown}
+        isInterstate={isInterstate}
+        showSignature={showSignature}
+      />
+    );
+  }
+
+  if (tplStyle === "pos_detailed") {
+    return (
+      <PosDetailedInvoiceTemplate
+        org={org}
+        invoice={invoice}
+        lines={lines}
+        fmt={fmt}
+        type={type}
+        taxBreakdown={taxBreakdown}
+        isInterstate={isInterstate}
+      />
+    );
+  }
+
+  if (tplStyle === "pos_clean" || tplStyle === "pos" || paperSize === "pos80") {
+    return (
+      <PosCleanInvoiceTemplate
+        org={org}
+        invoice={invoice}
+        lines={lines}
+        fmt={fmt}
+        type={type}
+        taxBreakdown={taxBreakdown}
+        isInterstate={isInterstate}
+      />
+    );
+  }
+
   if (org?.template_style === "classic_tabular") {
     return <ClassicTabularInvoiceTemplate org={org} invoice={invoice} lines={lines} fmt={fmt} type={type} taxBreakdown={taxBreakdown} isInterstate={isInterstate} showSignature={showSignature} />;
   }

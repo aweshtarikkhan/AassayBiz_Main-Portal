@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DOCUMENT_TEMPLATES, PAPER_SIZES } from "@/lib/document-templates";
 import { StyledInvoiceTemplate } from "@/components/invoice/StyledInvoiceTemplate";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { isRetailOrg } from "@/lib/business-category";
 
 const SAMPLE_PREVIEW_DATA = {
   invoice: {
@@ -101,36 +102,42 @@ function TemplatePreviewBox({
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.35);
 
+  const isPos = templateId === "pos_clean" || templateId === "pos_detailed";
+  const isA5 = templateId === "retail_a5";
+  const targetWidth = isPos ? 302 : (isA5 ? 559 : 794);
+  const targetMinHeight = isPos ? 550 : (isA5 ? 794 : 1123);
+  const aspectClass = isPos ? "aspect-[80/150]" : (isA5 ? "aspect-[148/210]" : "aspect-[210/297]");
+
   useEffect(() => {
     if (!containerRef.current) return;
     const update = () => {
       if (containerRef.current) {
         const w = containerRef.current.clientWidth;
-        // Standard A4 reference width is 794px at 96 DPI
-        setScale(w / 794);
+        setScale(w / targetWidth);
       }
     };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(containerRef.current);
     return () => ro.disconnect();
-  }, []);
+  }, [targetWidth]);
 
   const previewOrg = {
     ...org,
     template_style: templateId,
+    template_paper_size: isPos ? "pos80" : (isA5 ? "a5" : "a4"),
   };
 
   return (
     <div className="relative group/preview w-full">
       <div
         ref={containerRef}
-        className="relative w-full aspect-[210/297] overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm select-none"
+        className={`relative w-full ${aspectClass} overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm select-none`}
       >
         <div
           style={{
-            width: "794px",
-            minHeight: "1123px",
+            width: `${targetWidth}px`,
+            minHeight: `${targetMinHeight}px`,
             transform: `scale(${scale})`,
             transformOrigin: "top left",
           }}
@@ -168,8 +175,9 @@ function TemplatePreviewBox({
 export default function InvoiceTemplatePage({ embedded = false }: { embedded?: boolean } = {}) {
   const org = useAppStore((s) => s.organization);
   const setOrganization = useAppStore((s) => s.setOrganization);
-  const [selected, setSelected] = useState(org?.template_style || "standard_gst");
-  const [paperSize, setPaperSize] = useState(org?.template_paper_size || "a4");
+  const isRetail = isRetailOrg(org);
+  const [selected, setSelected] = useState(org?.template_style || (isRetail ? "retail_a5" : "standard_gst"));
+  const [paperSize, setPaperSize] = useState(org?.template_paper_size || (isRetail ? "a5" : "a4"));
   const [saving, setSaving] = useState(false);
   const [modalTemplateId, setModalTemplateId] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -190,7 +198,8 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
     const tpl = DOCUMENT_TEMPLATES.find((t) => t.id === templateId);
     const recommended = (tpl as any)?.recommendedPaperSize || "a4";
     const enforcedSize =
-      templateId === "pos" ? "pos80" :
+      templateId === "retail_a5" ? "a5" :
+      templateId === "pos_clean" || templateId === "pos_detailed" || templateId === "pos" ? "pos80" :
       templateId === "compact" ? "a6" :
       recommended;
     const updates: any = { template_style: templateId, template_paper_size: enforcedSize };
@@ -209,9 +218,11 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
 
   const handlePaperSizeChange = async (sizeId: string) => {
     if (!org) return;
-    const compatible = DOCUMENT_TEMPLATES.filter(
-      (t) => ((t as any).recommendedPaperSize || "a4") === sizeId
-    );
+    const compatible = DOCUMENT_TEMPLATES.filter((t) => {
+      if (sizeId === "a5") return t.id === "retail_a5";
+      if (sizeId === "pos80") return t.id === "pos_clean" || t.id === "pos_detailed";
+      return ((t as any).recommendedPaperSize || "a4") === sizeId;
+    });
     let newTemplate = selected;
     const currentTpl = DOCUMENT_TEMPLATES.find((t) => t.id === selected);
     const currentSize = (currentTpl as any)?.recommendedPaperSize || "a4";
@@ -239,10 +250,20 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
     });
   };
 
-  const visibleTemplates = DOCUMENT_TEMPLATES.filter(
-    (t) => ((t as any).recommendedPaperSize || "a4") === paperSize
-  );
-  const displayTemplates = visibleTemplates.length > 0 ? visibleTemplates : DOCUMENT_TEMPLATES;
+  const displayTemplates = DOCUMENT_TEMPLATES.filter((t) => {
+    if (paperSize === "a5") {
+      return t.id === "retail_a5";
+    }
+    if (paperSize === "pos80") {
+      return t.id === "pos_clean" || t.id === "pos_detailed";
+    }
+    if (isRetail) {
+      // In retail, strictly show only the retail A5 & POS templates
+      return t.id === "retail_a5" || t.id === "pos_clean" || t.id === "pos_detailed";
+    }
+    const rec = (t as any).recommendedPaperSize || "a4";
+    return rec === paperSize;
+  });
 
   const sampleOrg = {
     ...org,
@@ -423,12 +444,13 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
             </DialogTitle>
           </DialogHeader>
           <div className="flex justify-center bg-slate-100 p-4 sm:p-8 rounded-lg overflow-x-auto border">
-            <div className="w-[794px] bg-white rounded-md shadow-md overflow-hidden border">
+            <div className={`${modalTemplateId === 'pos_clean' || modalTemplateId === 'pos_detailed' ? 'w-[320px]' : modalTemplateId === 'retail_a5' ? 'w-[580px]' : 'w-[794px]'} bg-white rounded-md shadow-md overflow-hidden border`}>
               {modalTemplateId && (
                 <StyledInvoiceTemplate
                   org={{
                     ...sampleOrg,
                     template_style: modalTemplateId,
+                    template_paper_size: modalTemplateId === 'pos_clean' || modalTemplateId === 'pos_detailed' ? 'pos80' : modalTemplateId === 'retail_a5' ? 'a5' : 'a4',
                   }}
                   invoice={SAMPLE_PREVIEW_DATA.invoice}
                   lines={SAMPLE_PREVIEW_DATA.lines}

@@ -55,6 +55,33 @@ export const DOCUMENT_TEMPLATES = [
     features: ["Modern Crimson layout", "Amount in words", "Bank details & QR", "Custom Tax Summary"],
     recommendedPaperSize: "a4",
   },
+  {
+    id: "retail_a5",
+    name: "Retail A5 Invoice",
+    description: "Official retail A5 invoice featuring top diagonal banner, branded contact icons, boxed invoice metadata, and curved footer.",
+    preview: "bg-sky-50 border-sky-600/30",
+    features: ["A5 voucher format", "Diagonal banner", "Boxed invoice meta", "Clean tax table", "Decorative curved footer"],
+    recommendedPaperSize: "a5",
+    category: "retail",
+  },
+  {
+    id: "pos_clean",
+    name: "POS Thermal Slip (Clean Receipt)",
+    description: "Clean high-contrast 80mm thermal receipt with company header, instant customer info, item price table, and UPI/Cash grand total.",
+    preview: "bg-zinc-50 border-zinc-900/40",
+    features: ["80mm thermal receipt", "Customer bill row", "Item price columns", "UPI/Cash payment mode", "Instant thermal printing"],
+    recommendedPaperSize: "pos80",
+    category: "retail",
+  },
+  {
+    id: "pos_detailed",
+    name: "POS Tax Invoice (Detailed GST Summary)",
+    description: "Comprehensive 80mm POS slip featuring HSN codes, Salesman details, GST Summary table breakdown, and Terms & Conditions.",
+    preview: "bg-zinc-100 border-zinc-900/60",
+    features: ["Tax Invoice header", "HSN & Salesman slots", "GST summary box table", "Cash & Round off calculation", "Terms & conditions"],
+    recommendedPaperSize: "pos80",
+    category: "retail",
+  },
 ] as const;
 
 export const PAPER_SIZES = [
