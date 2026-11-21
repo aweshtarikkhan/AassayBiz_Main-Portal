@@ -17,7 +17,7 @@ import { isRetailOrg } from "@/lib/business-category";
 const SAMPLE_PREVIEW_DATA = {
   invoice: {
     id: "sample-preview-inv",
-    invoice_number: "INV-2026-0001",
+    invoice_number: "INV-01",
     issue_date: "2026-09-04",
     due_date: "2026-09-18",
     subtotal: 25000,

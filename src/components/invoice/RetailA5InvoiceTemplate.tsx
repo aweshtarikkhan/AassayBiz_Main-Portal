@@ -209,6 +209,7 @@ export function RetailA5InvoiceTemplate({
           </thead>
           <tbody>
             {displayLines.map((line, idx) => {
+              const itemName = line.name || line.items?.name || line.item?.name || line.item_name || (line.description ? String(line.description).split("\n")[0] : "") || "Item";
               const qty = Number(line.quantity || 1);
               const rate = Number(line.rate || 0);
               const taxRate = resolveLineTaxRate(line);
@@ -220,7 +221,7 @@ export function RetailA5InvoiceTemplate({
                     {idx + 1}.
                   </td>
                   <td className="py-1.5 px-2 text-left border-t border-r border-slate-200 font-semibold text-slate-900">
-                    <div>{line.item_name || (line as any).description || "Item"}</div>
+                    <div>{itemName}</div>
                     {line.hsn_code && (
                       <span className="text-[8.5px] text-slate-400 font-normal">HSN: {line.hsn_code}</span>
                     )}

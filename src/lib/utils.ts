@@ -7,11 +7,13 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatSequenceNumber(formatTemplate: string | null | undefined, nextNumber: number, defaultPrefix: string = "INV"): string {
-  if (!formatTemplate) return `${defaultPrefix}-${new Date().getFullYear()}-${String(nextNumber).padStart(4, "0")}`;
-  
-  // If template doesn't contain '{', treat it as a traditional prefix
-  if (!formatTemplate.includes("{")) {
-    return `${formatTemplate}-${new Date().getFullYear()}-${String(nextNumber).padStart(4, "0")}`;
+  const num = Math.max(1, nextNumber || 1);
+
+  // If template is empty or doesn't contain '{', default to clean short format: PREFIX-NN (e.g. INV-01, INV-02)
+  if (!formatTemplate || !formatTemplate.includes("{")) {
+    const rawPrefix = (formatTemplate || defaultPrefix || "INV").trim();
+    const cleanPrefix = rawPrefix.replace(/[-_]+$/, "");
+    return `${cleanPrefix}-${String(num).padStart(2, "0")}`;
   }
 
   const year = new Date().getFullYear();
@@ -22,16 +24,16 @@ export function formatSequenceNumber(formatTemplate: string | null | undefined, 
   
   // Replace {NNNN}, {NNN}, {NN}, {N}
   if (formatted.includes("{NNNN}")) {
-    formatted = formatted.replace(/{NNNN}/g, String(nextNumber).padStart(4, "0"));
+    formatted = formatted.replace(/{NNNN}/g, String(num).padStart(4, "0"));
   } else if (formatted.includes("{NNN}")) {
-    formatted = formatted.replace(/{NNN}/g, String(nextNumber).padStart(3, "0"));
+    formatted = formatted.replace(/{NNN}/g, String(num).padStart(3, "0"));
   } else if (formatted.includes("{NN}")) {
-    formatted = formatted.replace(/{NN}/g, String(nextNumber).padStart(2, "0"));
+    formatted = formatted.replace(/{NN}/g, String(num).padStart(2, "0"));
   } else if (formatted.includes("{N}")) {
-    formatted = formatted.replace(/{N}/g, String(nextNumber));
+    formatted = formatted.replace(/{N}/g, String(num));
   } else {
     // If user provides a template with {YYYY} but no number placeholder, append the number gracefully
-    formatted = `${formatted}-${String(nextNumber).padStart(4, "0")}`;
+    formatted = `${formatted}-${String(num).padStart(2, "0")}`;
   }
   
   return formatted;

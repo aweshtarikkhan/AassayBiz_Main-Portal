@@ -1421,9 +1421,9 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="col-span-1 md:col-span-2 space-y-2 mb-2">
                       <Label>Invoice Number Format</Label>
-                      <Input value={orgForm.invoice_prefix} onChange={(e) => setOrgForm({ ...orgForm, invoice_prefix: e.target.value })} placeholder="e.g. INV-{YYYY}-{NNNN}" />
+                      <Input value={orgForm.invoice_prefix} onChange={(e) => setOrgForm({ ...orgForm, invoice_prefix: e.target.value })} placeholder="e.g. INV-01 or INV-{YYYY}-{NNNN}" />
                       <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
-                        Use placeholders to create a custom format. E.g. <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">INV-{`{YYYY}`}-{`{NNNN}`}</code> produces INV-2024-0001, <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">SALES-{`{YY}`}-{`{NN}`}</code> produces SALES-24-01. If no placeholders are used, we append the year and number automatically.
+                        By default, invoices follow short sequence <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">INV-01, INV-02...</code>. You can customize format using placeholders, e.g. <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">INV-{`{YYYY}`}-{`{NNNN}`}</code> produces INV-2026-0001, <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">SALES-{`{YY}`}-{`{NN}`}</code> produces SALES-26-01.
                       </p>
                     </div>
                     <div className="space-y-2">

@@ -24,7 +24,10 @@ export function PosCleanInvoiceTemplate({
   const parsedBillTo = typeof rawBillToObj === "string" ? (() => { try { return JSON.parse(rawBillToObj); } catch { return null; } })() : rawBillToObj;
 
   const clientName = (invoice?.metadata as any)?.client_name || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.name : null) || (invoice.clients as any)?.display_name || (invoice.clients as any)?.company_name || invoice.client_name || "Walk-in Customer";
+  const clientPhone = (invoice?.metadata as any)?.client_mobile || (invoice?.metadata as any)?.customer_phone || (invoice?.metadata as any)?.phone || (parsedBillTo && typeof parsedBillTo === "object" ? (parsedBillTo.phone || parsedBillTo.mobile) : null) || (invoice.clients as any)?.phone || invoice.client_phone || invoice.customer_phone || "";
+
   const number = type === "estimate" ? invoice.estimate_number : (type === "po" ? invoice.po_number : (type === "bill" ? invoice.bill_number : invoice.invoice_number));
+  const typeLabel = type === "estimate" ? "Estimate" : (type === "po" ? "PO" : (type === "bill" ? "Bill" : "Invoice"));
 
   const addressLines: string[] = [];
   if (org?.address) {
@@ -56,17 +59,96 @@ export function PosCleanInvoiceTemplate({
   const totalTax = Number(invoice.tax_total ?? invoice.total_tax ?? 0);
   const halfTax = totalTax / 2;
 
+  // Determine tax rates
+  let cgstRate = 0;
+  let sgstRate = 0;
+  let igstRate = 0;
+
+  if (taxBreakdown && taxBreakdown.length > 0) {
+    const cgstItem = taxBreakdown.find((t) => t.name && t.name.toLowerCase().includes("cgst"));
+    const sgstItem = taxBreakdown.find((t) => t.name && t.name.toLowerCase().includes("sgst"));
+    const igstItem = taxBreakdown.find((t) => t.name && t.name.toLowerCase().includes("igst"));
+
+    if (cgstItem?.rate) cgstRate = cgstItem.rate;
+    if (sgstItem?.rate) sgstRate = sgstItem.rate;
+    if (igstItem?.rate) igstRate = igstItem.rate;
+
+    if (!cgstRate && !sgstRate && !igstRate) {
+      const firstWithRate = taxBreakdown.find((t) => (t.rate || 0) > 0);
+      if (firstWithRate?.rate) {
+        if (isInterstate) {
+          igstRate = firstWithRate.rate;
+        } else {
+          cgstRate = firstWithRate.rate / 2;
+          sgstRate = firstWithRate.rate / 2;
+        }
+      }
+    }
+  }
+
+  // Also check lines if rates not yet found
+  if (!cgstRate && !sgstRate && !igstRate && lines && lines.length > 0) {
+    const lineWithTax = lines.find((l) => (l.tax_rates && l.tax_rates.rate) || l.tax_rate);
+    const fullRate = Number(lineWithTax?.tax_rates?.rate || lineWithTax?.tax_rate || 0);
+    if (fullRate > 0) {
+      if (isInterstate) {
+        igstRate = fullRate;
+      } else {
+        cgstRate = fullRate / 2;
+        sgstRate = fullRate / 2;
+      }
+    }
+  }
+
+  // Fallback calculation from totalTax and subtotal if rates still 0
+  if (totalTax > 0 && subtotal > 0 && (!cgstRate && !sgstRate && !igstRate)) {
+    const totalRate = (totalTax / subtotal) * 100;
+    if (isInterstate) {
+      igstRate = Math.round(totalRate * 10) / 10;
+    } else {
+      const half = Math.round((totalRate / 2) * 10) / 10;
+      cgstRate = half;
+      sgstRate = half;
+    }
+  }
+
+  const formatTaxRate = (r: number) => {
+    if (!r) return "";
+    return r % 1 === 0 ? `${r}%` : `${r.toFixed(1)}%`;
+  };
+
+  // Collect genuine custom fields if added by user
+  const customFields: { name: string; value: string }[] = [];
+  if (Array.isArray(invoice?.custom_field_values)) {
+    invoice.custom_field_values.forEach((cf: any) => {
+      const name = cf.custom_field_definitions?.field_name || cf.name || cf.field_name;
+      const val = cf.value || cf.field_value;
+      if (val && String(val).trim()) {
+        customFields.push({ name: String(name || "Custom"), value: String(val).trim() });
+      }
+    });
+  } else if (Array.isArray((invoice?.metadata as any)?.custom_fields)) {
+    (invoice.metadata as any).custom_fields.forEach((cf: any) => {
+      const name = cf.name || cf.field_name || cf.key;
+      const val = cf.value;
+      if (val && String(val).trim()) {
+        customFields.push({ name: String(name || "Custom"), value: String(val).trim() });
+      }
+    });
+  }
+
   return (
     <div
-      className="invoice-printable bg-white text-black font-mono shadow-sm mx-auto"
+      className="invoice-printable bg-white text-black shadow-sm mx-auto"
       style={{
         maxWidth: "80mm",
         width: "100%",
         padding: "10px 12px",
         boxSizing: "border-box",
         fontSize: "12px",
-        lineHeight: 1.35,
+        lineHeight: 1.4,
         color: "#000000",
+        fontFamily: '"SF Mono", "Segoe UI Mono", "Roboto Mono", "Courier New", Courier, monospace',
       }}
     >
       {/* ── HEADER ── */}
@@ -92,39 +174,50 @@ export function PosCleanInvoiceTemplate({
       </div>
 
       {/* ── DIVIDER THICK ── */}
-      <div className="border-t-2 border-black my-1"></div>
+      <div className="border-t-2 border-black my-1.5"></div>
 
-      {/* ── CUSTOMER NAME ── */}
-      <div className="text-[12px] font-bold py-1">
-        Name : <span className="font-normal">{clientName}</span>
+      {/* ── CUSTOMER NAME & PHONE (ONE LINE) ── */}
+      <div className="flex justify-between items-center text-[11px] font-bold py-0.5">
+        <div className="truncate pr-2">
+          Name : <span className="font-normal">{clientName}</span>
+        </div>
+        {clientPhone && (
+          <div className="shrink-0 text-right whitespace-nowrap">
+            Phone No. : <span className="font-normal">{clientPhone}</span>
+          </div>
+        )}
       </div>
 
-      {/* ── DIVIDER THICK ── */}
-      <div className="border-t border-black my-1"></div>
+      {/* ── DIVIDER ── */}
+      <div className="border-t border-black my-1.5"></div>
 
-      {/* ── DATE & BILL NO ROW ── */}
-      <div className="grid grid-cols-2 gap-1 text-[11px] py-0.5">
+      {/* ── DATE & INVOICE NO ROW (ONE LINE) ── */}
+      <div className="flex justify-between items-center text-[11px] py-0.5 whitespace-nowrap">
         <div>
           Date : <span className="font-semibold">{dateStr}</span>
         </div>
-        <div className="text-right">
-          Bill No. : <span className="font-bold">{number}</span>
+        <div className="text-right pl-1">
+          {typeLabel} No. : <span className="font-bold">{number}</span>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-1 text-[11px] pb-1">
-        <div className="truncate">
-          Custome : <span className="font-medium">{clientName.split(" ")[0]}</span>
+
+      {/* ── CUSTOM FIELDS (ONLY IF ACTUALLY ADDED BY USER) ── */}
+      {customFields.length > 0 && (
+        <div className="space-y-0.5 text-[10.5px] py-0.5">
+          {customFields.map((cf, idx) => (
+            <div key={idx} className="flex justify-between items-center">
+              <span>{cf.name} :</span>
+              <span className="font-medium">{cf.value}</span>
+            </div>
+          ))}
         </div>
-        <div className="text-right">
-          Custom : <span className="font-medium">Retail</span>
-        </div>
-      </div>
+      )}
 
       {/* ── DIVIDER THICK ── */}
-      <div className="border-t-2 border-black my-1"></div>
+      <div className="border-t-2 border-black my-1.5"></div>
 
       {/* ── TABLE HEADER ── */}
-      <div className="flex justify-between items-center font-bold text-[11px] py-1 border-b border-black">
+      <div className="flex justify-between items-center font-bold text-[11px] pb-1.5 border-b border-black">
         <span className="w-[44%] text-left">Item</span>
         <span className="w-[16%] text-center">Qty.</span>
         <span className="w-[20%] text-right">Price</span>
@@ -132,16 +225,17 @@ export function PosCleanInvoiceTemplate({
       </div>
 
       {/* ── ITEMS LIST ── */}
-      <div className="py-1 space-y-1 text-[11px]">
+      <div className="pt-2 pb-1 space-y-1.5 text-[11px]">
         {lines.map((line, idx) => {
+          const itemName = line.name || line.items?.name || line.item?.name || line.item_name || (line.description ? String(line.description).split("\n")[0] : "") || `Item ${idx + 1}`;
           const qty = Number(line.quantity || 1);
           const rate = Number(line.rate || 0);
           const amount = Number(line.line_total || (qty * rate));
 
           return (
-            <div key={line.id || idx} className="flex justify-between items-start">
-              <span className="w-[44%] text-left font-medium truncate">
-                {line.item_name || (line as any).description || `Item ${idx + 1}`}
+            <div key={line.id || idx} className="flex justify-between items-start leading-snug">
+              <span className="w-[44%] text-left font-medium break-words pr-1">
+                {itemName}
               </span>
               <span className="w-[16%] text-center font-medium">{qty}</span>
               <span className="w-[20%] text-right font-medium">
@@ -156,22 +250,22 @@ export function PosCleanInvoiceTemplate({
       </div>
 
       {/* ── DIVIDER THICK ── */}
-      <div className="border-t-2 border-black my-1"></div>
+      <div className="border-t-2 border-black my-1.5"></div>
 
       {/* ── TOTALS & TAX ── */}
       <div className="flex justify-between items-start text-[11px] py-1">
         {/* Left: Total Qty & Payment Method */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="font-bold">
             Total Qty : <span className="font-black text-xs">{totalQty}</span>
           </div>
-          <div className="font-medium text-[11px]">
+          <div className="font-medium text-[10.5px]">
             Paid via {paymentMode.toUpperCase()}
           </div>
         </div>
 
         {/* Right: Subtotal & GST Breakup */}
-        <div className="text-right space-y-0.5 min-w-[120px]">
+        <div className="text-right space-y-0.5 min-w-[130px]">
           <div className="flex justify-between">
             <span>Sub Total</span>
             <span className="font-semibold">{subtotal.toFixed(2)}</span>
@@ -179,17 +273,17 @@ export function PosCleanInvoiceTemplate({
           {totalTax > 0 && !isInterstate ? (
             <>
               <div className="flex justify-between text-[10.5px]">
-                <span>CGST</span>
+                <span>CGST {cgstRate > 0 ? `(${formatTaxRate(cgstRate)})` : ""}</span>
                 <span>{halfTax.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-[10.5px]">
-                <span>SGST</span>
+                <span>SGST {sgstRate > 0 ? `(${formatTaxRate(sgstRate)})` : ""}</span>
                 <span>{halfTax.toFixed(2)}</span>
               </div>
             </>
           ) : totalTax > 0 ? (
             <div className="flex justify-between text-[10.5px]">
-              <span>IGST</span>
+              <span>IGST {igstRate > 0 ? `(${formatTaxRate(igstRate)})` : ""}</span>
               <span>{totalTax.toFixed(2)}</span>
             </div>
           ) : null}
@@ -197,7 +291,7 @@ export function PosCleanInvoiceTemplate({
       </div>
 
       {/* ── DIVIDER THICK ── */}
-      <div className="border-t-2 border-black my-1"></div>
+      <div className="border-t-2 border-black my-1.5"></div>
 
       {/* ── GRAND TOTAL ── */}
       <div className="py-1 text-center font-black text-sm tracking-wide">

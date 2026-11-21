@@ -183,6 +183,7 @@ export function PosDetailedInvoiceTemplate({
       {/* ── PRODUCT ROWS ── */}
       <div className="space-y-1.5 py-1 text-[10.5px]">
         {lines.map((line, idx) => {
+          const itemName = line.name || line.items?.name || line.item?.name || line.item_name || (line.description ? String(line.description).split("\n")[0] : "") || `Product ${idx + 1}`;
           const qty = Number(line.quantity || 1);
           const rate = Number(line.rate || 0);
           const disc = Number(line.discount_amount || 0);
@@ -193,7 +194,7 @@ export function PosDetailedInvoiceTemplate({
               <div className="flex justify-between items-start">
                 <span className="w-[8%] text-left text-zinc-700">{idx + 1}.</span>
                 <span className="w-[38%] text-left font-semibold truncate">
-                  {line.item_name || (line as any).description || `Product ${idx + 1}`}
+                  {itemName}
                 </span>
                 <span className="w-[12%] text-center">{qty}</span>
                 <span className="w-[14%] text-right">{rate.toFixed(2)}</span>
