@@ -219,14 +219,15 @@ export function PlanSelectorModal({
       if (orgId) {
         const { data: directSubs } = await supabase
           .from("subscriptions")
-          .select("billing_cycle, current_period_end, employee_count, manual_override_features, plans(name)")
+          .select("billing_cycle, current_period_start, current_period_end, employee_count, manual_override_features, plan_id, plans(name)")
           .eq("org_id", orgId)
           .eq("status", "active");
 
         const activePaidSubs = (directSubs || []).filter((s: any) => {
-          const pName = normalizePlanKey(s.plans?.name || "");
+          const planObj = finalPlans.find(p => p.id === s.plan_id);
+          const pName = normalizePlanKey(s.plans?.name || planObj?.name || "");
           const notExpired = !s.current_period_end || new Date(s.current_period_end).getTime() > Date.now();
-          return pName !== "free" && notExpired;
+          return (pName !== "free" || (fetchedActivePlans.some(p => p !== "free") && s.billing_cycle === "yearly")) && notExpired;
         });
 
         const maxActiveCount = Math.max(
@@ -1651,8 +1652,7 @@ let planDisplay = targetPlanNames.map((p) => {
                               <div className="mt-1.5 pt-1.5 border-t border-emerald-200/50 flex items-center justify-between text-[11px] font-semibold text-emerald-900">
                                 <span>Addon Cost:</span>
                                 <span className="font-bold text-orange-700">
-                                  ₹{getExtraEmployeeCost(extraEmployeesToAdd).toLocaleString('en-IN')}{" "}
-                                  {isProratedMidCycle ? `(${addonBillingMonths} mo synced)` : `/ ${effectiveAddonCycle === "yearly" ? "yr" : "mo"}`}
+                                  ₹{getExtraEmployeeCost(extraEmployeesToAdd).toLocaleString('en-IN')}
                                 </span>
                               </div>
                             )}
@@ -2211,7 +2211,7 @@ let planDisplay = targetPlanNames.map((p) => {
                       </div>
                       {extraPlatformEmployeesToAdd > 0 && (
                         <span className="text-xs font-semibold text-indigo-700">
-                          +₹{getExtraPlatformEmployeeCost(extraPlatformEmployeesToAdd).toLocaleString('en-IN')} {isProratedMidCycle ? `for ${addonBillingMonths} mo` : `/ ${effectiveAddonCycle === 'yearly' ? 'yr' : 'mo'}`}
+                          +₹{getExtraPlatformEmployeeCost(extraPlatformEmployeesToAdd).toLocaleString('en-IN')}
                         </span>
                       )}
                     </div>
@@ -2258,7 +2258,7 @@ let planDisplay = targetPlanNames.map((p) => {
                       </div>
                       {extraCrmMembersToAdd > 0 && (
                         <span className="text-xs font-semibold text-blue-700">
-                          +₹{getExtraCrmMemberCost(extraCrmMembersToAdd).toLocaleString('en-IN')} {isProratedMidCycle ? `for ${addonBillingMonths} mo` : `/ ${effectiveAddonCycle === 'yearly' ? 'yr' : 'mo'}`}
+                          +₹{getExtraCrmMemberCost(extraCrmMembersToAdd).toLocaleString('en-IN')}
                         </span>
                       )}
                     </div>
@@ -2305,7 +2305,7 @@ let planDisplay = targetPlanNames.map((p) => {
                       </div>
                       {taskEmployeesToAdd > 0 && (
                         <span className="text-xs font-semibold text-amber-700">
-                          +₹{getTaskEmployeeCost(taskEmployeesToAdd).toLocaleString('en-IN')} {isProratedMidCycle ? `for ${addonBillingMonths} mo` : `/ ${effectiveAddonCycle === 'yearly' ? 'yr' : 'mo'}`}
+                          +₹{getTaskEmployeeCost(taskEmployeesToAdd).toLocaleString('en-IN')}
                         </span>
                       )}
                     </div>
@@ -2352,7 +2352,7 @@ let planDisplay = targetPlanNames.map((p) => {
                       </div>
                       {expenseEmployeesToAdd > 0 && (
                         <span className="text-xs font-semibold text-emerald-700">
-                          +₹{getExpenseEmployeeCost(expenseEmployeesToAdd).toLocaleString('en-IN')} {isProratedMidCycle ? `for ${addonBillingMonths} mo` : `/ ${effectiveAddonCycle === 'yearly' ? 'yr' : 'mo'}`}
+                          +₹{getExpenseEmployeeCost(expenseEmployeesToAdd).toLocaleString('en-IN')}
                         </span>
                       )}
                     </div>
@@ -2437,12 +2437,6 @@ let planDisplay = targetPlanNames.map((p) => {
                         <div className="text-2xl font-bold text-slate-900">
                           ₹{finalAmountRupees.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
-                        {isProratedMidCycle && activePeriodEnd && (
-                          <div className="text-[10px] text-amber-700 font-semibold mt-0.5">
-                            Prorated ({addonBillingMonths} mo) · Syncs with{" "}
-                            {new Date(activePeriodEnd).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                          </div>
-                        )}
                       </>
                     )}
                   </div>

@@ -1167,13 +1167,6 @@ export default function CheckoutPage() {
                   <div className="text-base font-extrabold text-[#28166f] mt-0.5">
                     {checkoutData.planDisplayName || checkoutData.targetPlanNames.join(" + ").toUpperCase()}
                   </div>
-
-                  {checkoutData.isAddonOnlyPurchase && checkoutData.syncedPeriodEnd && (
-                    <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-[11px] font-medium text-amber-900">
-                      Prorated for <strong>{checkoutData.addonBillingMonths || (checkoutData.billingCycle === "yearly" ? 12 : 1)} month(s)</strong> · Expires with main plan on{" "}
-                      <strong>{new Date(checkoutData.syncedPeriodEnd).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</strong>
-                    </div>
-                  )}
                   
                   {checkoutData.extraEmployeesToAdd > 0 && (
                     <div className="text-xs text-slate-600 mt-1 flex items-center gap-1.5 font-medium">
