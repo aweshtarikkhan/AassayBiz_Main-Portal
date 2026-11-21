@@ -256,8 +256,8 @@ export function canSendDirectEmailOrWhatsApp(planStr: string = '', activePlans: 
  */
 export const PLATFORM_ADDON_COST_PER_MONTH = 99;
 export const HR_EXTRA_EMPLOYEE_COST_PER_MONTH = 49;
-export const TASK_ADDON_COST_PER_MONTH = 599;
-export const EXPENSE_ADDON_COST_PER_MONTH = 999;
+export const TASK_ADDON_COST_PER_MONTH = 99;
+export const EXPENSE_ADDON_COST_PER_MONTH = 499;
 
 /**
  * CRM Portal Access Limits:

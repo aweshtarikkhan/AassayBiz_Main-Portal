@@ -120,9 +120,7 @@ const catalogItems = [
 const peopleItems = [
   { title: "Employees", url: "/employees", icon: UserCog, addUrl: "/employees?add=1" },
   { title: "Attendance", url: "/attendance", icon: CalendarCheck, addUrl: null },
-  { title: "Tasks", url: "/tasks", icon: CheckSquare, addUrl: "/tasks?add=1" },
   { title: "Leaves", url: "/leaves", icon: ClipboardList, addUrl: null },
-  { title: "Expenses", url: "/employee-expenses", icon: Receipt, addUrl: null },
   { title: "Shifts", url: "/shifts", icon: CalendarCheck, addUrl: null },
   { title: "Documents", url: "/employee-documents", icon: ScrollText, addUrl: null },
   { title: "Payroll", url: "/payroll", icon: Calculator, addUrl: null },
@@ -170,7 +168,11 @@ export function AppSidebar() {
   const { subscriptionPlan } = useSubscription();
   const org = useAppStore((s) => s.organization);
   const isRetail = isRetailOrg(org);
-  const [activeRetailSuite, setActiveRetailSuite] = useState<string>("business_management");
+  const featureStore = useFeatureStore();
+  const isTaskEnabled = org?.invoice_preferences?.task_management_enabled === true || featureStore.taskManagementEnabled === true;
+  const isExpenseEnabled = org?.invoice_preferences?.expense_management_enabled === true || featureStore.expenseManagementEnabled === true;
+  const isCrmTeamEnabled = org?.invoice_preferences?.crm_team_enabled !== false;
+  const [activeSuite, setActiveSuite] = useState<string>("business_management");
 
   const retailSuites = [
     { key: "business_management", label: "Business Accounting", shortLabel: "Accounts", icon: Calculator },
@@ -178,6 +180,23 @@ export function AppSidebar() {
     { key: "crm", label: "Business CRM", shortLabel: "CRM", icon: Briefcase },
     { key: "marketing", label: "Business Marketing", shortLabel: "Marketing", icon: Send },
     { key: "outreach", label: "Business Integration", shortLabel: "Connect", icon: MessageCircle },
+  ];
+
+  // Industrial Suites (2 Rows)
+  // Line 1: Accounting, Business HR, Business CRM, Business Promotion
+  const industrialSuitesLine1 = [
+    { key: "business_management", label: "Accounting", shortLabel: "Accounts", icon: Calculator },
+    { key: "people", label: "Business HR", shortLabel: "HR", icon: UserCog },
+    { key: "crm", label: "Business CRM", shortLabel: "CRM", icon: Briefcase },
+    { key: "marketing", label: "Business Promotion", shortLabel: "Promotion", icon: Send },
+  ];
+
+  // Line 2: Business Integration, Business Feedback (soon), Business Analysis (soon), System & Setting
+  const industrialSuitesLine2 = [
+    { key: "outreach", label: "Business Integration", shortLabel: "Integrate", icon: MessageCircle },
+    { key: "feedback", label: "Business Feedback", shortLabel: "Feedback", icon: MessageSquareQuote, isSoon: true },
+    { key: "ai-analysis", label: "Business Analysis", shortLabel: "Analysis", icon: BrainCircuit, isSoon: true },
+    { key: "settings", label: "System & Settings", shortLabel: "Settings", icon: Settings },
   ];
   const myOrganizations = useAppStore((s) => s.myOrganizations);
   const userRole = useAppStore((s) => s.userRole);
@@ -372,8 +391,37 @@ export function AppSidebar() {
         key: g.key,
         label: g.label,
         isUpcoming: g.isUpcoming,
-        isLocked: (!isSuiteActive && !isOutreachUnlocked && (!isGroupEnabled(g.key) || !platformFeatures.includes(g.key))) || !isGroupAccessible(g.key),
-        items: (ADMIN_GROUP_ITEMS[g.key]?.items || g.items).map(i => {
+        isLocked: (!isSuiteActive && !isOutreachUnlocked && !(g.key === "people" && (isTaskEnabled || isExpenseEnabled)) && (!isGroupEnabled(g.key) || !platformFeatures.includes(g.key))) || !isGroupAccessible(g.key),
+        items: (() => {
+          let baseItems = ADMIN_GROUP_ITEMS[g.key]?.items || g.items;
+          if (g.key === "people") {
+            const list = [
+              { title: "Employees", url: "/employees", icon: UserCog, addUrl: "/employees?add=1" },
+              { title: "Attendance", url: "/attendance", icon: CalendarCheck, addUrl: null },
+            ];
+            if (isTaskEnabled) {
+              list.push({ title: "Tasks", url: "/tasks", icon: CheckSquare, addUrl: "/tasks?add=1" });
+            }
+            list.push(
+              { title: "Leaves", url: "/leaves", icon: ClipboardList, addUrl: null },
+              { title: "Shifts", url: "/shifts", icon: CalendarCheck, addUrl: null }
+            );
+            if (isExpenseEnabled) {
+              list.push({ title: "Expenses", url: "/employee-expenses", icon: Receipt, addUrl: null });
+            }
+            list.push(
+              { title: "Documents", url: "/employee-documents", icon: ScrollText, addUrl: null },
+              { title: "Payroll", url: "/payroll", icon: Calculator, addUrl: null }
+            );
+            baseItems = list;
+          } else if (g.key === "crm") {
+            baseItems = (ADMIN_GROUP_ITEMS[g.key]?.items || g.items).filter(item => {
+              if (item.url === "/crm-team" && !isCrmTeamEnabled) return false;
+              return true;
+            });
+          }
+          return baseItems;
+        })().map(i => {
           let itemIcon = typeof i.icon === "function" || typeof i.icon === "object" ? i.icon : ShoppingCart;
           if (i.icon === "Truck") itemIcon = Truck;
           if (i.icon === "ClipboardList") itemIcon = ClipboardList;
@@ -440,60 +488,51 @@ export function AppSidebar() {
       ]
     : otherGroups;
 
-  // Auto-sync active retail suite with current route so current page is never hidden
+  // Auto-sync active suite with current route so current page is never hidden
   useEffect(() => {
-    if (!isRetail) return;
     const path = location.pathname;
     if (["/employees", "/attendance", "/tasks", "/leaves", "/employee-expenses", "/shifts", "/employee-documents", "/payroll", "/hr-reports"].some(p => path === p || path.startsWith(p + "/"))) {
-      setActiveRetailSuite("people");
+      setActiveSuite("people");
     } else if (["/crm-report", "/leads", "/crm-team", "/calendar", "/crm/automations", "/tickets", "/crm/integrations"].some(p => path === p || path.startsWith(p + "/"))) {
-      setActiveRetailSuite("crm");
+      setActiveSuite("crm");
     } else if (["/promotion-reports", "/marketing/posters", "/campaigns", "/marketing/templates", "/journeys", "/message-logs"].some(p => path === p || path.startsWith(p + "/"))) {
-      setActiveRetailSuite("marketing");
+      setActiveSuite("marketing");
     } else if (["/emails", "/chats"].some(p => path === p || path.startsWith(p + "/"))) {
-      setActiveRetailSuite("outreach");
+      setActiveSuite("outreach");
+    } else if (path === "/feedback" || path.startsWith("/feedback/")) {
+      setActiveSuite("feedback");
+    } else if (path === "/business-analysis" || path.startsWith("/business-analysis/") || path === "/ai-analysis" || path.startsWith("/ai-analysis/")) {
+      setActiveSuite("ai-analysis");
+    } else if (["/settings", "/audit-logs", "/admin"].some(p => path === p || path.startsWith(p + "/"))) {
+      setActiveSuite("settings");
     } else if (["/invoices", "/quotations", "/clients", "/credit-notes", "/payments", "/delivery-challans", "/recurring-invoices", "/vendors", "/purchase-orders", "/grns", "/purchase-invoices", "/vendor-payments", "/purchase-returns", "/expenses", "/accounts", "/journal", "/bank-accounts", "/cash-flow", "/items", "/inventory", "/warehouses", "/branches", "/reports", "/sales-reports", "/purchase-accounting-reports", "/inventory-reports", "/accounting-reports", "/business-report", "/profit-loss", "/gst-returns", "/tds", "/inventory-valuation", "/aging-details", "/statements"].some(p => path === p || path.startsWith(p + "/"))) {
-      setActiveRetailSuite("business_management");
+      setActiveSuite("business_management");
     }
-  }, [location.pathname, isRetail]);
+  }, [location.pathname]);
 
   // Auto-open selected/active groups & subgroups
   useEffect(() => {
-    if (isRetail) {
-      setOpenGroups(prev => ({
-        ...prev,
-        [activeRetailSuite]: true,
-        ...(activeRetailSuite === "business_management" ? {
-          sales: prev.sales !== undefined ? prev.sales : true,
-          catalog: prev.catalog !== undefined ? prev.catalog : true,
-          purchases: prev.purchases !== undefined ? prev.purchases : true,
-          accounting: prev.accounting !== undefined ? prev.accounting : true,
-          reports: prev.reports !== undefined ? prev.reports : true,
-        } : {})
-      }));
-    } else {
-      rawSidebarGroups.forEach(g => {
-        const hasActiveItem = g.items?.some(item => isActive(item.url) || (item.addUrl && isActive(item.addUrl)));
-        const activeSub = g.subGroups?.find(sub => sub.items?.some(item => isActive(item.url) || (item.addUrl && isActive(item.addUrl))));
-        if (hasActiveItem || activeSub) {
-          setOpenGroups(prev => ({
-            ...prev,
-            [g.key]: true,
-            ...(activeSub ? { [activeSub.key]: true } : {})
-          }));
-        }
-      });
-    }
-  }, [location.pathname, activeRetailSuite, isRetail]);
+    setOpenGroups(prev => ({
+      ...prev,
+      [activeSuite]: true,
+      ...(activeSuite === "business_management" ? {
+        sales: prev.sales !== undefined ? prev.sales : true,
+        catalog: prev.catalog !== undefined ? prev.catalog : true,
+        purchases: prev.purchases !== undefined ? prev.purchases : true,
+        accounting: prev.accounting !== undefined ? prev.accounting : true,
+        reports: prev.reports !== undefined ? prev.reports : true,
+      } : {})
+    }));
+  }, [location.pathname, activeSuite]);
 
-  // In Retail mode:
-  // 1. Hide Business Feedback (feedback) and Business Analysis (ai-analysis)
-  // 2. Only show the currently active suite's pages in the sidebar (one group at a time)
+  // Active suite pages filter:
+  // - In Retail mode: feedback and ai-analysis are hidden, and active suite is shown
+  // - In Industrial mode: all 8 suites are supported, and active suite's pages are shown on top
   const sidebarGroups = isRetail
     ? rawSidebarGroups
         .filter(g => g.key !== "feedback" && g.key !== "ai-analysis")
-        .filter(g => g.key === activeRetailSuite)
-    : rawSidebarGroups;
+        .filter(g => g.key === activeSuite)
+    : rawSidebarGroups.filter(g => g.key === activeSuite);
 
   const getSubGroupIcon = (key: string) => {
     switch (key) {
@@ -618,8 +657,8 @@ export function AppSidebar() {
 
         {sidebarGroups.map((g) => {
           const isActiveGroup = g.items.some((item) => isActive(item.url) || (item.addUrl && isActive(item.addUrl))) || g.subGroups?.some(sub => sub.items.some(item => isActive(item.url) || (item.addUrl && isActive(item.addUrl))));
-          const isSelectedRetail = isRetail && g.key === activeRetailSuite;
-          const isOpen = openGroups[g.key] !== undefined ? openGroups[g.key] : (isSelectedRetail || isActiveGroup);
+          const isSelectedSuite = g.key === activeSuite;
+          const isOpen = openGroups[g.key] !== undefined ? openGroups[g.key] : (isSelectedSuite || isActiveGroup);
 
           return (
             <SidebarGroup key={g.key} id={`group-${g.key}`} className={cn("p-0 mt-2", collapsed && "flex flex-col items-center")}>
@@ -778,7 +817,7 @@ export function AppSidebar() {
                     const isSubActive = sub.items.some(item => isActive(item.url) || (item.addUrl && isActive(item.addUrl)));
                     const isSubOpen = openGroups[sub.key] !== undefined 
                       ? openGroups[sub.key] 
-                      : (!isSubLocked && (isSelectedRetail || isSubActive));
+                      : (!isSubLocked && (isSelectedSuite || isSubActive));
                     const SubIcon = getSubGroupIcon(sub.key);
 
                     return (
@@ -874,19 +913,20 @@ export function AppSidebar() {
         <SidebarGroup className={cn("p-0 mt-2", collapsed && "flex flex-col items-center")}>
           <SidebarGroupContent>
             <SidebarMenu className={cn(collapsed && "items-center")}>
-              {(userRole === 'admin' || userRole === 'owner' || userPermissions.includes('settings_access')) && (
+              {(isRetail || activeSuite === "settings" || isSettingsActive || settingsOpen) && (userRole === 'admin' || userRole === 'owner' || userPermissions.includes('settings_access')) && (
                 <>
                   <SidebarMenuItem id="group-settings" className={cn(collapsed && "flex justify-center")}>
                     <SidebarMenuButton
                       onClick={() => {
                         setSettingsOpen(!settingsOpen);
+                        setActiveSuite("settings");
                         if (!settingsOpen) {
                           setTimeout(() => {
                             document.getElementById("group-settings")?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                           }, 150);
                         }
                       }}
-                      isActive={isSettingsActive}
+                      isActive={isSettingsActive || activeSuite === "settings"}
                       className={cn(
                         "hover:bg-[#1e293b] hover:text-white cursor-pointer rounded-lg transition-colors group/groupbtn",
                         collapsed ? "justify-center h-8 w-8 p-0" : "h-10 py-5"
@@ -897,12 +937,12 @@ export function AppSidebar() {
                       {!collapsed && (
                         <>
                           <span className="flex-1 font-medium text-slate-300 group-hover/groupbtn:text-white tracking-wide text-sm ml-2">{t("System & Settings")}</span>
-                          <ChevronRight className={`h-4 w-4 text-slate-500 transition-transform ${settingsOpen || isSettingsActive ? 'rotate-90' : ''}`} />
+                          <ChevronRight className={`h-4 w-4 text-slate-500 transition-transform ${settingsOpen || isSettingsActive || activeSuite === "settings" ? 'rotate-90' : ''}`} />
                         </>
                       )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  {(settingsOpen || isSettingsActive) && (
+                  {(settingsOpen || isSettingsActive || activeSuite === "settings") && (
                     <>
                       {settingsItems.map((item) => (
                         <SidebarMenuItem key={item.title} className={cn("mt-1", collapsed ? "flex justify-center pl-0" : "pl-6")}>
@@ -983,7 +1023,7 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className={cn("border-t border-slate-800/50 flex flex-col gap-3", collapsed ? "p-2 items-center" : (isRetail ? "p-2 pb-4" : "p-4 pb-6"))}>
+      <SidebarFooter className={cn("border-t border-slate-800/50 flex flex-col gap-2.5", collapsed ? "p-2 items-center" : "p-2 pb-3.5")}>
         {!collapsed && (
           isRetail ? (
             <div className="px-1 pt-1 border-t border-slate-800/60 flex flex-col gap-2">
@@ -994,13 +1034,14 @@ export function AppSidebar() {
               <div className="grid grid-cols-5 gap-1 p-1 bg-slate-950/80 rounded-xl border border-slate-800">
                 {retailSuites.map((suite) => {
                   const Icon = suite.icon;
-                  const isSelected = activeRetailSuite === suite.key;
+                  const isSelected = activeSuite === suite.key;
                   return (
                     <button
                       key={suite.key}
                       type="button"
                       onClick={() => {
-                        setActiveRetailSuite(suite.key);
+                        setActiveSuite(suite.key);
+                        setSettingsOpen(false);
                         setOpenGroups(prev => ({
                           ...prev,
                           [suite.key]: true,
@@ -1039,9 +1080,123 @@ export function AppSidebar() {
               </div>
             </div>
           ) : (
-            <div className="px-1 pt-1 border-t border-slate-800/60 flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Official Channels</span>
-              <SocialMediaLinks iconSize="sm" />
+            <div className="px-1 pt-1 border-t border-slate-800/60 flex flex-col gap-2">
+              <div className="flex items-center justify-between px-0.5">
+                <span className="text-[10px] uppercase tracking-wider text-slate-300 font-bold">Business Suites</span>
+                <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">Industrial</span>
+              </div>
+              <div className="flex flex-col gap-1 p-1 bg-slate-950/80 rounded-xl border border-slate-800">
+                {/* 1st Line: Accounting, Business HR, Business CRM, Business Promotion */}
+                <div className="grid grid-cols-4 gap-1">
+                  {industrialSuitesLine1.map((suite) => {
+                    const Icon = suite.icon;
+                    const isSelected = activeSuite === suite.key;
+                    return (
+                      <button
+                        key={suite.key}
+                        type="button"
+                        onClick={() => {
+                          setActiveSuite(suite.key);
+                          setSettingsOpen(false);
+                          setOpenGroups(prev => ({
+                            ...prev,
+                            [suite.key]: true,
+                            ...(suite.key === "business_management" ? {
+                              sales: true,
+                              catalog: true,
+                              purchases: true,
+                              accounting: true,
+                              reports: true,
+                            } : {})
+                          }));
+                        }}
+                        className={cn(
+                          "flex flex-col items-center justify-center py-2 px-0.5 rounded-lg transition-all text-center group min-w-0 select-none relative",
+                          isSelected
+                            ? "bg-amber-500 text-slate-950 font-extrabold shadow-md ring-1 ring-amber-400"
+                            : "text-slate-200 hover:text-white hover:bg-slate-800/90"
+                        )}
+                        title={suite.label}
+                      >
+                        <Icon className={cn("h-4 w-4 shrink-0 transition-transform group-hover:scale-110", isSelected ? "text-slate-950 stroke-[2.5]" : "text-slate-300 group-hover:text-white")} />
+                        <span 
+                          className={cn(
+                            "mt-1 font-bold text-center leading-none tracking-tight block w-full whitespace-nowrap overflow-visible",
+                            isSelected ? "text-slate-950 font-black" : "text-slate-200 group-hover:text-white"
+                          )}
+                          style={{
+                            fontSize: suite.shortLabel.length >= 9 ? '8px' : (suite.shortLabel.length >= 7 ? '8.5px' : '9.5px')
+                          }}
+                        >
+                          {suite.shortLabel}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 2nd Line: Business Integration, Business Feedback (soon), Business Analysis (soon), System & Setting */}
+                <div className="grid grid-cols-4 gap-1 pt-1 border-t border-slate-800/70">
+                  {industrialSuitesLine2.map((suite) => {
+                    const Icon = suite.icon;
+                    const isSelected = activeSuite === suite.key;
+                    return (
+                      <button
+                        key={suite.key}
+                        type="button"
+                        onClick={() => {
+                          setActiveSuite(suite.key);
+                          if (suite.key === "settings") {
+                            setSettingsOpen(true);
+                            return;
+                          }
+                          if (suite.key === "feedback") {
+                            navigate("/feedback");
+                            return;
+                          }
+                          if (suite.key === "ai-analysis") {
+                            navigate("/business-analysis");
+                            return;
+                          }
+                          setSettingsOpen(false);
+                          setOpenGroups(prev => ({
+                            ...prev,
+                            [suite.key]: true
+                          }));
+                        }}
+                        className={cn(
+                          "flex flex-col items-center justify-center py-2 px-0.5 rounded-lg transition-all text-center group min-w-0 select-none relative",
+                          isSelected
+                            ? "bg-amber-500 text-slate-950 font-extrabold shadow-md ring-1 ring-amber-400"
+                            : "text-slate-200 hover:text-white hover:bg-slate-800/90"
+                        )}
+                        title={suite.label}
+                      >
+                        {suite.isSoon && (
+                          <span className={cn(
+                            "absolute -top-1 right-0.5 text-[7px] font-black uppercase px-1 py-0.2 rounded-full leading-none",
+                            isSelected ? "bg-slate-950 text-amber-300" : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                          )}>
+                            Soon
+                          </span>
+                        )}
+                        <Icon className={cn("h-4 w-4 shrink-0 transition-transform group-hover:scale-110", isSelected ? "text-slate-950 stroke-[2.5]" : "text-slate-300 group-hover:text-white")} />
+                        <span 
+                          className={cn(
+                            "mt-1 font-bold text-center leading-none tracking-tight block w-full whitespace-nowrap overflow-visible",
+                            isSelected ? "text-slate-950 font-black" : "text-slate-200 group-hover:text-white"
+                          )}
+                          style={{
+                            fontSize: suite.shortLabel.length >= 9 ? '8px' : (suite.shortLabel.length >= 7 ? '8.5px' : '9.5px')
+                          }}
+                        >
+                          {suite.shortLabel}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )
         )}

@@ -7,6 +7,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, RequireAuth } from "@/lib/auth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { FeatureGuard } from "@/components/layout/FeatureGuard";
+import { useFeatureStore } from "@/store/feature-store";
+import { useAppStore } from "@/store/app-store";
 
 const SalesReportsPage = lazy(() => import("./pages/SalesReportsPage"));
 const InventoryReportsPage = lazy(() => import("./pages/InventoryReportsPage"));
@@ -154,6 +156,34 @@ function AuthErrorRedirector() {
   return null;
 }
 
+const TaskManagementRoute = () => {
+  const org = useAppStore((s) => s.organization);
+  const taskStore = useFeatureStore((s) => s.taskManagementEnabled);
+  const isEnabled = org?.invoice_preferences?.task_management_enabled === true || taskStore === true;
+  return isEnabled ? (
+    <TasksPage />
+  ) : (
+    <ComingSoonPage
+      title="Task Management"
+      description="Task Management is not enabled for your organization. Please contact your platform administrator to grant access."
+    />
+  );
+};
+
+const ExpenseManagementRoute = () => {
+  const org = useAppStore((s) => s.organization);
+  const expenseStore = useFeatureStore((s) => s.expenseManagementEnabled);
+  const isEnabled = org?.invoice_preferences?.expense_management_enabled === true || expenseStore === true;
+  return isEnabled ? (
+    <HRExpensesPage />
+  ) : (
+    <ComingSoonPage
+      title="Expense Management"
+      description="Expense Management is not enabled for your organization. Please contact your platform administrator to grant access."
+    />
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -250,11 +280,11 @@ const App = () => (
               <Route element={<FeatureGuard featureKey="people" featureName="Business HR" />}>
                 <Route path="/employees" element={<EmployeesPage />} />
                 <Route path="/attendance" element={<AttendancePage />} />
-                <Route path="/tasks" element={<TasksPage />} />
+                <Route path="/tasks" element={<TaskManagementRoute />} />
                 <Route path="/shifts" element={<ShiftsPage />} />
                 <Route path="/leaves" element={<LeavesPage />} />
-                <Route path="/employee-expenses" element={<HRExpensesPage />} />
-                <Route path="/hr-expenses" element={<HRExpensesPage />} />
+                <Route path="/employee-expenses" element={<ExpenseManagementRoute />} />
+                <Route path="/hr-expenses" element={<ExpenseManagementRoute />} />
                 <Route path="/employees/:id/documents" element={<EmployeeDocumentsPage />} />
                 <Route path="/employee-documents" element={<EmployeeDocumentsPage />} />
                 <Route path="/payroll" element={<PayrollPage />} />

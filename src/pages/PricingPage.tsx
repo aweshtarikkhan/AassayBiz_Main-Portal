@@ -10,8 +10,9 @@ import {
   Globe, PlayCircle, ShieldCheck, Building2, Quote, Timer, Users, Layers,
   Calculator, UserCheck, Megaphone, BrainCircuit, Link2,
   Gift, Crown, Bell, Target, MessageSquare, Clock,
-  Plus, Minus, Bot,
+  Plus, Minus, Bot, CheckSquare, Receipt,
 } from "lucide-react";
+import { usePlatformPricing } from "@/lib/platform-pricing";
 import { PublicHeader } from "@/components/public/PublicHeader";
 import { PublicFooter } from "@/components/public/PublicFooter";
 import { BookDemoDialog } from "@/components/public/BookDemoDialog";
@@ -28,10 +29,11 @@ export default function PricingPage() {
   const [dbPlans, setDbPlans] = useState<any[]>([]);
   const [selectedPlans, setSelectedPlans] = useState<string[]>([]);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("yearly");
-  const [hasTaskAddon, setHasTaskAddon] = useState(false);
-  const [hasExpenseAddon, setHasExpenseAddon] = useState(false);
   const [hrExtra, setHrExtra] = useState(0);
   const [crmExtra, setCrmExtra] = useState(0);
+  const [taskExtra, setTaskExtra] = useState(0);
+  const [expenseExtra, setExpenseExtra] = useState(0);
+  const { pricing } = usePlatformPricing();
   const [isDemoDialogOpen, setIsDemoDialogOpen] = useState(false);
   const { toast } = useToast();
 
@@ -62,17 +64,13 @@ export default function PricingPage() {
   }, []);
 
   const getPlanPrice = (baseMo: number, baseYr: number, hasHrAddon = false, hasCrmAddon = false, isHrOrSuite = false) => {
-    const hrAddon = hasHrAddon ? hrExtra * 49 : 0;
-    const crmAddon = hasCrmAddon ? crmExtra * 99 : 0;
-    const taskAddon = isHrOrSuite && hasTaskAddon ? 599 : 0;
-    const expenseAddon = isHrOrSuite && hasExpenseAddon ? 999 : 0;
-    const totalMo = baseMo + hrAddon + crmAddon + taskAddon + expenseAddon;
+    const hrAddon = hasHrAddon ? hrExtra * (pricing.hrExtraEmployeePrice || 49) : 0;
+    const crmAddon = hasCrmAddon ? crmExtra * (pricing.crmExtraMemberPrice || 99) : 0;
+    const totalMo = baseMo + hrAddon + crmAddon;
 
-    const hrAddonYr = hasHrAddon ? hrExtra * 49 * 12 : 0;
-    const crmAddonYr = hasCrmAddon ? crmExtra * 99 * 12 : 0;
-    const taskAddonYr = isHrOrSuite && hasTaskAddon ? 7188 : 0;
-    const expenseAddonYr = isHrOrSuite && hasExpenseAddon ? 11988 : 0;
-    const totalYr = baseYr + hrAddonYr + crmAddonYr + taskAddonYr + expenseAddonYr;
+    const hrAddonYr = hasHrAddon ? hrExtra * (pricing.hrExtraEmployeePrice || 49) * 12 : 0;
+    const crmAddonYr = hasCrmAddon ? crmExtra * (pricing.crmExtraMemberPrice || 99) * 12 : 0;
+    const totalYr = baseYr + hrAddonYr + crmAddonYr;
 
     if (billingCycle === "yearly") {
       const monthlyEquiv = Math.floor(totalYr / 12);
@@ -82,11 +80,9 @@ export default function PricingPage() {
   };
 
   const getPlanYearlyTotal = (baseYr: number, hasHrAddon = false, hasCrmAddon = false, isHrOrSuite = false) => {
-    const hrAddonYr = hasHrAddon ? hrExtra * 49 * 12 : 0;
-    const crmAddonYr = hasCrmAddon ? crmExtra * 99 * 12 : 0;
-    const taskAddonYr = isHrOrSuite && hasTaskAddon ? 7188 : 0;
-    const expenseAddonYr = isHrOrSuite && hasExpenseAddon ? 11988 : 0;
-    const totalYr = baseYr + hrAddonYr + crmAddonYr + taskAddonYr + expenseAddonYr;
+    const hrAddonYr = hasHrAddon ? hrExtra * (pricing.hrExtraEmployeePrice || 49) * 12 : 0;
+    const crmAddonYr = hasCrmAddon ? crmExtra * (pricing.crmExtraMemberPrice || 99) * 12 : 0;
+    const totalYr = baseYr + hrAddonYr + crmAddonYr;
     return totalYr.toLocaleString("en-IN");
   };
 
@@ -103,35 +99,31 @@ export default function PricingPage() {
   if (finalSelected.has("suite")) {
     totalAmount = isYearly ? 20388 : 1999;
     if (crmExtra > 0) {
-      totalAmount += crmExtra * (isYearly ? 99 * 12 : 99);
-    }
-    if (hasTaskAddon) {
-      totalAmount += isYearly ? 7188 : 599;
-    }
-    if (hasExpenseAddon) {
-      totalAmount += isYearly ? 11988 : 999;
+      totalAmount += crmExtra * (isYearly ? (pricing.crmExtraMemberPrice || 99) * 12 : (pricing.crmExtraMemberPrice || 99));
     }
   } else {
     if (finalSelected.has("accounting")) totalAmount += isYearly ? 5988 : 599;
     if (finalSelected.has("hr")) {
       totalAmount += isYearly ? 5988 : 599;
       if (hrExtra > 0) {
-        totalAmount += hrExtra * (isYearly ? 49 * 12 : 49);
-      }
-      if (hasTaskAddon) {
-        totalAmount += isYearly ? 7188 : 599;
-      }
-      if (hasExpenseAddon) {
-        totalAmount += isYearly ? 11988 : 999;
+        totalAmount += hrExtra * (isYearly ? (pricing.hrExtraEmployeePrice || 49) * 12 : (pricing.hrExtraEmployeePrice || 49));
       }
     }
     if (finalSelected.has("crm")) {
       totalAmount += isYearly ? 5988 : 599;
       if (crmExtra > 0) {
-        totalAmount += crmExtra * (isYearly ? 99 * 12 : 99);
+        totalAmount += crmExtra * (isYearly ? (pricing.crmExtraMemberPrice || 99) * 12 : (pricing.crmExtraMemberPrice || 99));
       }
     }
     if (finalSelected.has("promotion")) totalAmount += isYearly ? 5988 : 599;
+  }
+
+  // Add Task Management & Expense Management Add-ons
+  if (taskExtra > 0) {
+    totalAmount += taskExtra * (isYearly ? (pricing.taskPriceYearly || pricing.taskPriceMonthly * 12) : pricing.taskPriceMonthly);
+  }
+  if (expenseExtra > 0) {
+    totalAmount += expenseExtra * (isYearly ? (pricing.expensePriceYearly || pricing.expensePriceMonthly * 12) : pricing.expensePriceMonthly);
   }
 
   return (
@@ -469,80 +461,14 @@ export default function PricingPage() {
                           <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                           <span>Platform access up to 3 employees</span>
                         </div>
-                        {/* Task Management Add-on */}
-                        <div 
-                          onClick={(e) => { e.stopPropagation(); setHasTaskAddon(!hasTaskAddon); }}
-                          className={`flex items-center justify-between w-full p-2.5 rounded-xl border transition-all cursor-pointer mt-2 ${
-                            hasTaskAddon ? 'bg-purple-50/80 border-purple-300 ring-1 ring-purple-300' : 'bg-slate-50 border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className={`w-4.5 h-4.5 rounded flex items-center justify-center border transition-colors ${
-                              hasTaskAddon ? 'bg-[#28166f] border-[#28166f] text-white' : 'bg-white border-slate-300'
-                            }`}>
-                              {hasTaskAddon && <Check className="w-3 h-3 stroke-[3]" />}
-                            </div>
-                            <div className="flex flex-col text-left">
-                              <span className="text-slate-800 font-bold text-xs">
-                                + Task Management
-                              </span>
-                              <span className="text-[10px] text-slate-500">
-                                Team tracking & calendar sync
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs font-black text-[#28166f]">
-                              ₹599<span className="text-[10px] font-normal text-slate-500">/mo</span>
-                            </div>
-                            {isYearly && (
-                              <div className="text-[9px] text-slate-400">
-                                ₹7,188/yr billed annually
-                              </div>
-                            )}
-                          </div>
-                        </div>
 
-                        {/* Expense Management Add-on */}
-                        <div 
-                          onClick={(e) => { e.stopPropagation(); setHasExpenseAddon(!hasExpenseAddon); }}
-                          className={`flex items-center justify-between w-full p-2.5 rounded-xl border transition-all cursor-pointer mt-2 ${
-                            hasExpenseAddon ? 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-300' : 'bg-slate-50 border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className={`w-4.5 h-4.5 rounded flex items-center justify-center border transition-colors ${
-                              hasExpenseAddon ? 'bg-[#e77817] border-[#e77817] text-white' : 'bg-white border-slate-300'
-                            }`}>
-                              {hasExpenseAddon && <Check className="w-3 h-3 stroke-[3]" />}
-                            </div>
-                            <div className="flex flex-col text-left">
-                              <span className="text-slate-800 font-bold text-xs">
-                                + Expense Management
-                              </span>
-                              <span className="text-[10px] text-slate-500">
-                                Travel & outstation claims
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs font-black text-[#e77817]">
-                              ₹999<span className="text-[10px] font-normal text-slate-500">/mo</span>
-                            </div>
-                            {isYearly && (
-                              <div className="text-[9px] text-slate-400">
-                                ₹11,988/yr billed annually
-                              </div>
-                            )}
-                          </div>
-                        </div>
                       </div>
                     </div>
 
                     {/* Button */}
                     <div className="mt-auto pt-2 flex justify-end">
                       <Link
-                        to={`/register?plan=hr&billing=${billingCycle}${hrExtra > 0 ? `&hr=${hrExtra}` : ''}${hasTaskAddon ? '&task=1' : ''}${hasExpenseAddon ? '&expense=1' : ''}`}
+                        to={`/register?plan=hr&billing=${billingCycle}${hrExtra > 0 ? `&hr=${hrExtra}` : ''}`}
                         onClick={(e) => e.stopPropagation()}
                         className="border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1 transition-all duration-200 shadow-2xs"
                       >
@@ -885,6 +811,109 @@ export default function PricingPage() {
               </div>
             </div>
 
+            {/* Specialized Add-on Modules: Task & Expense Management */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Task Management Add-on Card */}
+              <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/40 via-white to-amber-50/20 p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                        <CheckSquare className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-bold text-slate-900">Task Management Module</h4>
+                        <span className="text-[11px] font-semibold text-amber-700 bg-amber-100/80 border border-amber-200 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                          ₹{pricing.taskPriceMonthly}/employee/month
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                    Assign, schedule, and track employee work with live updates, team assignee clusters, and priority workflows.
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-amber-100 flex items-center justify-between">
+                  <div className="text-xs font-semibold text-slate-700">
+                    <span>Assigned Staff Slots:</span>
+                    {taskExtra > 0 && (
+                      <span className="ml-1 text-amber-800 font-bold">
+                        (₹{(taskExtra * (isYearly ? pricing.taskPriceYearly : pricing.taskPriceMonthly)).toLocaleString('en-IN')}/{isYearly ? 'yr' : 'mo'})
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setTaskExtra(Math.max(0, taskExtra - 1))}
+                      className="w-7 h-7 flex items-center justify-center rounded text-slate-500 hover:bg-slate-100"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="w-8 text-center font-bold text-sm text-slate-800">{taskExtra}</span>
+                    <button
+                      type="button"
+                      onClick={() => setTaskExtra(taskExtra + 1)}
+                      className="w-7 h-7 flex items-center justify-center rounded text-slate-500 hover:bg-slate-100"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Expense Management Add-on Card */}
+              <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/40 via-white to-emerald-50/20 p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                        <Receipt className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-bold text-slate-900">Expense & Travel Claims</h4>
+                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100/80 border border-emerald-200 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                          ₹{pricing.expensePriceMonthly}/employee/month
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                    Automate bike/car/cab KM rates, monthly travel cards, fuel bills, multi-stage approval, and disbursements.
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-emerald-100 flex items-center justify-between">
+                  <div className="text-xs font-semibold text-slate-700">
+                    <span>Claiming Staff Slots:</span>
+                    {expenseExtra > 0 && (
+                      <span className="ml-1 text-emerald-800 font-bold">
+                        (₹{(expenseExtra * (isYearly ? pricing.expensePriceYearly : pricing.expensePriceMonthly)).toLocaleString('en-IN')}/{isYearly ? 'yr' : 'mo'})
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setExpenseExtra(Math.max(0, expenseExtra - 1))}
+                      className="w-7 h-7 flex items-center justify-center rounded text-slate-500 hover:bg-slate-100"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="w-8 text-center font-bold text-sm text-slate-800">{expenseExtra}</span>
+                    <button
+                      type="button"
+                      onClick={() => setExpenseExtra(expenseExtra + 1)}
+                      className="w-7 h-7 flex items-center justify-center rounded text-slate-500 hover:bg-slate-100"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* 3. BOTTOM BANNER: Business Suite */}
             {(() => {
               const isSelected = finalSelected.has("suite");
@@ -974,82 +1003,13 @@ export default function PricingPage() {
                         </div>
                         <span>Platform Access up to 5 employees</span>
                       </div>
-                      {/* Suite Addons Grid: Task & Expense Management */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl w-full">
-                        {/* Task Management Add-on */}
-                        <div 
-                          onClick={(e) => { e.stopPropagation(); setHasTaskAddon(!hasTaskAddon); }}
-                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
-                            hasTaskAddon ? 'bg-purple-50/90 border-purple-300 ring-1 ring-purple-300' : 'bg-slate-50 border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className={`w-4.5 h-4.5 rounded flex items-center justify-center border transition-colors ${
-                              hasTaskAddon ? 'bg-[#28166f] border-[#28166f] text-white' : 'bg-white border-slate-300'
-                            }`}>
-                              {hasTaskAddon && <Check className="w-3 h-3 stroke-[3]" />}
-                            </div>
-                            <div className="flex flex-col text-left">
-                              <span className="text-slate-800 font-bold text-xs">
-                                + Task Management
-                              </span>
-                              <span className="text-[10px] text-slate-500">
-                                Team tasks & calendar
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs font-black text-[#28166f]">
-                              ₹599<span className="text-[10px] font-normal text-slate-500">/mo</span>
-                            </div>
-                            {isYearly && (
-                              <div className="text-[9px] text-slate-400">
-                                ₹7,188/yr
-                              </div>
-                            )}
-                          </div>
-                        </div>
 
-                        {/* Expense Management Add-on */}
-                        <div 
-                          onClick={(e) => { e.stopPropagation(); setHasExpenseAddon(!hasExpenseAddon); }}
-                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
-                            hasExpenseAddon ? 'bg-amber-50/90 border-amber-300 ring-1 ring-amber-300' : 'bg-slate-50 border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className={`w-4.5 h-4.5 rounded flex items-center justify-center border transition-colors ${
-                              hasExpenseAddon ? 'bg-[#e77817] border-[#e77817] text-white' : 'bg-white border-slate-300'
-                            }`}>
-                              {hasExpenseAddon && <Check className="w-3 h-3 stroke-[3]" />}
-                            </div>
-                            <div className="flex flex-col text-left">
-                              <span className="text-slate-800 font-bold text-xs">
-                                + Expense Management
-                              </span>
-                              <span className="text-[10px] text-slate-500">
-                                Travel claims & approvals
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs font-black text-[#e77817]">
-                              ₹999<span className="text-[10px] font-normal text-slate-500">/mo</span>
-                            </div>
-                            {isYearly && (
-                              <div className="text-[9px] text-slate-400">
-                                ₹11,988/yr
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
                     </div>
 
                     {/* Right: Solid Action Button */}
                     <div className="flex items-center justify-end lg:border-l lg:border-slate-200 lg:pl-8">
                       <Link
-                        to={`/register?plan=suite&billing=${billingCycle}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}${hasTaskAddon ? '&task=1' : ''}${hasExpenseAddon ? '&expense=1' : ''}`}
+                        to={`/register?plan=suite&billing=${billingCycle}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}`}
                         onClick={(e) => e.stopPropagation()}
                         className="bg-[#e77817] hover:bg-[#d46a0f] text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-orange-500/25 flex items-center gap-2 transition-all duration-200 text-sm whitespace-nowrap"
                       >
@@ -1063,12 +1023,12 @@ export default function PricingPage() {
             })()}
 
             {/* Floating Checkout Bar */}
-            {finalSelected.size > 0 && (
+            {(finalSelected.size > 0 || taskExtra > 0 || expenseExtra > 0) && (
               <div className="sticky bottom-6 z-40 animate-in slide-in-from-bottom-10 fade-in duration-300 mx-4 md:mx-auto max-w-4xl mt-8">
                 <div className="bg-navy/95 backdrop-blur-xl border border-white/10 rounded-3xl md:rounded-full shadow-2xl shadow-navy/50 p-4 md:p-3 md:pl-8 flex flex-col md:flex-row items-center justify-between gap-5 md:gap-6 w-full">
                   <div className="flex items-center gap-6">
                     <div className="bg-white/10 h-12 w-12 rounded-full flex items-center justify-center">
-                      <span className="text-xl font-bold text-white">{finalSelected.size}</span>
+                      <span className="text-xl font-bold text-white">{finalSelected.size + (taskExtra > 0 ? 1 : 0) + (expenseExtra > 0 ? 1 : 0)}</span>
                     </div>
                     <div>
                       <div className="text-sm font-medium text-slate-300 uppercase tracking-wider">Subtotal (+ 18% GST separate)</div>
@@ -1091,7 +1051,7 @@ export default function PricingPage() {
                     </div>
                   </div>
                   <Button size="lg" className="w-full md:w-auto h-14 px-10 text-lg font-bold bg-[#e77817] hover:bg-[#d46a0f] text-white rounded-full shadow-[0_0_20px_rgba(231,120,23,0.4)]" asChild>
-                    <Link to={`/register?plan=${Array.from(finalSelected).join(",")}&billing=${billingCycle}&hr=${hrExtra}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}${hasTaskAddon ? '&task=1' : ''}${hasExpenseAddon ? '&expense=1' : ''}`}>
+                    <Link to={`/register?plan=${Array.from(finalSelected).join(",")}&billing=${billingCycle}&hr=${hrExtra}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}${taskExtra > 0 ? `&task=${taskExtra}` : ''}${expenseExtra > 0 ? `&expense=${expenseExtra}` : ''}`}>
                       Proceed to Checkout <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>
                   </Button>

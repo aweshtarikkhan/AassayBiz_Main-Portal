@@ -58,6 +58,8 @@ export interface CheckoutPayload {
   extraEmployeesToAdd: number;
   extraPlatformEmployeesToAdd: number;
   extraCrmMembersToAdd: number;
+  taskEmployeesToAdd?: number;
+  expenseEmployeesToAdd?: number;
   totalEmployeesToSend: number;
   promoCode?: string;
   validCoupon?: any;
@@ -525,6 +527,42 @@ export default function CheckoutPage() {
               }).eq("id", orgId);
             } catch (orgUpdateErr) {
               console.warn("Organization billing update notice:", orgUpdateErr);
+            }
+
+            // B2. If Task or Expense add-on slots were purchased, activate exact employee slots in organization preferences
+            if ((checkoutData.taskEmployeesToAdd || 0) > 0 || (checkoutData.expenseEmployeesToAdd || 0) > 0) {
+              try {
+                const { data: orgRow } = await supabase
+                  .from("organizations")
+                  .select("invoice_preferences")
+                  .eq("id", orgId)
+                  .maybeSingle();
+
+                const currPrefs = (orgRow?.invoice_preferences as any) || {};
+                const updatedPrefs = { ...currPrefs };
+
+                if ((checkoutData.taskEmployeesToAdd || 0) > 0) {
+                  updatedPrefs.task_management_enabled = true;
+                  updatedPrefs.task_employee_limit = (Number(currPrefs.task_employee_limit) || 0) + Number(checkoutData.taskEmployeesToAdd);
+                }
+
+                if ((checkoutData.expenseEmployeesToAdd || 0) > 0) {
+                  updatedPrefs.expense_management_enabled = true;
+                  updatedPrefs.expense_employee_limit = (Number(currPrefs.expense_employee_limit) || 0) + Number(checkoutData.expenseEmployeesToAdd);
+                }
+
+                await supabase
+                  .from("organizations")
+                  .update({ invoice_preferences: updatedPrefs })
+                  .eq("id", orgId);
+
+                useFeatureStore.getState().setModuleAccess({
+                  ...((checkoutData.taskEmployeesToAdd || 0) > 0 ? { taskManagementEnabled: true, taskEmployeeLimit: updatedPrefs.task_employee_limit } : {}),
+                  ...((checkoutData.expenseEmployeesToAdd || 0) > 0 ? { expenseManagementEnabled: true, expenseEmployeeLimit: updatedPrefs.expense_employee_limit } : {})
+                });
+              } catch (prefErr) {
+                console.warn("Invoice preferences add-on update notice:", prefErr);
+              }
             }
 
             // C. Record user consent, client IP, and statutory timestamp in subscription notes
@@ -1155,6 +1193,20 @@ export default function CheckoutPage() {
                     <div className="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5 font-medium">
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
                       Includes +{checkoutData.extraCrmMembersToAdd} Extra CRM Sales Login(s)
+                    </div>
+                  )}
+
+                  {(checkoutData.taskEmployeesToAdd || 0) > 0 && (
+                    <div className="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                      Includes +{checkoutData.taskEmployeesToAdd} Task Management Staff Slot(s)
+                    </div>
+                  )}
+
+                  {(checkoutData.expenseEmployeesToAdd || 0) > 0 && (
+                    <div className="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      Includes +{checkoutData.expenseEmployeesToAdd} Expense Management Staff Slot(s)
                     </div>
                   )}
                 </div>

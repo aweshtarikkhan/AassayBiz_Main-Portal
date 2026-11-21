@@ -16,7 +16,7 @@ import {
   CheckSquare, Plus, Search, Calendar, Clock, Trash2, Edit2, Users,
   CheckCircle2, AlertCircle, Filter, LayoutGrid, List, SlidersHorizontal,
   ChevronDown, RefreshCw, UserCheck, Flag, Check, PauseCircle, PlayCircle,
-  HelpCircle, ArrowUpDown, MoreHorizontal, User, ShieldAlert, X,
+  HelpCircle, ArrowUpDown, ArrowUp, ArrowDown, MoreHorizontal, User, ShieldAlert, X,
   Video,
   Link2,
   ExternalLink,
@@ -113,7 +113,25 @@ export default function TasksPage() {
   const [filterEmployee, setFilterEmployee] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
+  const [filterDatePreset, setFilterDatePreset] = useState("all");
+  const [filterCustomDate, setFilterCustomDate] = useState("");
+  const [sortField, setSortField] = useState<"title" | "employee" | "due_date" | "priority" | "status" | null>(null);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
+
+  const handleSort = (field: "title" | "employee" | "due_date" | "priority" | "status") => {
+    if (sortField === field) {
+      if (sortOrder === "asc") {
+        setSortOrder("desc");
+      } else {
+        setSortField(null);
+        setSortOrder("asc");
+      }
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
 
   // Task Create / Edit Dialog
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
@@ -631,9 +649,9 @@ export default function TasksPage() {
     );
   }, [employees, empSearchQuery]);
 
-  // Filtered Tasks
+  // Filtered & Sorted Tasks
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
+    const list = tasks.filter((task) => {
       // 1. Text Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -665,9 +683,78 @@ export default function TasksPage() {
         return false;
       }
 
+      // 5. Filter by Date (Custom date or Presets)
+      if (filterCustomDate) {
+        const matchDue = task.due_date === filterCustomDate;
+        const matchCreated = task.created_at && task.created_at.slice(0, 10) === filterCustomDate;
+        if (!matchDue && !matchCreated) return false;
+      } else if (filterDatePreset !== "all") {
+        const todayStr = format(new Date(), "yyyy-MM-dd");
+        if (filterDatePreset === "today") {
+          const matchDue = task.due_date === todayStr;
+          const matchCreated = task.created_at && task.created_at.slice(0, 10) === todayStr;
+          if (!matchDue && !matchCreated) return false;
+        } else if (filterDatePreset === "tomorrow") {
+          const tomorrowStr = format(new Date(Date.now() + 86400000), "yyyy-MM-dd");
+          if (task.due_date !== tomorrowStr) return false;
+        } else if (filterDatePreset === "this_week") {
+          const now = new Date();
+          const firstDay = new Date(now);
+          firstDay.setDate(now.getDate() - now.getDay());
+          const lastDay = new Date(firstDay);
+          lastDay.setDate(firstDay.getDate() + 6);
+          const startStr = format(firstDay, "yyyy-MM-dd");
+          const endStr = format(lastDay, "yyyy-MM-dd");
+          const targetDate = task.due_date || (task.created_at ? task.created_at.slice(0, 10) : "");
+          if (!targetDate || targetDate < startStr || targetDate > endStr) return false;
+        } else if (filterDatePreset === "this_month") {
+          const curMonth = format(new Date(), "yyyy-MM");
+          const matchDue = task.due_date?.startsWith(curMonth);
+          const matchCreated = task.created_at?.startsWith(curMonth);
+          if (!matchDue && !matchCreated) return false;
+        } else if (filterDatePreset === "overdue") {
+          const isOverdue = task.due_date && task.due_date < todayStr && !["done", "completed"].includes(task.status.toLowerCase());
+          if (!isOverdue) return false;
+        }
+      }
+
       return true;
     });
-  }, [tasks, searchQuery, filterEmployee, filterStatus, filterPriority]);
+
+    // Apply Sorting across table columns
+    if (sortField) {
+      const PRIORITY_ORDER: Record<string, number> = {
+        urgent: 4,
+        high: 3,
+        medium: 2,
+        low: 1,
+      };
+
+      list.sort((a, b) => {
+        let cmp = 0;
+        if (sortField === "title") {
+          cmp = (a.title || "").localeCompare(b.title || "");
+        } else if (sortField === "employee") {
+          const nameA = a.employee?.name || a.assigned_employee_names?.[0] || "";
+          const nameB = b.employee?.name || b.assigned_employee_names?.[0] || "";
+          cmp = nameA.localeCompare(nameB);
+        } else if (sortField === "due_date") {
+          const dtA = a.due_date ? `${a.due_date} ${a.due_time || "00:00"}` : "9999-99-99";
+          const dtB = b.due_date ? `${b.due_date} ${b.due_time || "00:00"}` : "9999-99-99";
+          cmp = dtA.localeCompare(dtB);
+        } else if (sortField === "priority") {
+          const pA = PRIORITY_ORDER[a.priority?.toLowerCase()] || 0;
+          const pB = PRIORITY_ORDER[b.priority?.toLowerCase()] || 0;
+          cmp = pA - pB;
+        } else if (sortField === "status") {
+          cmp = (a.status || "").localeCompare(b.status || "");
+        }
+        return sortOrder === "asc" ? cmp : -cmp;
+      });
+    }
+
+    return list;
+  }, [tasks, searchQuery, filterEmployee, filterStatus, filterPriority, filterDatePreset, filterCustomDate, sortField, sortOrder]);
 
   // Statistics
   const stats = useMemo(() => {
@@ -821,6 +908,78 @@ export default function TasksPage() {
               </SelectContent>
             </Select>
 
+            {/* Date Filter */}
+            <Select
+              value={filterDatePreset}
+              onValueChange={(val) => {
+                setFilterDatePreset(val);
+                if (val !== "custom") setFilterCustomDate("");
+              }}
+            >
+              <SelectTrigger className="w-[140px] h-9 text-xs border-slate-200">
+                <Calendar className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+                <SelectValue placeholder="Filter by Date" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Dates</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="tomorrow">Tomorrow</SelectItem>
+                <SelectItem value="this_week">This Week</SelectItem>
+                <SelectItem value="this_month">This Month</SelectItem>
+                <SelectItem value="overdue">Overdue Tasks</SelectItem>
+                <SelectItem value="custom">Specific Date...</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Custom Date Picker */}
+            {(filterDatePreset === "custom" || filterCustomDate) && (
+              <div className="relative flex items-center">
+                <Input
+                  type="date"
+                  value={filterCustomDate}
+                  onChange={(e) => {
+                    setFilterCustomDate(e.target.value);
+                    setFilterDatePreset("custom");
+                  }}
+                  className="w-[145px] h-9 text-xs border-slate-200 bg-white"
+                  title="Filter tasks for this specific date"
+                />
+                {filterCustomDate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterCustomDate("");
+                      setFilterDatePreset("all");
+                    }}
+                    className="absolute right-2 p-0.5 text-slate-400 hover:text-slate-600 rounded"
+                    title="Clear date"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Clear Filters Button if any filter active */}
+            {(searchQuery || filterEmployee !== "all" || filterStatus !== "all" || filterPriority !== "all" || filterDatePreset !== "all" || filterCustomDate) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilterEmployee("all");
+                  setFilterStatus("all");
+                  setFilterPriority("all");
+                  setFilterDatePreset("all");
+                  setFilterCustomDate("");
+                }}
+                className="h-9 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+              >
+                <X className="w-3.5 h-3.5 mr-1" />
+                Clear
+              </Button>
+            )}
+
             {/* View Mode Switcher */}
             <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
               <button
@@ -873,13 +1032,98 @@ export default function TasksPage() {
         <Card className="bg-white border-slate-200 overflow-hidden shadow-2xs">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-slate-50/70 border-b border-slate-200">
+              <TableHeader className="bg-slate-50/70 border-b border-slate-200 select-none">
                 <TableRow>
-                  <TableHead className="w-[30%]">Task Title & Details</TableHead>
-                  <TableHead>Assigned Employee(s)</TableHead>
-                  <TableHead>Due Date & Time</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead
+                    onClick={() => handleSort("title")}
+                    className="w-[30%] cursor-pointer hover:bg-slate-100/70 transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5 font-semibold text-slate-700">
+                      <span>Task Title & Details</span>
+                      {sortField === "title" ? (
+                        sortOrder === "asc" ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-indigo-600" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-indigo-600" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-60 hover:opacity-100" />
+                      )}
+                    </div>
+                  </TableHead>
+
+                  <TableHead
+                    onClick={() => handleSort("employee")}
+                    className="cursor-pointer hover:bg-slate-100/70 transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5 font-semibold text-slate-700">
+                      <span>Assigned Employee(s)</span>
+                      {sortField === "employee" ? (
+                        sortOrder === "asc" ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-indigo-600" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-indigo-600" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-60 hover:opacity-100" />
+                      )}
+                    </div>
+                  </TableHead>
+
+                  <TableHead
+                    onClick={() => handleSort("due_date")}
+                    className="cursor-pointer hover:bg-slate-100/70 transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5 font-semibold text-slate-700">
+                      <span>Due Date & Time</span>
+                      {sortField === "due_date" ? (
+                        sortOrder === "asc" ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-indigo-600" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-indigo-600" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-60 hover:opacity-100" />
+                      )}
+                    </div>
+                  </TableHead>
+
+                  <TableHead
+                    onClick={() => handleSort("priority")}
+                    className="cursor-pointer hover:bg-slate-100/70 transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5 font-semibold text-slate-700">
+                      <span>Priority</span>
+                      {sortField === "priority" ? (
+                        sortOrder === "asc" ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-indigo-600" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-indigo-600" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-60 hover:opacity-100" />
+                      )}
+                    </div>
+                  </TableHead>
+
+                  <TableHead
+                    onClick={() => handleSort("status")}
+                    className="cursor-pointer hover:bg-slate-100/70 transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5 font-semibold text-slate-700">
+                      <span>Status</span>
+                      {sortField === "status" ? (
+                        sortOrder === "asc" ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-indigo-600" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-indigo-600" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-60 hover:opacity-100" />
+                      )}
+                    </div>
+                  </TableHead>
+
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>

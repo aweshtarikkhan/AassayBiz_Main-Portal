@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppStore } from "@/store/app-store";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,14 @@ import {
   History,
   Navigation,
   Search,
-  Hash
+  Hash,
+  SlidersHorizontal,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Plus,
+  RotateCcw,
+  Trash2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -123,8 +130,45 @@ export default function HRExpensesPage() {
   });
   const [savingRates, setSavingRates] = useState(false);
 
+  // Disbursement Workflow Statuses
+  const DEFAULT_DISBURSE_STATUSES = [
+    "Send to Accounts",
+    "Approved by Accounts",
+    "Settled"
+  ];
+
+  const [disbursementStatuses, setDisbursementStatuses] = useState<string[]>(() => {
+    try {
+      const orgId = currentOrg?.id || "default";
+      const saved = localStorage.getItem(`hr_disburse_statuses_${orgId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_DISBURSE_STATUSES;
+  });
+  const [newStatusInput, setNewStatusInput] = useState("");
+
+  // Table Column Sorting
+  type SortField =
+    | "date"
+    | "employee"
+    | "category"
+    | "description"
+    | "claim_amount"
+    | "approved_amount"
+    | "status"
+    | "receipt"
+    | "disburse";
+
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
   // Filters
   const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), "yyyy-MM"));
+  const [fromDateFilter, setFromDateFilter] = useState("");
+  const [toDateFilter, setToDateFilter] = useState("");
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -196,6 +240,28 @@ export default function HRExpensesPage() {
         setVehicleRates(rateMap);
       }
 
+      // 2b. Fetch Disbursement Workflow Statuses from Org Preferences if available
+      try {
+        const { data: orgData } = await supabase
+          .from("organizations")
+          .select("invoice_preferences")
+          .eq("id", currentOrg.id)
+          .maybeSingle();
+        if (
+          orgData?.invoice_preferences?.disbursement_statuses &&
+          Array.isArray(orgData.invoice_preferences.disbursement_statuses) &&
+          orgData.invoice_preferences.disbursement_statuses.length > 0
+        ) {
+          setDisbursementStatuses(orgData.invoice_preferences.disbursement_statuses);
+          localStorage.setItem(
+            `hr_disburse_statuses_${currentOrg.id}`,
+            JSON.stringify(orgData.invoice_preferences.disbursement_statuses)
+          );
+        }
+      } catch (prefErr) {
+        console.warn("Could not load disbursement statuses from org preferences:", prefErr);
+      }
+
       // 3. Fetch Expenses (exclude employee unsent daily drafts)
       let expList: any[] = [];
       const { data: expData, error: expErr } = await supabase
@@ -259,6 +325,119 @@ export default function HRExpensesPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Column Sorting Handler
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+  };
+
+  // Save Disbursement Workflow Statuses
+  const saveDisbursementStatuses = async (newList: string[]) => {
+    setDisbursementStatuses(newList);
+    const orgId = currentOrg?.id || "default";
+    try {
+      localStorage.setItem(`hr_disburse_statuses_${orgId}`, JSON.stringify(newList));
+    } catch {}
+
+    if (currentOrg?.id) {
+      try {
+        const currentPrefs = currentOrg.invoice_preferences || {};
+        const updatedPrefs = { ...currentPrefs, disbursement_statuses: newList };
+        await supabase
+          .from("organizations")
+          .update({ invoice_preferences: updatedPrefs })
+          .eq("id", currentOrg.id);
+      } catch (e) {
+        console.warn("Could not sync disburse statuses to org prefs:", e);
+      }
+    }
+  };
+
+  const handleAddDisbursementStatus = () => {
+    const trimmed = newStatusInput.trim();
+    if (!trimmed) return;
+    if (disbursementStatuses.some((s) => s.toLowerCase() === trimmed.toLowerCase())) {
+      toast({
+        title: "Already Exists",
+        description: `"${trimmed}" is already present in the status list.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    const updated = [...disbursementStatuses, trimmed];
+    saveDisbursementStatuses(updated);
+    setNewStatusInput("");
+    toast({
+      title: "Status Option Added",
+      description: `"${trimmed}" added to disbursement workflow options.`,
+    });
+  };
+
+  // Handle Disburse Status Change from Table Row Dropdown
+  const handleDisburseStatusChange = async (exp: ExpenseItem, newStatus: string) => {
+    if (!exp?.id) return;
+
+    if (newStatus === "Settled" || newStatus === "paid") {
+      setSelectedExpense(exp);
+      setPayoutModalOpen(true);
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const nextHistory = [
+      ...getExpenseTimeline(exp),
+      {
+        at: nowIso,
+        actor: "Business HR",
+        role: "hr",
+        action: `Status: ${newStatus}`,
+        details: `Disbursement workflow updated to "${newStatus}"`,
+      },
+    ];
+
+    try {
+      const { error } = await supabase
+        .from("employee_expenses")
+        .update({
+          status: newStatus,
+          updated_at: nowIso,
+          activity_history: nextHistory,
+        } as any)
+        .eq("id", exp.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Disburse Status Updated",
+        description: `Claim #${exp.claim_number || exp.id.slice(0, 6)} updated to "${newStatus}".`,
+      });
+
+      setExpenses((prev) =>
+        prev.map((item) =>
+          item.id === exp.id
+            ? { ...item, status: newStatus as any, updated_at: nowIso, activity_history: nextHistory }
+            : item
+        )
+      );
+      setSelectedOutstationItem((prev) =>
+        prev && prev.id === exp.id
+          ? { ...prev, status: newStatus as any, updated_at: nowIso, activity_history: nextHistory }
+          : prev
+      );
+    } catch (err: any) {
+      console.error("Failed to update disburse status:", err);
+      toast({
+        title: "Update Failed",
+        description: err.message || "Could not update expense status.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -724,18 +903,105 @@ export default function HRExpensesPage() {
   // Filter Logic (always ignore unsent employee drafts)
   const submittedOnlyExpenses = expenses.filter((e) => e.status !== "draft");
   const filteredExpenses = submittedOnlyExpenses.filter((e) => {
-    // Month filter
-    if (selectedMonth && !e.expense_date.startsWith(selectedMonth)) return false;
+    // Dedicated Date Range filter
+    if (fromDateFilter && e.expense_date < fromDateFilter) return false;
+    if (toDateFilter && e.expense_date > toDateFilter) return false;
+
+    // Month filter (only applied if explicit from/to dates are not set)
+    if (!fromDateFilter && !toDateFilter && selectedMonth && !e.expense_date.startsWith(selectedMonth)) {
+      return false;
+    }
     // Employee filter
     if (employeeFilter !== "all" && e.employee_id !== employeeFilter) return false;
     // Status filter
-    if (statusFilter !== "all" && e.status !== statusFilter) return false;
+    if (statusFilter !== "all") {
+      if (statusFilter === "paid" || statusFilter === "Settled" || statusFilter === "settled") {
+        if (e.status !== "paid" && e.status !== "Settled" && e.status !== "settled") return false;
+      } else if (statusFilter === "submitted") {
+        if (e.status !== "submitted") return false;
+      } else if (statusFilter === "approved") {
+        if (e.status !== "approved") return false;
+      } else if (statusFilter === "rejected") {
+        if (e.status !== "rejected") return false;
+      } else {
+        if (e.status !== statusFilter) return false;
+      }
+    }
     // Category filter
     if (categoryFilter !== "all" && e.category_name !== categoryFilter) return false;
     return true;
   });
 
-  const searchedLedgerExpenses = filteredExpenses.filter(matchesSearch);
+  // Sortable searched ledger expenses
+  const searchedLedgerExpenses = useMemo(() => {
+    const list = filteredExpenses.filter(matchesSearch);
+    return list.slice().sort((a, b) => {
+      let comparison = 0;
+      switch (sortField) {
+        case "date": {
+          const dateA = a.expense_date || "";
+          const dateB = b.expense_date || "";
+          comparison = dateA.localeCompare(dateB);
+          if (comparison === 0) {
+            comparison = (a.claim_number || "").localeCompare(b.claim_number || "");
+          }
+          break;
+        }
+        case "employee": {
+          const nameA = (a.employees?.name || "").toLowerCase();
+          const nameB = (b.employees?.name || "").toLowerCase();
+          comparison = nameA.localeCompare(nameB);
+          break;
+        }
+        case "category": {
+          const catA = `${a.expense_type} ${a.category_name || ""}`.toLowerCase();
+          const catB = `${b.expense_type} ${b.category_name || ""}`.toLowerCase();
+          comparison = catA.localeCompare(catB);
+          break;
+        }
+        case "description": {
+          const descA = `${a.travel_from || ""} ${a.travel_to || ""} ${a.description || ""}`.toLowerCase();
+          const descB = `${b.travel_from || ""} ${b.travel_to || ""} ${b.description || ""}`.toLowerCase();
+          comparison = descA.localeCompare(descB);
+          break;
+        }
+        case "claim_amount": {
+          const amtA = Number(a.amount || 0);
+          const amtB = Number(b.amount || 0);
+          comparison = amtA - amtB;
+          break;
+        }
+        case "approved_amount": {
+          const amtA = Number(a.approved_amount !== undefined ? a.approved_amount : (a.status === "approved" || a.status === "paid" || a.status === "Settled" ? a.amount : 0));
+          const amtB = Number(b.approved_amount !== undefined ? b.approved_amount : (b.status === "approved" || b.status === "paid" || b.status === "Settled" ? b.amount : 0));
+          comparison = amtA - amtB;
+          break;
+        }
+        case "status": {
+          const stA = (a.status || "").toLowerCase();
+          const stB = (b.status || "").toLowerCase();
+          comparison = stA.localeCompare(stB);
+          break;
+        }
+        case "receipt": {
+          const recA = a.receipt_url ? 1 : 0;
+          const recB = b.receipt_url ? 1 : 0;
+          comparison = recA - recB;
+          break;
+        }
+        case "disburse": {
+          const disA = (a.status || "").toLowerCase();
+          const disB = (b.status || "").toLowerCase();
+          comparison = disA.localeCompare(disB);
+          break;
+        }
+        default:
+          comparison = 0;
+      }
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [filteredExpenses, searchQuery, sortField, sortDirection]);
+
   const pendingExpenses = submittedOnlyExpenses.filter((e) => e.status === "submitted");
   const searchedPendingExpenses = pendingExpenses.filter(matchesSearch);
 
@@ -754,15 +1020,22 @@ export default function HRExpensesPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "submitted":
-        return <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100">Pending Review</Badge>;
+        return <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100 font-medium">Pending Review</Badge>;
       case "approved":
-        return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-100">Approved</Badge>;
+        return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-100 font-medium">Approved</Badge>;
       case "paid":
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-100">Paid / Settled</Badge>;
+      case "settled":
+      case "Settled":
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-100 font-medium">Paid / Settled</Badge>;
       case "rejected":
-        return <Badge className="bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-100">Rejected</Badge>;
+        return <Badge className="bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-100 font-medium">Rejected</Badge>;
+      case "Send to Accounts":
+      case "Sent to Accounts":
+        return <Badge className="bg-purple-100 text-purple-800 border-purple-300 hover:bg-purple-100 font-medium">Send to Accounts</Badge>;
+      case "Approved by Accounts":
+        return <Badge className="bg-sky-100 text-sky-800 border-sky-300 hover:bg-sky-100 font-medium">Approved by Accounts</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline" className="bg-indigo-50/70 text-indigo-700 border-indigo-200 font-medium">{status}</Badge>;
     }
   };
 
@@ -868,9 +1141,9 @@ export default function HRExpensesPage() {
             <FileText className="h-4 w-4" />
             All Expenses Ledger
           </TabsTrigger>
-          <TabsTrigger value="rates" className="gap-2">
-            <Bike className="h-4 w-4" />
-            Vehicle Per-KM Rates
+          <TabsTrigger value="settings" className="gap-2">
+            <SlidersHorizontal className="h-4 w-4" />
+            Settings
           </TabsTrigger>
         </TabsList>
 
@@ -1132,17 +1405,56 @@ export default function HRExpensesPage() {
                 </Select>
 
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-36 h-8 text-xs bg-white">
+                  <SelectTrigger className="w-40 h-8 text-xs bg-white">
                     <SelectValue placeholder="All Statuses" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="submitted">Pending</SelectItem>
+                    <SelectItem value="submitted">Pending Review</SelectItem>
                     <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="paid">Paid / Settled</SelectItem>
                     <SelectItem value="rejected">Rejected</SelectItem>
+                    {/* Configurable Workflow Statuses */}
+                    {disbursementStatuses.map((st) => (
+                      <SelectItem key={st} value={st}>
+                        {st}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+
+                {/* Dedicated Date Range Filter */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100/90 border border-slate-200">
+                  <Calendar className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                  <span className="text-[11px] font-semibold text-slate-600">From:</span>
+                  <Input
+                    type="date"
+                    value={fromDateFilter}
+                    onChange={(e) => setFromDateFilter(e.target.value)}
+                    className="h-7 w-32 px-1 text-xs bg-white border-slate-300 shadow-none"
+                  />
+                  <span className="text-[11px] font-semibold text-slate-600">To:</span>
+                  <Input
+                    type="date"
+                    value={toDateFilter}
+                    onChange={(e) => setToDateFilter(e.target.value)}
+                    className="h-7 w-32 px-1 text-xs bg-white border-slate-300 shadow-none"
+                  />
+                  {(fromDateFilter || toDateFilter) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setFromDateFilter("");
+                        setToDateFilter("");
+                      }}
+                      className="h-7 px-1.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                      title="Clear Date Filter"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
 
                 <div className="ml-auto text-xs text-slate-500">
                   Showing <b>{searchedLedgerExpenses.length}</b> records
@@ -1158,15 +1470,140 @@ export default function HRExpensesPage() {
                 <Table>
                   <TableHeader className="bg-slate-50">
                     <TableRow>
-                      <TableHead className="w-32">Date / Claim #</TableHead>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Category / Type</TableHead>
-                      <TableHead>Description / Trip</TableHead>
-                      <TableHead className="text-right">Claim Amount</TableHead>
-                      <TableHead className="text-right">Approved Amount</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                      <TableHead className="text-center w-20">Receipt</TableHead>
-                      <TableHead className="text-right w-28">Disburse</TableHead>
+                      {/* 1. Date / Claim # */}
+                      <TableHead
+                        className="w-32 cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                        onClick={() => handleSort("date")}
+                      >
+                        <div className="flex items-center gap-1 font-semibold text-slate-700">
+                          Date / Claim #
+                          {sortField === "date" ? (
+                            sortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                          )}
+                        </div>
+                      </TableHead>
+
+                      {/* 2. Employee */}
+                      <TableHead
+                        className="cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                        onClick={() => handleSort("employee")}
+                      >
+                        <div className="flex items-center gap-1 font-semibold text-slate-700">
+                          Employee
+                          {sortField === "employee" ? (
+                            sortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                          )}
+                        </div>
+                      </TableHead>
+
+                      {/* 3. Category / Type */}
+                      <TableHead
+                        className="cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                        onClick={() => handleSort("category")}
+                      >
+                        <div className="flex items-center gap-1 font-semibold text-slate-700">
+                          Category / Type
+                          {sortField === "category" ? (
+                            sortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                          )}
+                        </div>
+                      </TableHead>
+
+                      {/* 4. Description / Trip */}
+                      <TableHead
+                        className="cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                        onClick={() => handleSort("description")}
+                      >
+                        <div className="flex items-center gap-1 font-semibold text-slate-700">
+                          Description / Trip
+                          {sortField === "description" ? (
+                            sortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                          )}
+                        </div>
+                      </TableHead>
+
+                      {/* 5. Claim Amount */}
+                      <TableHead
+                        className="text-right cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                        onClick={() => handleSort("claim_amount")}
+                      >
+                        <div className="flex items-center justify-end gap-1 font-semibold text-slate-700">
+                          Claim Amount
+                          {sortField === "claim_amount" ? (
+                            sortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                          )}
+                        </div>
+                      </TableHead>
+
+                      {/* 6. Approved Amount */}
+                      <TableHead
+                        className="text-right cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                        onClick={() => handleSort("approved_amount")}
+                      >
+                        <div className="flex items-center justify-end gap-1 font-semibold text-slate-700">
+                          Approved Amount
+                          {sortField === "approved_amount" ? (
+                            sortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                          )}
+                        </div>
+                      </TableHead>
+
+                      {/* 7. Status */}
+                      <TableHead
+                        className="text-center cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                        onClick={() => handleSort("status")}
+                      >
+                        <div className="flex items-center justify-center gap-1 font-semibold text-slate-700">
+                          Status
+                          {sortField === "status" ? (
+                            sortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                          )}
+                        </div>
+                      </TableHead>
+
+                      {/* 8. Receipt */}
+                      <TableHead
+                        className="text-center w-20 cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                        onClick={() => handleSort("receipt")}
+                      >
+                        <div className="flex items-center justify-center gap-1 font-semibold text-slate-700">
+                          Receipt
+                          {sortField === "receipt" ? (
+                            sortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                          )}
+                        </div>
+                      </TableHead>
+
+                      {/* 9. Disburse */}
+                      <TableHead
+                        className="text-right w-36 cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                        onClick={() => handleSort("disburse")}
+                      >
+                        <div className="flex items-center justify-end gap-1 font-semibold text-slate-700">
+                          Disburse
+                          {sortField === "disburse" ? (
+                            sortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                          )}
+                        </div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1300,25 +1737,45 @@ export default function HRExpensesPage() {
                             <span className="text-xs text-slate-300">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
-                          {exp.status === "approved" ? (
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedExpense(exp);
-                                setPayoutModalOpen(true);
-                              }}
-                              className="h-7 bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5"
-                            >
-                              Pay Now
-                            </Button>
-                          ) : exp.status === "paid" ? (
-                            <div className="text-[11px] text-slate-500 font-medium">
-                              Paid {exp.paid_at ? format(parseISO(exp.paid_at), "dd/MM") : ""}
-                            </div>
-                          ) : (
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          {exp.status === "rejected" ? (
                             <span className="text-xs text-slate-300">—</span>
+                          ) : exp.status === "submitted" ? (
+                            <span className="text-xs text-slate-400 italic">Pending Approval</span>
+                          ) : (
+                            <div className="flex items-center justify-end">
+                              <Select
+                                value={
+                                  exp.status === "paid" || exp.status === "settled"
+                                    ? "Settled"
+                                    : disbursementStatuses.includes(exp.status)
+                                    ? exp.status
+                                    : exp.status === "approved"
+                                    ? "approved_default"
+                                    : exp.status
+                                }
+                                onValueChange={(val) => {
+                                  if (val === "approved_default") return;
+                                  handleDisburseStatusChange(exp, val);
+                                }}
+                              >
+                                <SelectTrigger className="h-7 w-[142px] text-[11px] font-semibold bg-white border-slate-300 shadow-none">
+                                  <SelectValue placeholder="Disburse Action" />
+                                </SelectTrigger>
+                                <SelectContent align="end">
+                                  {exp.status === "approved" && (
+                                    <SelectItem value="approved_default" disabled className="text-xs text-slate-400">
+                                      Select Disburse Action
+                                    </SelectItem>
+                                  )}
+                                  {disbursementStatuses.map((st) => (
+                                    <SelectItem key={st} value={st} className="text-xs font-medium">
+                                      {st}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           )}
                         </TableCell>
                       </TableRow>
@@ -1331,17 +1788,18 @@ export default function HRExpensesPage() {
           </Card>
         </TabsContent>
 
-        {/* TAB 3: VEHICLE PER-KM RATE SETTINGS */}
-        <TabsContent value="rates" className="space-y-4">
-          <Card className="max-w-2xl border-slate-200 shadow-sm">
+        {/* TAB 3: SETTINGS (Vehicle Per-KM Rates & Disbursement Workflow Statuses) */}
+        <TabsContent value="settings" className="space-y-6">
+          {/* SECTION 1: Vehicle & Travel Per-KM Rates */}
+          <Card className="max-w-3xl border-slate-200 shadow-sm">
             <CardHeader className="p-5 border-b">
               <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                 <Bike className="h-5 w-5 text-indigo-600" />
-                Vehicle & Travel Per-KM Rate Settings
+                Vehicle & Travel Per-KM Rates
               </CardTitle>
               <CardDescription>
-                Configure how much your business reimburses employees per kilometer when using personal vehicles (Bike, Car, Auto).
-                Whenever an employee submits a travel claim by entering distance (KM), their payable amount is calculated automatically using these rates.
+                Configure reimbursement rates per kilometer for employee travel using personal vehicles (Bike, Car, Auto).
+                When an employee logs travel distance (KM), the payable amount calculates automatically using these rates.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
@@ -1365,7 +1823,7 @@ export default function HRExpensesPage() {
                       />
                     </div>
                   </div>
-                  <p className="text-[11px] text-slate-400">Standard market rate: ₹3.00 - ₹4.50 / KM</p>
+                  <p className="text-[11px] text-slate-400">Standard rate: ₹3.00 - ₹4.50 / KM</p>
                 </div>
 
                 {/* Four-Wheeler / Car */}
@@ -1387,7 +1845,7 @@ export default function HRExpensesPage() {
                       />
                     </div>
                   </div>
-                  <p className="text-[11px] text-slate-400">Standard market rate: ₹7.00 - ₹10.00 / KM</p>
+                  <p className="text-[11px] text-slate-400">Standard rate: ₹7.00 - ₹10.00 / KM</p>
                 </div>
 
                 {/* Auto / Three-Wheeler */}
@@ -1417,11 +1875,109 @@ export default function HRExpensesPage() {
                 <Button 
                   onClick={handleSaveRates} 
                   disabled={savingRates} 
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm"
                 >
                   <Save className="h-4 w-4" />
                   {savingRates ? "Saving Rates..." : "Save Vehicle Rates"}
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* SECTION 2: Disbursement Workflow Statuses */}
+          <Card className="max-w-3xl border-slate-200 shadow-sm">
+            <CardHeader className="p-5 border-b">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-emerald-600" />
+                    Disbursement Workflow Statuses
+                  </CardTitle>
+                  <CardDescription>
+                    Customize the options displayed in the Disburse column dropdown (e.g. Send to Accounts, Approved by Accounts, Settled).
+                    Admins can add new custom statuses or remove existing ones to match internal financial workflows.
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    saveDisbursementStatuses(DEFAULT_DISBURSE_STATUSES);
+                    toast({
+                      title: "Workflow Reset",
+                      description: "Disbursement statuses reset to standard defaults.",
+                    });
+                  }}
+                  className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 shrink-0 self-start sm:self-auto"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Reset to Defaults
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              {/* Existing statuses list */}
+              <div>
+                <Label className="text-xs font-semibold text-slate-600 uppercase mb-3 block">
+                  Active Disburse Workflow Options ({disbursementStatuses.length})
+                </Label>
+                <div className="flex flex-wrap gap-2.5">
+                  {disbursementStatuses.map((statusName, index) => (
+                    <div
+                      key={index}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 border border-slate-300 rounded-lg text-xs font-medium text-slate-800 transition-colors shadow-xs"
+                    >
+                      <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+                      <span>{statusName}</span>
+                      {disbursementStatuses.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = disbursementStatuses.filter((_, i) => i !== index);
+                            saveDisbursementStatuses(updated);
+                            toast({
+                              title: "Status Option Removed",
+                              description: `"${statusName}" removed from disbursement workflow.`,
+                            });
+                          }}
+                          className="text-slate-400 hover:text-rose-600 transition-colors ml-1 p-0.5 rounded"
+                          title={`Remove "${statusName}"`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Add New Status Option */}
+              <div className="p-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 space-y-3">
+                <Label className="text-xs font-semibold text-slate-700">Add Custom Disbursement Workflow Status</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={newStatusInput}
+                    onChange={(e) => setNewStatusInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddDisbursementStatus();
+                      }
+                    }}
+                    placeholder="e.g. Sent to Accounts, Approved by Accounts, Settled..."
+                    className="bg-white text-xs h-9"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddDisbursementStatus}
+                    disabled={!newStatusInput.trim()}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-9 text-xs shrink-0 shadow-sm"
+                  >
+                    <Plus className="h-4 w-4" /> Add Option
+                  </Button>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Newly added statuses will immediately show in the table's Disburse dropdown, the Status badges, and the Status filter dropdown.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -1749,7 +2305,7 @@ export default function HRExpensesPage() {
                                 <Plane className="h-4 w-4" />
                               </div>
                               <div>
-                                <span className="font-bold text-slate-800">1. Travel Fare / Tickets (ट्रेवलिंग बिल)</span>
+                                <span className="font-bold text-slate-800">1. Travel Fare / Tickets</span>
                                 <p className="text-[11px] text-slate-500">
                                   Mode: {items?.travel?.mode || "Travel"}
                                   {items?.travel?.booking_ref ? ` • Ref: ${items.travel.booking_ref}` : ""}
@@ -1780,7 +2336,7 @@ export default function HRExpensesPage() {
                                 <Hotel className="h-4 w-4" />
                               </div>
                               <div>
-                                <span className="font-bold text-slate-800">2. Hotel / Lodging (होटल बिल)</span>
+                                <span className="font-bold text-slate-800">2. Hotel / Lodging</span>
                                 <p className="text-[11px] text-slate-500">
                                   {items?.hotel?.hotel_name || "Hotel Stay"}
                                   {items?.hotel?.nights ? ` • ${items.hotel.nights} Nights` : ""}
@@ -1811,7 +2367,7 @@ export default function HRExpensesPage() {
                                 <Utensils className="h-4 w-4" />
                               </div>
                               <div>
-                                <span className="font-bold text-slate-800">3. Food / Meals (फूड बिल)</span>
+                                <span className="font-bold text-slate-800">3. Food / Meals</span>
                                 <p className="text-[11px] text-slate-500">
                                   {items?.food?.description || "Tour food & meals"}
                                 </p>
@@ -1841,7 +2397,7 @@ export default function HRExpensesPage() {
                                 <Shirt className="h-4 w-4" />
                               </div>
                               <div>
-                                <span className="font-bold text-slate-800">4. Other (लॉन्ड्री & अन्य खर्च)</span>
+                                <span className="font-bold text-slate-800">4. Other (Laundry & Miscellaneous)</span>
                                 <p className="text-[11px] text-slate-500">
                                   {items?.other?.description || "Incidentals, laundry, transit"}
                                 </p>
@@ -1904,7 +2460,7 @@ export default function HRExpensesPage() {
                                 <Coins className="h-4 w-4" />
                               </div>
                               <div>
-                                <span className="font-bold text-slate-800">5. DA (Daily Allowance / दैनिक भत्ता)</span>
+                                <span className="font-bold text-slate-800">5. DA (Daily Allowance)</span>
                                 <p className="text-[11px] text-slate-500">
                                   {items?.da?.days || details?.trip_days || 1} Days
                                   {items?.da?.daily_rate ? ` @ ₹${items.da.daily_rate}/day` : ""}

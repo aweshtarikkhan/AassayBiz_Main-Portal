@@ -449,6 +449,67 @@ export function AppLayout() {
                 2,
                 ...(activeSubs || []).map((s: any) => Number(s.manual_override_features?.crm_team_limit) || 0)
               );
+
+              const subOverrides = (activeSubs || []).reduce((acc: any, s: any) => {
+                const m = s.manual_override_features || {};
+                return { ...acc, ...m };
+              }, {});
+
+              const isTaskActive = 
+                Boolean((activeOrg as any)?.invoice_preferences?.task_management_enabled) ||
+                subOverrides.task_management_enabled === true;
+
+              const isExpenseActive = 
+                Boolean((activeOrg as any)?.invoice_preferences?.expense_management_enabled) ||
+                subOverrides.expense_management_enabled === true;
+
+              const taskLimit = 
+                subOverrides.task_employee_limit !== undefined && subOverrides.task_employee_limit !== null
+                  ? Number(subOverrides.task_employee_limit)
+                  : ((activeOrg as any)?.invoice_preferences?.task_employee_limit !== undefined && (activeOrg as any)?.invoice_preferences?.task_employee_limit !== null
+                    ? Number((activeOrg as any)?.invoice_preferences?.task_employee_limit)
+                    : (isTaskActive ? 10 : 0));
+
+              const expenseLimit = 
+                subOverrides.expense_employee_limit !== undefined && subOverrides.expense_employee_limit !== null
+                  ? Number(subOverrides.expense_employee_limit)
+                  : ((activeOrg as any)?.invoice_preferences?.expense_employee_limit !== undefined && (activeOrg as any)?.invoice_preferences?.expense_employee_limit !== null
+                    ? Number((activeOrg as any)?.invoice_preferences?.expense_employee_limit)
+                    : (isExpenseActive ? 10 : 0));
+
+              const mergedPreferences = {
+                ...((activeOrg as any)?.invoice_preferences || {}),
+                task_management_enabled: isTaskActive,
+                task_employee_limit: taskLimit,
+                expense_management_enabled: isExpenseActive,
+                expense_employee_limit: expenseLimit,
+                attendance_portal_enabled: (activeOrg as any)?.invoice_preferences?.attendance_portal_enabled ?? subOverrides.attendance_enabled ?? true,
+                crm_team_enabled: (activeOrg as any)?.invoice_preferences?.crm_team_enabled ?? subOverrides.crm_team_enabled ?? true,
+                crm_team_limit: maxCrmLimit,
+                employee_limit: resolvedEmpLimit,
+                platform_user_limit: maxPlatformUsers,
+              };
+
+              const updatedActiveOrg = {
+                ...activeOrg,
+                invoice_preferences: mergedPreferences,
+              };
+              setOrganization(updatedActiveOrg as any);
+
+              useFeatureStore.getState().setModuleAccess({
+                taskManagementEnabled: isTaskActive,
+                taskEmployeeLimit: taskLimit,
+                expenseManagementEnabled: isExpenseActive,
+                expenseEmployeeLimit: expenseLimit,
+              });
+
+              if (isTaskActive || isExpenseActive) {
+                if (!features.includes('people')) features.push('people');
+              }
+
+              if (isOrgOwner && ((activeOrg as any)?.invoice_preferences?.task_management_enabled !== isTaskActive || (activeOrg as any)?.invoice_preferences?.expense_management_enabled !== isExpenseActive)) {
+                supabase.from("organizations").update({ invoice_preferences: mergedPreferences }).eq("id", activeOrgId).catch(() => {});
+              }
             } catch (quotaErr) {
               console.warn("Failed to load subscription quotas:", quotaErr);
               if (parsedPlans.includes('suite') || parsedPlans.includes('hr')) {

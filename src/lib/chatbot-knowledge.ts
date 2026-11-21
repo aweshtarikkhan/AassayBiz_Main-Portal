@@ -34,7 +34,12 @@ IMPORTANT CONTACT RULES:
 - Unique Account ID: Every user account is automatically assigned a unique 6-digit Account ID starting with 1 (e.g., #100001). This Account ID remains the same across all businesses under that user account. It is visible in the user profile dropdown (with click-to-copy), in Settings > Profile, and in Platform Admin.
 - Profile Completion Requirement: Before creating any invoice, users MUST complete their profile with their Street Address and 6-digit PIN Code in Settings > Profile & Organization. If these fields are missing, an alert prompt will guide the user to complete their profile first.
 - Sidebar: The main navigation is on the left sidebar. Any modules, groups, or pages that are not included in the business's active subscription plan (or when on the Free Plan) display an amber Lock icon (🔒). Clicking any locked feature triggers the Upgrade Plan modal or navigates to the locked screen with an instant Upgrade button.
-- Sidebar Auto-Open & Retail Suite Switcher: Whichever business suite is selected (or whichever page/route is active), its parent section and all of its sub-pages are automatically expanded/open in the sidebar. In Retail mode, the 5 bottom switcher icons (Accounts, HR, CRM, Marketing, Connect) feature high-visibility high-contrast typography without truncation, instantly auto-expanding the chosen suite (Sales, Inventory, Purchases, Accounting, Reports for Accounts, or respective full pages for HR/CRM/Marketing/Connect).
+- Sidebar Auto-Open & Suite Switcher (Retail & Industrial): Whichever business suite is selected (or whichever page/route is active), its parent section and all of its sub-pages are automatically expanded/open in the sidebar.
+  * Retail Mode: Bottom switcher features 5 high-visibility buttons in 1 line: Accounts, HR, CRM, Marketing, Connect.
+  * Industrial Mode: Bottom switcher features an 8-suite 2-line layout replacing social channels:
+    - 1st Line (4 suites): Accounting, Business HR, Business CRM, Business Promotion.
+    - 2nd Line (4 suites): Business Integration, Business Feedback (marked Soon), Business Analysis (marked Soon), System & Settings.
+    Selecting any suite immediately expands all of its pages above in the sidebar for clean, uncluttered navigation.
 - Plans & Signup: New users automatically get the Free Plan for 6 Months (180 days) upon signing up, without any forced upgrade popups. After 6 months, the plan expires. Users can upgrade anytime by clicking the "Upgrade Plan" button.
 - Account Registration & Email OTP: During account registration at '/register', a 6-digit verification code is dispatched to the user's email address. The OTP code is valid for 5 minutes. If needed, users can click "Resend OTP" directly on the verification step to request a fresh code without re-entering their details.
 - Plans & Limits Matrix:
@@ -101,12 +106,9 @@ IMPORTANT CONTACT RULES:
     - Unlimited Invoices, Quotations, Purchase Invoices, Purchase Orders, and Leads.
     - Base 10 Employee Attendance capacity for all new accounts (+ ₹49/employee/mo or ₹588/employee/yr for extra employees beyond 10). Note: All existing customer accounts subscribed prior to this policy change retain their 25-employee attendance capacity.
     - Includes 2 CRM Sales Team Member logins (+ ₹99/user/mo or ₹1,188/user/yr for extra CRM sales team members).
-    - Add-on: Task Management available at ₹599/month (₹7,188/year = ₹599 × 12).
-    - Add-on: Expense Management available at ₹999/month (₹11,988/year = ₹999 × 12).
     - Full access to Business Integration, Marketing campaigns, and Settings.
+    - Platform Admin Feature & Quota Management: Platform Administrators can control access to Task Management, Expense Management, CRM Sales Team, and Attendance Portal on an organization-by-organization basis from Platform Admin (/admin-panel -> Organizations -> Adjust Limits & Quota). Admins can toggle each module on/off and configure custom employee-wise limits (Attendance Staff Limit, Task Assigned Employee Limit, Expense Claim Employee Limit, and CRM Sales Executive Logins Limit). When Platform Admin enables Task Management or Expense Management for a business, those modules automatically unlock in the organization's sidebar and routes with their configured employee limits.
   * Add-ons & Mid-Cycle Proration Rules:
-    - Task Management Add-on: ₹599/month (₹7,188/year = ₹599 × 12) for task assignment, kanban workflow, milestones, and employee productivity tracking (available on Business HR and Business Suite).
-    - Expense Management Add-on: ₹999/month (₹11,988/year = ₹999 × 12) for business travel expenses, voucher uploads, approval workflows, and reimbursements (available on Business HR and Business Suite).
     - Extra Employee: ₹49/mo (₹588/yr = ₹49 × 12) per additional employee attendance slot beyond 10 under Business HR or Suite.
     - Extra CRM Sales Team Member: ₹99/mo (₹1,188/yr = ₹99 × 12) per additional sales executive portal login beyond the 2 included accounts in Business CRM or Suite.
     - GST Policy: 18% GST is charged separately and displayed transparently at checkout / billing summary.
@@ -276,7 +278,9 @@ IMPORTANT CONTACT RULES:
   * Creating & Multi-Employee Task Assignment: HR administrators and managers can create tasks under People & HR -> Tasks (/tasks) or click the '+' quick-add button in the sidebar. Tasks can be assigned to a SINGLE employee or MULTIPLE employees simultaneously for team collaboration. The task creation dialog includes a searchable multi-employee selector with "Select All" and "Clear All" controls, removable selected chips, and real-time employee search. HR specifies Title, detailed Description, Assigned Employees, Priority (Urgent, High, Medium, Low), and optional Due Date & Due Time.
   * Task Management & Custom Statuses: HR can edit, add, or delete tasks at any time. Under "Customize Statuses", HR can create custom workflow statuses (e.g., Pending, In Progress / Working on it, Review, On Hold, Done / Completed) with custom colors (Amber, Blue, Purple, Emerald, Rose, Indigo, Cyan, Slate) or remove statuses to match their organization's workflow.
   * Clickable Task Detail & Activity History Modal: Clicking any task row in List View, card in Kanban Board (Business HR), or task card in the Employee Attendance Portal opens a full Task Detail & Activity History modal showing full description, team assignees, meeting/calendar links, work notes, quick status controls, and a chronological Activity History timeline (recording creation, HR edits, status transitions, and work note updates). From the HR Task Detail modal, HR can click "Edit Task" directly to modify task details.
-  * Dual View (Kanban Board & List View): HR can view tasks in an interactive drag-and-drop Kanban Board grouped by status or in a high-density List view with multi-criteria filtering (by Employee Assignee, Status, Priority, Due Date) and full-text search. For multi-employee tasks, the table and board display stacked avatar clusters with count badges (e.g. "3 Staff") and full names on hover.
+  * Dual View, Date Filtering & Table Column Sorting: HR can view tasks in an interactive drag-and-drop Kanban Board grouped by status or in a high-density List view.
+    - Advanced Multi-Criteria & Date Filtering: In addition to full-text search, Employee Assignee, Status, and Priority dropdowns, a dedicated "Filter by Date" filter allows selecting quick presets (All Dates, Today, Tomorrow, This Week, This Month, Overdue Tasks) or picking any specific calendar date using the integrated Date Picker to view tasks due or created on that day. A "Clear" button resets all active filters with 1 click.
+    - Column Sorting (Ascending & Descending): In the List view table, all major columns — Task Title & Details, Assigned Employee(s), Due Date & Time, Priority (Urgent → High → Medium → Low), and Status — feature interactive sorting controls with visual ArrowUp/ArrowDown/ArrowUpDown indicators, allowing users to effortlessly sort ascending or descending. For multi-employee tasks, the table and board display stacked avatar clusters with count badges (e.g. "3 Staff") and full names on hover.
   * Employee Attendance Portal Integration (https://attendance.aassaybiz.com/tasks):
     - When HR assigns a task to multiple staff members, it immediately appears in all assigned employees' portals under "Tasks" (/tasks) and on their Home Dashboard under the "My Assigned Tasks" widget.
     - Team Task Indicator: Tasks assigned to multiple colleagues display a dedicated "👥 Team Task" badge detailing all collaborators.
@@ -300,10 +304,14 @@ IMPORTANT CONTACT RULES:
     - Bulk Approve: 1-click batch approval for all pending claims in the queue.
     - View Receipt Modal: Integrated viewer supporting high-res receipt images and full-screen PDF inspection.
   * Monthly Expense Ledger & Disbursement (Business HR -> People & HR -> Expenses -> All Expenses Ledger):
-    - Month and year filter to analyze monthly departmental spending.
-    - Multi-criteria filtering by 6-digit Claim Tracking # / keyword search, employee, category, and approval status.
-    - Settlement & Payout Tracking: HR can mark approved claims as "Paid" with payment mode (Bank Transfer, UPI, Petty Cash, Salary Addition) and UTR / reference number.
-    - Export to CSV: 1-click export of complete monthly expense records for accounting and audit compliance.
+    - Dedicated Date Range Filter: Independent From Date and To Date pickers with 1-click clear button for precise historical auditing alongside monthly filtering.
+    - Multi-criteria filtering by 6-digit Claim Tracking # / keyword search, employee, category, and approval/disbursement status (including dynamic workflow stages).
+    - 9-Column Ascending & Descending Table Sorting: Every column header in the ledger (Date / Claim #, Employee, Category / Type, Description / Trip, Claim Amount, Approved Amount, Status, Receipt, and Disburse) is clickable with interactive sort indicators (▲ / ▼ / ⇅).
+    - Disburse Workflow Status Dropdown: Replaced the static "Pay Now" button with an interactive workflow dropdown in each table row. Allows transitioning claims through customizable stages: "Send to Accounts", "Approved by Accounts", "Settled", and any custom admin-configured stages. Selecting stages updates the database status and color-coded badge in real time; selecting "Settled" opens the settlement dialog to record payment method (Bank Transfer, UPI, Petty Cash, etc.) and UTR / reference number.
+    - Expense Settings Tab (formerly Vehicle Per-KM Rates): Unified Settings tab divided into two distinct sections:
+      1. Section 1 (Vehicle & Travel Per-KM Rates): Configure per-KM reimbursement rates for Bike, Car, and Auto/Cab.
+      2. Section 2 (Disbursement Workflow Statuses): Admin can customize workflow stages for the Disburse column dropdown (list current stages, add new custom stage, remove stages, or reset to defaults: "Send to Accounts", "Approved by Accounts", "Settled"). Automatically synced to organization preferences and status filters.
+    - Export to CSV: 1-click export of complete sorted and filtered expense records for accounting and audit compliance.
   * Realtime Notification Badges:
     - Sidebar indicator: "Business HR" group and "Expenses" sidebar item display animated pinging dots and pending claims count badge whenever employees submit new claims.
     - Overdue & Due Today Warnings: Tasks with approaching or elapsed due dates display clear alert badges so employees and HR stay on track.
@@ -598,7 +606,14 @@ IMPORTANT CONTACT RULES:
 - Standalone Portal Directory: Separated into its own directory '/crm-portal' (similar to '/attendance-portal') to prevent sales updates from mixing with core accounting commits.
 - Git Repository: Connected to 'https://github.com/aweshtarikkhan/CRM-Employee-Portal.git' on branch main.
 - Unified Database & Tenant Security: Seamlessly connects to the same enterprise Supabase instance ('https://api.aassaybiz.com') with multi-tenant 'org_id' isolation. Sales team members granted access from the main portal log into the CRM Portal and are automatically locked to their assigned organization's data (leads, deals, tickets, automations, and calendars).
-- CRM Portal Access Flow: Mirroring the attendance portal's access system, administrators manage sales team login access under Business CRM -> Sales Team (/crm-team). Admins can grant access, reset passwords, share credentials on WhatsApp, or revoke access at any time.
+- CRM Portal Access Flow & Automated Email Dispatch: Mirroring the attendance portal's access system, administrators manage sales team login access under Business CRM -> Sales Team (/crm-team).
+  * Automated Credentials Email: When access is granted or password is reset, the system automatically dispatches an official branded credentials email to the sales executive following the exact same email layout, branding, and styling as the Attendance Portal email:
+    - Assay Biz gradient header and official logo.
+    - Status pill badge: "✓ Sales Team CRM Portal Access Granted".
+    - Login credentials card with Portal Link (https://crm.aassaybiz.com), Registered Email, and an interactive "Tap to reveal temporary password" accordion.
+    - Prominent gradient CTA button: "🚀 Log In to Sales Team Portal".
+    - Quick Start Guide tailored for CRM Sales Executives (how to log in, view assigned leads/deals, track pipeline, log activity notes, and close deals).
+    - One-click "Resend Email" button in the credentials popup to re-dispatch anytime.
 - AssayBiz Strict 4-Color Brand Palette:
   * Theme Colors: Official Logo Dark Blue (#28166f), Official Logo Orange (#e77817), Pure White (#ffffff).
   * Text Colors: Dark Slate / Black (#0f172a), Brand Orange (#e77817), Crisp White (#ffffff on dark blue backgrounds).
@@ -686,7 +701,7 @@ IMPORTANT CONTACT RULES:
   * Single Monthly Card Per Type Workflow, "+ Add Entry" Button, Unique 6-Digit Claim Numbers & Pre-Approval Editing (Both Portals):
     - In each month, instead of creating separate rows per day, employees maintain ONE Monthly Local Card (for all daily Local entries in that month) and ONE Monthly Outstation Card (for all Outstation tours in that month) — Local and Outstation cards are strictly separate and never merged.
     - Every open monthly draft card displays an inline "+ Add Entry" button on the Claim History row as well as inside the open card Detail modal so employees can add next-day or addon entries directly onto that same card. Creating another entry of the same type via "+ New Claim" for the same month also appends into that open draft card automatically.
-    - Clicking "Submit for Review" (or "Submit Month to HR") sends the month's Local monthly card and/or Outstation monthly card together to HR as unified cards containing all daily entries/trips.
+    - Clicking "Submit for Approval" (or "Submit Month to HR") sends the month's Local monthly card and/or Outstation monthly card together to HR as unified cards containing all daily entries/trips.
     - Every monthly card submitted to HR automatically gets a 6-digit unique Claim Tracking Number (claim_number: 1xxxxx starting with 1 = Local Travel / Local Expense Monthly Card, 9xxxxx starting with 9 = Outstation Tour Monthly Card; unique within each org_id, independent across separate organizations — explain this mapping in chat whenever a user asks which number belongs to which expense type).
     - Clicking any monthly card in the Employee Attendance Portal (Claim History) or Business HR Portal (Pending Approval Queue or All Claims Ledger) opens the unified Card Detail & Activity History modal displaying the 6-digit Claim Tracking #, every daily Local entry or Outstation trip inside the card (with dates, routes, KM/rates, itemized Outstation Travel/Hotel/Food/Other/Custom/DA breakdowns, uploaded receipts/bills, rejection/settlement details), and a chronological Activity History timeline. HR Admin can also search cards directly by their 6-digit Claim Tracking Number or by sub-entry details.
     - Employees can edit or delete individual sub-entries inside a monthly card (via the card Detail modal or row Edit icon) ONLY before HR approval; once approved or settled/paid, editing is locked in both the UI and database update check.
@@ -772,6 +787,22 @@ IMPORTANT CONTACT RULES:
            5. Connect (Business Integration: Official Emails & WhatsApp Chats)
          - Route Auto-Sync: Navigating to any internal link automatically activates and highlights its parent suite in the sidebar dock.
          - Cleaned Retail Navigation: 'Business Feedback' and 'Business Analysis' are hidden in Retail mode.
+
+  * Employee-wise Module Access Control (Task Management & Expense Claims):
+    - Independent Employee-level Permissions: Organization administrators can selectively grant or revoke access to Task Management and Expense Claims per employee. Employees can be granted Tasks only, Expenses only, Both, or Neither (Attendance only).
+    - Add & Edit Employee Dialogs: When adding a new staff member or editing an existing staff member in '/employees', the 'Portal & Module Access Permissions' card provides granular toggle switches for Attendance Portal Login, Task Management Access, and Expense Claims Access.
+    - Quota Limit Enforcement: Quota counters display live allocations (e.g. 'X / Y Staff Allocated') alongside the 'Staff Capacity' badge at the top of the Employees page and inside the permission cards. If an organization's quota limit is reached, assigning more staff is blocked until slots are freed or limits are upgraded by Platform Admin.
+    - 1-Click Quick Reassign & Revert: In the Employees table, active modules are displayed as badges ('Tasks', 'Expenses') in a dedicated 'Module Access' column. Admins can click 'Reassign Access' on any employee to open the Quick Access dialog and instantly toggle access on or off with 1 click. Revoking access from one employee immediately frees up the quota slot, enabling instant reassignment to another employee without recreating or re-inviting staff.
+    - Attendance Portal Bottom Navigation Dynamic Slot: In the Employee Attendance Portal, the bottom 5-slot navigation bar dynamically adapts to permissions:
+      * If an employee has access to both Tasks & Expenses, 'Tasks' is placed in the 4th bottom navigation slot (with 'Expenses' accessible in the Manage menu).
+      * If an employee has access to only one module, that respective module ('Tasks' or 'Expenses') appears in the 4th bottom navigation slot.
+      * If an employee has access to neither Tasks nor Expenses, 'Holidays' automatically fills the 4th bottom navigation slot so that all 5 bottom icons are always perfectly balanced and functional with Home in the center. In addition, unauthorized modules are strictly hidden from the desktop sidebar, Manage sheet, and Dashboard cards.
+
+  * Specialized Add-on Modules: Task & Expense Management Pricing and Quotas:
+    - Task Management Add-on: ₹99/employee/month (₹1,188/employee/year). Includes task assignments, deadlines, attachments, status updates, priority filters, and real-time syncing with the Employee Attendance Portal.
+    - Expense Management Add-on: ₹499/employee/month (₹5,988/employee/year). Includes local travel claims with per-km vehicle rates, fuel slips, outstation allowances, multi-tier approvals (Send to Accounts, Approved by Accounts, Settled), and accounting exports.
+    - Exact Capacity Quota Enforcement: When an organization purchases Task or Expense capacity via the Pricing Page, Update Plan modal, or Checkout, exactly the purchased employee count is activated and credited to the organization's 'task_employee_limit' and 'expense_employee_limit'. Only the exact purchased number of employees can be granted access.
+    - Dynamic Pricing (No Hardcoding): Platform Administrators can configure and adjust monthly and annual prices for Task Management, Expense Management, HR staff, and CRM sales team from Platform Admin -> Plans & Pricing. Updated prices immediately reflect across all calculators, modals, and checkout invoices in real time.
 
 --- END OF KNOWLEDGE BASE ---
 `;

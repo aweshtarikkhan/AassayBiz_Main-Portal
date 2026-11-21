@@ -23,7 +23,8 @@ import { LockedFeature } from "@/components/subscription/LockedFeature";
 import { UpgradeModal } from "@/components/subscription/UpgradeModal";
 import { LimitReachedAlert } from "@/components/shared/LimitReachedAlert";
 import { useSubscription } from "@/hooks/use-subscription";
-import { Plus, Pencil, Trash2, CalendarCheck, FileText, KeyRound, Calculator, HardHat, Clock, Users, IndianRupee, Settings2, Eye, EyeOff, ExternalLink, Download, FileCheck, Loader2, Copy, Check, Share2, ShieldCheck, MailCheck } from "lucide-react";
+import { Plus, Pencil, Trash2, CalendarCheck, FileText, KeyRound, Calculator, HardHat, Clock, Users, IndianRupee, Settings2, Eye, EyeOff, ExternalLink, Download, FileCheck, Loader2, Copy, Check, Share2, ShieldCheck, MailCheck, CheckSquare, Receipt, SlidersHorizontal, ShieldAlert } from "lucide-react";
+import { useFeatureStore } from "@/store/feature-store";
 import { format, parseISO } from "date-fns";
 import { formatCurrency } from "@/lib/currency";
 import { NavLink } from "@/components/NavLink";
@@ -60,6 +61,8 @@ const empty = {
   esic_applicable: false, esic_percent: "0.75",
   pt_applicable: true, pt_amount: "200",
   grant_portal_access: false, portal_password: "",
+  task_access: false,
+  expense_access: false,
   weekly_offs: [],
 };
 
@@ -77,6 +80,107 @@ export default function EmployeesPage() {
   const [portalEmail, setPortalEmail] = useState("");
   const [portalPassword, setPortalPassword] = useState("");
   const [portalLoading, setPortalLoading] = useState(false);
+  const featureStore = useFeatureStore();
+  const isTaskModuleEnabled = 
+    org?.invoice_preferences?.task_management_enabled === true || 
+    featureStore.taskManagementEnabled === true;
+  const isExpenseModuleEnabled = 
+    org?.invoice_preferences?.expense_management_enabled === true || 
+    featureStore.expenseManagementEnabled === true;
+
+  const taskLimit = 
+    org?.invoice_preferences?.task_employee_limit !== undefined && org?.invoice_preferences?.task_employee_limit !== null
+      ? Number(org.invoice_preferences.task_employee_limit)
+      : (featureStore.taskEmployeeLimit !== undefined && featureStore.taskEmployeeLimit !== null ? Number(featureStore.taskEmployeeLimit) : (isTaskModuleEnabled ? 10 : 0));
+  const expenseLimit = 
+    org?.invoice_preferences?.expense_employee_limit !== undefined && org?.invoice_preferences?.expense_employee_limit !== null
+      ? Number(org.invoice_preferences.expense_employee_limit)
+      : (featureStore.expenseEmployeeLimit !== undefined && featureStore.expenseEmployeeLimit !== null ? Number(featureStore.expenseEmployeeLimit) : (isExpenseModuleEnabled ? 10 : 0));
+
+  const taskAssignedCount = useMemo(() => {
+    return rows.filter((r: any) => 
+      r.task_access === true || 
+      (r.salary_structure as any)?.task_access === true
+    ).length;
+  }, [rows]);
+
+  const expenseAssignedCount = useMemo(() => {
+    return rows.filter((r: any) => 
+      r.expense_access === true || 
+      (r.salary_structure as any)?.expense_access === true
+    ).length;
+  }, [rows]);
+
+  const [accessModalEmp, setAccessModalEmp] = useState<any | null>(null);
+  const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
+  const [accessSaving, setAccessSaving] = useState(false);
+
+  const toggleEmployeeModuleAccess = async (emp: any, moduleType: 'task' | 'expense', newStatus: boolean) => {
+    if (!org?.id) return;
+    if (newStatus === true) {
+      if (moduleType === 'task' && taskAssignedCount >= taskLimit) {
+        toast({
+          title: "Task Quota Limit Reached",
+          description: `Your organization's Task Management quota is ${taskLimit} staff. Please revoke access from another staff member to assign this slot.`,
+          variant: "destructive"
+        });
+        return;
+      }
+      if (moduleType === 'expense' && expenseAssignedCount >= expenseLimit) {
+        toast({
+          title: "Expense Quota Limit Reached",
+          description: `Your organization's Expense Claims quota is ${expenseLimit} staff. Please revoke access from another staff member to assign this slot.`,
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    const existingStructure = (emp.salary_structure as any) || {};
+    const updatedStructure = {
+      ...existingStructure,
+      [moduleType === 'task' ? 'task_access' : 'expense_access']: newStatus,
+    };
+
+    setRows(prev => prev.map(r => {
+      if (r.id === emp.id) {
+        return {
+          ...r,
+          [moduleType === 'task' ? 'task_access' : 'expense_access']: newStatus,
+          salary_structure: updatedStructure,
+        };
+      }
+      return r;
+    }));
+
+    if (accessModalEmp && accessModalEmp.id === emp.id) {
+      setAccessModalEmp({
+        ...accessModalEmp,
+        [moduleType === 'task' ? 'task_access' : 'expense_access']: newStatus,
+        salary_structure: updatedStructure,
+      });
+    }
+
+    setAccessSaving(true);
+    const { error } = await (supabase as any)
+      .from("employees")
+      .update({ salary_structure: updatedStructure })
+      .eq("id", emp.id);
+    setAccessSaving(false);
+
+    if (error) {
+      toast({ title: "Failed to update access", description: error.message, variant: "destructive" });
+      load();
+    } else {
+      toast({
+        title: newStatus ? "Access Granted" : "Access Revoked & Slot Freed",
+        description: newStatus 
+          ? `${emp.name} can now access ${moduleType === 'task' ? 'Task Management' : 'Expense Claims'}.` 
+          : `${moduleType === 'task' ? 'Task Management' : 'Expense Claims'} access revoked from ${emp.name}. 1 slot is now free to reassign.`,
+      });
+    }
+  };
+
   const [portalSuccessData, setPortalSuccessData] = useState<{
     name: string;
     email: string;
@@ -295,6 +399,8 @@ export default function EmployeesPage() {
     setForm({
       ...empty,
       wage_type: presetType,
+      task_access: false,
+      expense_access: false,
     });
     setSelectedShiftId("none");
     setDocFile(null);
@@ -313,9 +419,14 @@ export default function EmployeesPage() {
 
   const openEdit = async (e: any) => {
     setEditId(e.id);
+    const ss = (e.salary_structure as any) || {};
+    const hasTask = Boolean(e.task_access ?? ss.task_access ?? false);
+    const hasExpense = Boolean(e.expense_access ?? ss.expense_access ?? false);
     setForm({
       name: e.name,
       employee_code: e.employee_code || "",
+      task_access: hasTask,
+      expense_access: hasExpense,
       designation: e.designation || "",
       phone: e.phone || "",
       email: e.email || "",
@@ -390,6 +501,29 @@ export default function EmployeesPage() {
       }
     }
 
+    if (form.task_access) {
+      const isAlreadyHas = editId ? Boolean(rows.find(r => r.id === editId)?.task_access ?? (rows.find(r => r.id === editId)?.salary_structure as any)?.task_access) : false;
+      if (!isAlreadyHas && taskAssignedCount >= taskLimit) {
+        toast({
+          title: "Task Quota Limit Reached",
+          description: `Your organization's Task Management quota is ${taskLimit} staff. Please revoke access from another staff member first to assign this.`,
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+    if (form.expense_access) {
+      const isAlreadyHas = editId ? Boolean(rows.find(r => r.id === editId)?.expense_access ?? (rows.find(r => r.id === editId)?.salary_structure as any)?.expense_access) : false;
+      if (!isAlreadyHas && expenseAssignedCount >= expenseLimit) {
+        toast({
+          title: "Expense Quota Limit Reached",
+          description: `Your organization's Expense Claims quota is ${expenseLimit} staff. Please revoke access from another staff member first to assign this.`,
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
     const wageType = form.wage_type || "monthly";
 
     // Auto-enable daily wages feature if adding a daily/hourly wager
@@ -435,6 +569,13 @@ export default function EmployeesPage() {
         esic_percent: Number(form.esic_percent) || 0.75,
         pt_applicable: !!form.pt_applicable,
         pt_amount: Number(form.pt_amount) || 200,
+        task_access: Boolean(form.task_access),
+        expense_access: Boolean(form.expense_access),
+        portal_modules: [
+          'attendance',
+          ...(form.task_access ? ['tasks'] : []),
+          ...(form.expense_access ? ['expenses'] : [])
+        ],
       },
     };
 
@@ -722,6 +863,40 @@ export default function EmployeesPage() {
                 <span className="ml-1 opacity-80 font-normal">({planName})</span>
               </span>
             </Badge>
+
+            {/* Task Management Quota Badge */}
+            {isTaskModuleEnabled && (
+              <Badge
+                variant="outline"
+                className={`font-semibold text-xs py-1 px-2.5 flex items-center gap-1.5 shadow-sm ${
+                  taskAssignedCount >= taskLimit
+                    ? "bg-purple-100/80 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-800"
+                    : "bg-purple-50/80 dark:bg-purple-950/20 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-900"
+                }`}
+              >
+                <CheckSquare className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                <span>
+                  Tasks: <strong>{taskAssignedCount}</strong> / <strong>{taskLimit}</strong> Assigned
+                </span>
+              </Badge>
+            )}
+
+            {/* Expense Management Quota Badge */}
+            {isExpenseModuleEnabled && (
+              <Badge
+                variant="outline"
+                className={`font-semibold text-xs py-1 px-2.5 flex items-center gap-1.5 shadow-sm ${
+                  expenseAssignedCount >= expenseLimit
+                    ? "bg-teal-100/80 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300 border-teal-300 dark:border-teal-800"
+                    : "bg-teal-50/80 dark:bg-teal-950/20 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-900"
+                }`}
+              >
+                <Receipt className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                <span>
+                  Expenses: <strong>{expenseAssignedCount}</strong> / <strong>{expenseLimit}</strong> Assigned
+                </span>
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">Manage monthly salaried staff, daily/hourly wage workers, and portal access.</p>
         </div>
@@ -812,6 +987,7 @@ export default function EmployeesPage() {
                 <TableHead className="text-right">Pay / Rate</TableHead>
                 <TableHead className="text-right">Paid Leaves/mo</TableHead>
                 <TableHead className="font-semibold">Portal ({portalAccessCount})</TableHead>
+                <TableHead className="font-semibold">Module Access</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-36 text-right">Actions</TableHead>
               </TableRow>
@@ -884,6 +1060,45 @@ export default function EmployeesPage() {
                         <KeyRound className="h-3 w-3 mr-1 text-primary" /> Grant Access
                       </Button>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const ss = (e.salary_structure as any) || {};
+                      const hasTask = Boolean(e.task_access ?? ss.task_access ?? false);
+                      const hasExpense = Boolean(e.expense_access ?? ss.expense_access ?? false);
+                      return (
+                        <div className="flex flex-col gap-1.5 items-start">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {hasTask && (
+                              <Badge className="bg-purple-100 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-[10px] py-0 px-1.5 font-bold flex items-center gap-1">
+                                <CheckSquare className="w-3 h-3 text-purple-600 dark:text-purple-400" /> Tasks
+                              </Badge>
+                            )}
+                            {hasExpense && (
+                              <Badge className="bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[10px] py-0 px-1.5 font-bold flex items-center gap-1">
+                                <Receipt className="w-3 h-3 text-teal-600 dark:text-teal-400" /> Expenses
+                              </Badge>
+                            )}
+                            {!hasTask && !hasExpense && (
+                              <span className="text-[11px] text-muted-foreground italic">Standard</span>
+                            )}
+                          </div>
+                          {(isTaskModuleEnabled || isExpenseModuleEnabled) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setAccessModalEmp(e);
+                                setIsAccessModalOpen(true);
+                              }}
+                              className="h-6 px-1.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 rounded"
+                            >
+                              <SlidersHorizontal className="w-2.5 h-2.5 mr-1" /> Reassign Access
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>{e.is_active ? <span className="text-green-600 text-xs font-medium">Active</span> : <span className="text-muted-foreground text-xs">Inactive</span>}</TableCell>
                   <TableCell>
@@ -1302,49 +1517,126 @@ export default function EmployeesPage() {
               </div>
             </div>
 
-            {!editId && (
-              <div className="col-span-2 mt-2 p-3 bg-blue-50/50 dark:bg-slate-900/50 border border-blue-200 dark:border-blue-900 rounded-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs font-semibold text-blue-900 dark:text-blue-300 cursor-pointer">
-                      Grant Attendance Portal Access
-                    </Label>
+            <div className="col-span-2 mt-2 p-3.5 bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+              <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Portal & Module Access Permissions
+                </span>
+              </div>
+
+              {/* Attendance Login (Only on new employee creation if they don't have login yet) */}
+              {!editId && (
+                <div className="p-3 rounded-lg bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/70 dark:border-blue-900/40 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5 pr-2">
+                      <Label className="text-xs font-bold text-blue-900 dark:text-blue-300 cursor-pointer">
+                        Attendance Portal Access
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Enable if this worker will punch attendance themselves on mobile portal.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={form.grant_portal_access}
+                      onCheckedChange={(v) => setForm({ ...form, grant_portal_access: v })}
+                    />
+                  </div>
+
+                  {form.grant_portal_access && (
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-blue-200 dark:border-blue-900">
+                      <div>
+                        <Label className="text-xs">Portal Login Email *</Label>
+                        <Input
+                          type="email"
+                          value={form.email}
+                          onChange={(e) => setForm({ ...form, email: e.target.value })}
+                          placeholder="worker@company.com"
+                          className="text-xs bg-white dark:bg-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Temporary Password *</Label>
+                        <Input
+                          type="text"
+                          value={form.portal_password}
+                          onChange={(e) => setForm({ ...form, portal_password: e.target.value })}
+                          placeholder="Min 6 characters"
+                          className="text-xs bg-white dark:bg-slate-900"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Task Management Module Toggle */}
+              {isTaskModuleEnabled && (
+                <div className="p-3 rounded-lg bg-purple-50/70 dark:bg-purple-950/20 border border-purple-200/70 dark:border-purple-900/40 flex items-center justify-between">
+                  <div className="space-y-0.5 pr-2">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs font-bold text-purple-900 dark:text-purple-300 flex items-center gap-1.5 cursor-pointer">
+                        <CheckSquare className="w-3.5 h-3.5 text-purple-600" /> Task Management Access
+                      </Label>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-200/80 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 font-semibold">
+                        {taskAssignedCount} / {taskLimit} Used
+                      </span>
+                    </div>
                     <p className="text-[11px] text-muted-foreground">
-                      Enable if this worker will punch attendance themselves on mobile portal.
+                      Assign tasks, daily targets, and work progress tracking to this staff member.
                     </p>
                   </div>
                   <Switch
-                    checked={form.grant_portal_access}
-                    onCheckedChange={(v) => setForm({ ...form, grant_portal_access: v })}
+                    checked={form.task_access}
+                    onCheckedChange={(v) => {
+                      const isCurrentActive = editId ? Boolean(rows.find(r => r.id === editId)?.task_access ?? (rows.find(r => r.id === editId)?.salary_structure as any)?.task_access) : false;
+                      if (v && !isCurrentActive && taskAssignedCount >= taskLimit) {
+                        toast({
+                          title: "Task Limit Reached",
+                          description: `All ${taskLimit} Task Management slots are allocated. Revoke access from another employee first.`,
+                          variant: "destructive"
+                        });
+                        return;
+                      }
+                      setForm({ ...form, task_access: v });
+                    }}
                   />
                 </div>
+              )}
 
-                {form.grant_portal_access && (
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-blue-200 dark:border-blue-900">
-                    <div>
-                      <Label className="text-xs">Portal Login Email *</Label>
-                      <Input
-                        type="email"
-                        value={form.email}
-                        onChange={(e) => setForm({ ...form, email: e.target.value })}
-                        placeholder="worker@company.com"
-                        className="text-xs bg-white dark:bg-slate-900"
-                      />
+              {/* Expense Claims Module Toggle */}
+              {isExpenseModuleEnabled && (
+                <div className="p-3 rounded-lg bg-teal-50/70 dark:bg-teal-950/20 border border-teal-200/70 dark:border-teal-900/40 flex items-center justify-between">
+                  <div className="space-y-0.5 pr-2">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs font-bold text-teal-900 dark:text-teal-300 flex items-center gap-1.5 cursor-pointer">
+                        <Receipt className="w-3.5 h-3.5 text-teal-600" /> Expense Claims Access
+                      </Label>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-teal-200/80 text-teal-800 dark:bg-teal-900/60 dark:text-teal-300 font-semibold">
+                        {expenseAssignedCount} / {expenseLimit} Used
+                      </span>
                     </div>
-                    <div>
-                      <Label className="text-xs">Temporary Password *</Label>
-                      <Input
-                        type="text"
-                        value={form.portal_password}
-                        onChange={(e) => setForm({ ...form, portal_password: e.target.value })}
-                        placeholder="Min 6 characters"
-                        className="text-xs bg-white dark:bg-slate-900"
-                      />
-                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Allow this staff member to log local bike/cab travel KM and submit reimbursement claims.
+                    </p>
                   </div>
-                )}
-              </div>
-            )}
+                  <Switch
+                    checked={form.expense_access}
+                    onCheckedChange={(v) => {
+                      const isCurrentActive = editId ? Boolean(rows.find(r => r.id === editId)?.expense_access ?? (rows.find(r => r.id === editId)?.salary_structure as any)?.expense_access) : false;
+                      if (v && !isCurrentActive && expenseAssignedCount >= expenseLimit) {
+                        toast({
+                          title: "Expense Limit Reached",
+                          description: `All ${expenseLimit} Expense Claims slots are allocated. Revoke access from another employee first.`,
+                          variant: "destructive"
+                        });
+                        return;
+                      }
+                      setForm({ ...form, expense_access: v });
+                    }}
+                  />
+                </div>
+              )}
+            </div>
 
             <div className="col-span-2 flex items-center gap-2 mt-2">
               <Switch checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
@@ -1682,6 +1974,102 @@ export default function EmployeesPage() {
         </DialogContent>
       </Dialog>
     
+      {/* ── Manage Employee Module Access Dialog (Revert & Reassign) ── */}
+      <Dialog open={isAccessModalOpen} onOpenChange={setIsAccessModalOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-indigo-600" /> Manage Module Access
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Assign or revoke module access for <strong>{accessModalEmp?.name}</strong>. Revoking access instantly frees up quota slots to reassign to other staff.
+            </DialogDescription>
+          </DialogHeader>
+
+          {accessModalEmp && (
+            <div className="space-y-3.5 py-2">
+              {/* Task Management Toggle Card */}
+              {isTaskModuleEnabled ? (
+                <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                        <CheckSquare className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">Task Management</h4>
+                        <p className="text-[10px] text-purple-700 dark:text-purple-300 font-semibold">
+                          {taskAssignedCount} / {taskLimit} Staff Allocated
+                        </p>
+                      </div>
+                    </div>
+
+                    <Switch
+                      checked={Boolean(accessModalEmp.task_access ?? (accessModalEmp.salary_structure as any)?.task_access ?? false)}
+                      disabled={accessSaving}
+                      onCheckedChange={(checked) => {
+                        toggleEmployeeModuleAccess(accessModalEmp, 'task', checked);
+                      }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                    Allows this employee to view, receive, and update tasks and daily work milestones on their portal.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4" /> Task Management is not enabled for your business.
+                </div>
+              )}
+
+              {/* Expense Management Toggle Card */}
+              {isExpenseModuleEnabled ? (
+                <div className="p-3.5 rounded-xl bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                        <Receipt className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">Expense Claims & Local Travel</h4>
+                        <p className="text-[10px] text-teal-700 dark:text-teal-300 font-semibold">
+                          {expenseAssignedCount} / {expenseLimit} Staff Allocated
+                        </p>
+                      </div>
+                    </div>
+
+                    <Switch
+                      checked={Boolean(accessModalEmp.expense_access ?? (accessModalEmp.salary_structure as any)?.expense_access ?? false)}
+                      disabled={accessSaving}
+                      onCheckedChange={(checked) => {
+                        toggleEmployeeModuleAccess(accessModalEmp, 'expense', checked);
+                      }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                    Allows this employee to log local travel KM (bike/cab rates) and submit reimbursement expense slips.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4" /> Expense Claims is not enabled for your business.
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAccessModalOpen(false)}
+            >
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <LimitReachedAlert 
         isOpen={showLimitAlert} 
         onClose={() => setShowLimitAlert(false)} 

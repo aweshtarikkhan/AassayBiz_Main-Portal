@@ -239,6 +239,16 @@ interface FeatureState {
   itemLimit: number | null;
   trialEndsAt: string | null;
   currentPeriodEnd: string | null;
+  taskManagementEnabled: boolean;
+  taskEmployeeLimit: number;
+  expenseManagementEnabled: boolean;
+  expenseEmployeeLimit: number;
+  setModuleAccess: (data: {
+    taskManagementEnabled?: boolean;
+    taskEmployeeLimit?: number;
+    expenseManagementEnabled?: boolean;
+    expenseEmployeeLimit?: number;
+  }) => void;
   setSubscriptionMeta: (meta: {
     plan_name: string;
     status: 'trial' | 'active' | 'expired' | 'cancelled' | 'courtesy';
@@ -327,6 +337,11 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   itemLimit: null,
   trialEndsAt: null,
   currentPeriodEnd: null,
+  taskManagementEnabled: false,
+  taskEmployeeLimit: 10,
+  expenseManagementEnabled: false,
+  expenseEmployeeLimit: 10,
+  setModuleAccess: (data) => set((state) => ({ ...state, ...data })),
 
   setSubscriptionMeta: (meta) => {
     // employee_limit = plan's base limit (e.g. 10 for suite)
@@ -459,6 +474,10 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
       plan.includes('flagship') ||
       plan.includes('enterprise')
     ) {
+      return true;
+    }
+    // 1b. If Tasks or Expenses is enabled for this org, grant access to Business HR (people)
+    if (groupKey === 'people' && (state.taskManagementEnabled || state.expenseManagementEnabled)) {
       return true;
     }
     // 2. If the platform subscription explicitly grants this group, allow access

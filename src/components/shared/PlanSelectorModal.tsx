@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Check, Loader2, Minus, Plus, Users, Sparkles, Download, CheckCircle2, AlertCircle, Mail, FileText, Gift, Calculator, Target, Megaphone, Crown, MessageSquare, BarChart3, Bell, ArrowRight, Clock, ShieldCheck } from "lucide-react";
+import { Check, Loader2, Minus, Plus, Users, Sparkles, Download, CheckCircle2, AlertCircle, Mail, FileText, Gift, Calculator, Target, Megaphone, Crown, MessageSquare, BarChart3, Bell, ArrowRight, Clock, ShieldCheck, CheckSquare, Receipt } from "lucide-react";
+import { usePlatformPricing } from "@/lib/platform-pricing";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useFeatureStore } from "@/store/feature-store";
@@ -106,6 +107,15 @@ export function PlanSelectorModal({
     const c = sessionStorage.getItem("onboarding_crm");
     return c ? parseInt(c) || 0 : 0;
   });
+  const [taskEmployeesToAdd, setTaskEmployeesToAdd] = useState<number>(() => {
+    const t = sessionStorage.getItem("onboarding_task");
+    return t ? parseInt(t) || 0 : 0;
+  });
+  const [expenseEmployeesToAdd, setExpenseEmployeesToAdd] = useState<number>(() => {
+    const e = sessionStorage.getItem("onboarding_expense");
+    return e ? parseInt(e) || 0 : 0;
+  });
+  const { pricing } = usePlatformPricing();
 
 
   const { toast } = useToast();
@@ -415,7 +425,9 @@ export function PlanSelectorModal({
     (isHrActive && extraEmployeesToAdd > 0) ||
     extraPlatformEmployeesToAdd > 0 ||
     extraCrmMembersToAdd > 0 ||
-    extraEmployeesToAdd > 0;
+    extraEmployeesToAdd > 0 ||
+    taskEmployeesToAdd > 0 ||
+    expenseEmployeesToAdd > 0;
   const isAddonOnlyPurchase = Boolean(hasPaidPlanActive && hasAddonSelected && !hasNewPaidPlanSelected);
   const effectiveAddonCycle: "monthly" | "yearly" =
     isAddonOnlyPurchase && activeBillingCycle ? activeBillingCycle : billingCycle;
@@ -428,13 +440,19 @@ export function PlanSelectorModal({
 
   // Add-ons ALWAYS bill at flat monthly rate × billing months (× 12 on yearly, or prorated remaining months mid-cycle)
   const getExtraPlatformEmployeeCost = (count: number) =>
-    calculateAddonTotalCost(count, PLATFORM_ADDON_COST_PER_MONTH, addonBillingMonths);
+    calculateAddonTotalCost(count, pricing.platformExtraUserPrice || PLATFORM_ADDON_COST_PER_MONTH, addonBillingMonths);
 
   const getExtraCrmMemberCost = (count: number) =>
-    calculateAddonTotalCost(count, CRM_ADDITIONAL_USER_COST_PER_MONTH, addonBillingMonths);
+    calculateAddonTotalCost(count, pricing.crmExtraMemberPrice || CRM_ADDITIONAL_USER_COST_PER_MONTH, addonBillingMonths);
 
   const getExtraEmployeeCost = (count: number) =>
-    calculateAddonTotalCost(count, HR_EXTRA_EMPLOYEE_COST_PER_MONTH, addonBillingMonths);
+    calculateAddonTotalCost(count, pricing.hrExtraEmployeePrice || HR_EXTRA_EMPLOYEE_COST_PER_MONTH, addonBillingMonths);
+
+  const getTaskEmployeeCost = (count: number) =>
+    calculateAddonTotalCost(count, pricing.taskPriceMonthly, addonBillingMonths);
+
+  const getExpenseEmployeeCost = (count: number) =>
+    calculateAddonTotalCost(count, pricing.expensePriceMonthly, addonBillingMonths);
 
   const togglePlan = (planId: string) => {
     const plan = plans.find(p => p.id === planId);
@@ -498,6 +516,12 @@ export function PlanSelectorModal({
   }
   if (extraCrmMembersToAdd > 0) {
     totalAmountRupees += getExtraCrmMemberCost(extraCrmMembersToAdd);
+  }
+  if (taskEmployeesToAdd > 0) {
+    totalAmountRupees += getTaskEmployeeCost(taskEmployeesToAdd);
+  }
+  if (expenseEmployeesToAdd > 0) {
+    totalAmountRupees += getExpenseEmployeeCost(expenseEmployeesToAdd);
   }
 
   const subtotalBeforeDiscountRupees = totalAmountRupees;
@@ -699,6 +723,41 @@ export function PlanSelectorModal({
           });
         }
 
+        // Activate Task and Expense Management slots if selected
+        if (taskEmployeesToAdd > 0 || expenseEmployeesToAdd > 0) {
+          try {
+            const { data: orgRow } = await supabase
+              .from("organizations")
+              .select("invoice_preferences")
+              .eq("id", orgId)
+              .maybeSingle();
+
+            const currPrefs = (orgRow?.invoice_preferences as any) || {};
+            const updatedPrefs = { ...currPrefs };
+
+            if (taskEmployeesToAdd > 0) {
+              updatedPrefs.task_management_enabled = true;
+              updatedPrefs.task_employee_limit = (Number(currPrefs.task_employee_limit) || 0) + Number(taskEmployeesToAdd);
+            }
+            if (expenseEmployeesToAdd > 0) {
+              updatedPrefs.expense_management_enabled = true;
+              updatedPrefs.expense_employee_limit = (Number(currPrefs.expense_employee_limit) || 0) + Number(expenseEmployeesToAdd);
+            }
+
+            await supabase
+              .from("organizations")
+              .update({ invoice_preferences: updatedPrefs })
+              .eq("id", orgId);
+
+            useFeatureStore.getState().setModuleAccess({
+              ...(taskEmployeesToAdd > 0 ? { taskManagementEnabled: true, taskEmployeeLimit: updatedPrefs.task_employee_limit } : {}),
+              ...(expenseEmployeesToAdd > 0 ? { expenseManagementEnabled: true, expenseEmployeeLimit: updatedPrefs.expense_employee_limit } : {})
+            });
+          } catch (prefErr) {
+            console.warn("Invoice preferences add-on update error:", prefErr);
+          }
+        }
+
         // If standard Free Plan without a coupon, give clean success and close immediately
         if (plansToActivate.length === 1 && plansToActivate[0] === "free" && !appliedCode) {
           toast({
@@ -731,6 +790,8 @@ export function PlanSelectorModal({
         if (extraEmployeesToAdd > 0) addonSummaryParts.push(`+${extraEmployeesToAdd} HR Employee${extraEmployeesToAdd > 1 ? "s" : ""}`);
         if (extraCrmMembersToAdd > 0) addonSummaryParts.push(`+${extraCrmMembersToAdd} CRM Member${extraCrmMembersToAdd > 1 ? "s" : ""}`);
         if (extraPlatformEmployeesToAdd > 0) addonSummaryParts.push(`+${extraPlatformEmployeesToAdd} Platform User${extraPlatformEmployeesToAdd > 1 ? "s" : ""}`);
+        if (taskEmployeesToAdd > 0) addonSummaryParts.push(`+${taskEmployeesToAdd} Task Staff${taskEmployeesToAdd > 1 ? "s" : ""}`);
+        if (expenseEmployeesToAdd > 0) addonSummaryParts.push(`+${expenseEmployeesToAdd} Expense Staff${expenseEmployeesToAdd > 1 ? "s" : ""}`);
 let planDisplay = targetPlanNames.map((p) => {
           const found = plans.find((pl) => pl.name === p);
           return found ? found.display_name : p.toUpperCase();
@@ -792,8 +853,10 @@ let planDisplay = targetPlanNames.map((p) => {
       const addonSummaryParts: string[] = [];
       if (extraEmployeesToAdd > 0) addonSummaryParts.push(`+${extraEmployeesToAdd} HR Employee${extraEmployeesToAdd > 1 ? "s" : ""}`);
       if (extraCrmMembersToAdd > 0) addonSummaryParts.push(`+${extraCrmMembersToAdd} CRM Member${extraCrmMembersToAdd > 1 ? "s" : ""}`);
-        if (extraPlatformEmployeesToAdd > 0) addonSummaryParts.push(`+${extraPlatformEmployeesToAdd} Platform User${extraPlatformEmployeesToAdd > 1 ? "s" : ""}`);
-let planDisplay = targetPlanNames
+      if (extraPlatformEmployeesToAdd > 0) addonSummaryParts.push(`+${extraPlatformEmployeesToAdd} Platform User${extraPlatformEmployeesToAdd > 1 ? "s" : ""}`);
+      if (taskEmployeesToAdd > 0) addonSummaryParts.push(`+${taskEmployeesToAdd} Task Staff${taskEmployeesToAdd > 1 ? "s" : ""}`);
+      if (expenseEmployeesToAdd > 0) addonSummaryParts.push(`+${expenseEmployeesToAdd} Expense Staff${expenseEmployeesToAdd > 1 ? "s" : ""}`);
+      let planDisplay = targetPlanNames
         .map((p) => {
           const found = plans.find((pl) => pl.name === p);
           return found ? found.display_name : p.toUpperCase();
@@ -816,6 +879,8 @@ let planDisplay = targetPlanNames
         extraEmployeesToAdd,
         extraPlatformEmployeesToAdd,
         extraCrmMembersToAdd,
+        taskEmployeesToAdd,
+        expenseEmployeesToAdd,
         totalEmployeesToSend,
         promoCode: validCoupon ? promoCode : "",
         validCoupon,
@@ -2194,6 +2259,100 @@ let planDisplay = targetPlanNames
                       {extraCrmMembersToAdd > 0 && (
                         <span className="text-xs font-semibold text-blue-700">
                           +₹{getExtraCrmMemberCost(extraCrmMembersToAdd).toLocaleString('en-IN')} {isProratedMidCycle ? `for ${addonBillingMonths} mo` : `/ ${effectiveAddonCycle === 'yearly' ? 'yr' : 'mo'}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50/50 rounded-xl border border-amber-100 p-5">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                        <CheckSquare className="h-4 w-4 text-amber-600" />
+                        Task Management Add-on
+                      </h3>
+                      <p className="text-xs text-slate-600 mt-1 max-w-md">
+                        Assign, schedule, and track employee tasks with real-time status updates from the Employee Portal. Add employee task capacity for ₹{pricing.taskPriceMonthly}/employee/month.
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center gap-2 min-w-[140px]">
+                      <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border border-amber-200 w-full shadow-sm">
+                        <Button 
+                          size="icon" 
+                          variant="outline" 
+                          className="h-8 w-8 rounded-md hover:bg-amber-50 hover:text-amber-700" 
+                          disabled={taskEmployeesToAdd <= 0}
+                          onClick={() => setTaskEmployeesToAdd(Math.max(0, taskEmployeesToAdd - 1))}
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </Button>
+                        
+                        <div className="text-center px-2 flex-1">
+                          <span className="text-sm font-bold text-slate-900">
+                            +{taskEmployeesToAdd}
+                          </span>
+                        </div>
+                        
+                        <Button 
+                          size="icon" 
+                          variant="outline" 
+                          className="h-8 w-8 rounded-md hover:bg-amber-50 hover:text-amber-700" 
+                          onClick={() => setTaskEmployeesToAdd(taskEmployeesToAdd + 1)}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      {taskEmployeesToAdd > 0 && (
+                        <span className="text-xs font-semibold text-amber-700">
+                          +₹{getTaskEmployeeCost(taskEmployeesToAdd).toLocaleString('en-IN')} {isProratedMidCycle ? `for ${addonBillingMonths} mo` : `/ ${effectiveAddonCycle === 'yearly' ? 'yr' : 'mo'}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-emerald-50/50 rounded-xl border border-emerald-100 p-5">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-emerald-900 flex items-center gap-2">
+                        <Receipt className="h-4 w-4 text-emerald-600" />
+                        Expense Management Add-on
+                      </h3>
+                      <p className="text-xs text-slate-600 mt-1 max-w-md">
+                        Track local travel per-km rates, fuel claims, outstation expenses, multi-level approvals, and disbursements. Add employee expense capacity for ₹{pricing.expensePriceMonthly}/employee/month.
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center gap-2 min-w-[140px]">
+                      <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border border-emerald-200 w-full shadow-sm">
+                        <Button 
+                          size="icon" 
+                          variant="outline" 
+                          className="h-8 w-8 rounded-md hover:bg-emerald-50 hover:text-emerald-700" 
+                          disabled={expenseEmployeesToAdd <= 0}
+                          onClick={() => setExpenseEmployeesToAdd(Math.max(0, expenseEmployeesToAdd - 1))}
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </Button>
+                        
+                        <div className="text-center px-2 flex-1">
+                          <span className="text-sm font-bold text-slate-900">
+                            +{expenseEmployeesToAdd}
+                          </span>
+                        </div>
+                        
+                        <Button 
+                          size="icon" 
+                          variant="outline" 
+                          className="h-8 w-8 rounded-md hover:bg-emerald-50 hover:text-emerald-700" 
+                          onClick={() => setExpenseEmployeesToAdd(expenseEmployeesToAdd + 1)}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      {expenseEmployeesToAdd > 0 && (
+                        <span className="text-xs font-semibold text-emerald-700">
+                          +₹{getExpenseEmployeeCost(expenseEmployeesToAdd).toLocaleString('en-IN')} {isProratedMidCycle ? `for ${addonBillingMonths} mo` : `/ ${effectiveAddonCycle === 'yearly' ? 'yr' : 'mo'}`}
                         </span>
                       )}
                     </div>

@@ -21,7 +21,10 @@ import {
   Loader2,
   AlertCircle,
   Sparkles,
+  Mail,
 } from "lucide-react";
+import { dispatchEmail } from "@/lib/dispatch-email";
+import { generateCrmTeamEmailHtml } from "@/lib/crm-email-templates";
 import { Input } from "@/components/ui/input";
 import { useAppStore } from "@/store/app-store";
 import { useFeatureStore } from "@/store/feature-store";
@@ -66,6 +69,7 @@ interface CredentialsModalData {
   orgName: string;
   portalUrl: string;
   phone?: string;
+  emailSent?: boolean;
 }
 
 export default function CRMTeamPage() {
@@ -110,6 +114,52 @@ export default function CRMTeamPage() {
 
   // Credentials Success Modal state
   const [credentialsData, setCredentialsData] = useState<CredentialsModalData | null>(null);
+  const [isResendingMail, setIsResendingMail] = useState(false);
+
+  const sendCrmCredentialsEmail = async (memberData: { name: string; email: string; password: string; orgName: string; portalUrl: string }) => {
+    try {
+      const html = generateCrmTeamEmailHtml({
+        memberName: memberData.name,
+        orgName: memberData.orgName,
+        email: memberData.email,
+        password: memberData.password,
+        portalUrl: memberData.portalUrl,
+      });
+
+      const res = await dispatchEmail({
+        to: memberData.email,
+        subject: `Sales Team CRM Portal Login Credentials - ${memberData.orgName}`,
+        html,
+        orgId: org?.id || "default",
+        fromName: `${memberData.orgName} via Aassay Biz`,
+      });
+
+      return res?.success ?? true;
+    } catch (e) {
+      console.warn("Failed to dispatch sales team credentials email:", e);
+      return false;
+    }
+  };
+
+  const handleResendCredentialsEmail = async () => {
+    if (!credentialsData) return;
+    setIsResendingMail(true);
+    try {
+      const sent = await sendCrmCredentialsEmail({
+        name: credentialsData.name,
+        email: credentialsData.email,
+        password: credentialsData.password,
+        orgName: credentialsData.orgName,
+        portalUrl: credentialsData.portalUrl,
+      });
+      setCredentialsData(prev => prev ? ({ ...prev, emailSent: true }) : null);
+      toast({ title: "Email Dispatched", description: `Sales team login credentials sent to ${credentialsData.email}` });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Failed to dispatch email", variant: "destructive" });
+    } finally {
+      setIsResendingMail(false);
+    }
+  };
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // CRM Portal Access Quota & Upgrade Limit States
@@ -240,13 +290,22 @@ export default function CRMTeamPage() {
               p_role: formData.role?.toLowerCase().includes("manager") ? "manager" : "sales_executive",
             });
 
+            const emailSent = await sendCrmCredentialsEmail({
+              name: formData.name,
+              email: cleanEmail,
+              password: formData.portal_password,
+              orgName: org?.name || "Your Company",
+              portalUrl: crmPortalUrl,
+            });
+
             setCredentialsData({
               name: formData.name,
               email: cleanEmail,
               password: formData.portal_password,
-              orgName: org.name,
+              orgName: org?.name || "Your Company",
               portalUrl: crmPortalUrl,
               phone: formData.phone,
+              emailSent,
             });
             } catch (accErr: any) {
               console.warn("Auto grant access error:", accErr);
@@ -343,9 +402,17 @@ export default function CRMTeamPage() {
 
       if (error) throw error;
 
+      const emailSent = await sendCrmCredentialsEmail({
+        name: grantMember.name,
+        email: cleanEmail,
+        password: grantPassword,
+        orgName: org?.name || "Your Company",
+        portalUrl: crmPortalUrl,
+      });
+
       toast({
         title: "CRM Portal Access Granted!",
-        description: `Login credentials generated for ${grantMember.name}.`,
+        description: `Login credentials generated${emailSent ? " and emailed to " + cleanEmail : ""}.`,
       });
 
       setGrantModalOpen(false);
@@ -358,6 +425,7 @@ export default function CRMTeamPage() {
         orgName: org?.name || "Your Company",
         portalUrl: crmPortalUrl,
         phone: grantMember.phone,
+        emailSent,
       });
 
       fetchTeam();
@@ -392,9 +460,17 @@ export default function CRMTeamPage() {
 
       if (error) throw error;
 
+      const emailSent = await sendCrmCredentialsEmail({
+        name: resetMember.name,
+        email: resetMember.email,
+        password: resetNewPassword,
+        orgName: org?.name || "Your Company",
+        portalUrl: crmPortalUrl,
+      });
+
       toast({
         title: "Password Updated!",
-        description: `New password saved for ${resetMember.name}.`,
+        description: `New password saved${emailSent ? " and emailed to " + resetMember.email : ""}.`,
       });
 
       setResetModalOpen(false);
@@ -406,6 +482,7 @@ export default function CRMTeamPage() {
         orgName: org?.name || "Your Company",
         portalUrl: crmPortalUrl,
         phone: resetMember.phone,
+        emailSent,
       });
 
       fetchTeam();
@@ -1176,6 +1253,31 @@ export default function CRMTeamPage() {
                   <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                   <span>Scoped to <strong>{credentialsData.orgName}</strong></span>
                 </div>
+
+                {/* Email dispatch status banner */}
+                {credentialsData.emailSent ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Sales Team credentials email successfully sent to <strong>{credentialsData.email}</strong></span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Send credentials to <strong>{credentialsData.email}</strong></span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs border-amber-300 text-amber-900 hover:bg-amber-100"
+                      disabled={isResendingMail}
+                      onClick={handleResendCredentialsEmail}
+                    >
+                      {isResendingMail ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Mail className="w-3 h-3 mr-1" />}
+                      Send Email
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {/* Action buttons */}
@@ -1188,6 +1290,16 @@ export default function CRMTeamPage() {
                 >
                   <Copy className="w-3.5 h-3.5" />
                   Copy All Details
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs gap-1.5"
+                  disabled={isResendingMail}
+                  onClick={handleResendCredentialsEmail}
+                >
+                  {isResendingMail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                  Resend Email
                 </Button>
                 <Button
                   size="sm"
