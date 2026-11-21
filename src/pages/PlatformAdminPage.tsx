@@ -79,6 +79,10 @@ interface OrgData {
     plan_name: string;
     enabled_features: string[];
     employee_limit?: number;
+    billing_cycle?: string | null;
+    current_period_start?: string | null;
+    current_period_end?: string | null;
+    plan_display_name?: string;
   } | null;
   custom_limits?: {
     employee_limit: number;
@@ -242,6 +246,15 @@ export default function PlatformAdminPage() {
   const [quotaExpenseEnabled, setQuotaExpenseEnabled] = useState(false);
   const [quotaExpenseLimit, setQuotaExpenseLimit] = useState(10);
   const [savingQuota, setSavingQuota] = useState(false);
+
+  // Business Plan & Validity Upgrade Modal States
+  const [selectedOrgForPlan, setSelectedOrgForPlan] = useState<OrgData | null>(null);
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [planModalSelectedPlans, setPlanModalSelectedPlans] = useState<string[]>(['free']);
+  const [planModalDuration, setPlanModalDuration] = useState<string>('1_year');
+  const [planModalStartDate, setPlanModalStartDate] = useState<string>('');
+  const [planModalEndDate, setPlanModalEndDate] = useState<string>('');
+  const [savingPlan, setSavingPlan] = useState(false);
 
   const [trendData, setTrendData] = useState<{
     usersChange: number; orgsChange: number; revenueChange: number; invoicesChange: number;
@@ -558,7 +571,7 @@ export default function PlatformAdminPage() {
       try {
         const { data: allActiveSubs } = await supabase
           .from("subscriptions")
-          .select("id, org_id, employee_count, platform_employee_count, manual_override_features, status");
+          .select("id, org_id, employee_count, platform_employee_count, manual_override_features, status, billing_cycle, current_period_start, current_period_end, plan_id, plans(name)");
 
         if (allActiveSubs && finalDashData?.organizations) {
           const subMap = new Map<string, any[]>();
@@ -571,6 +584,7 @@ export default function PlatformAdminPage() {
             ...finalDashData,
             organizations: finalDashData.organizations.map(o => {
               const oSubs = subMap.get(o.id) || [];
+              const activePaidSub = oSubs.find((s: any) => s.status === 'active' && s.plans?.name !== 'free' && (!s.current_period_end || new Date(s.current_period_end).getTime() > Date.now())) || oSubs.find((s: any) => s.status === 'active') || oSubs[0];
               const pName = (o.subscription?.plan_name || (o as any).subscription_plan || 'free').toLowerCase();
               const isSuite = pName.includes('suite');
               const isHr = pName.includes('hr');
@@ -612,6 +626,13 @@ export default function PlatformAdminPage() {
 
               return {
                 ...o,
+                subscription: {
+                  ...o.subscription,
+                  billing_cycle: activePaidSub?.billing_cycle || (o.subscription as any)?.billing_cycle || 'yearly',
+                  current_period_start: activePaidSub?.current_period_start || null,
+                  current_period_end: activePaidSub?.current_period_end || null,
+                  plan_display_name: o.subscription?.plan_display_name || PLAN_DISPLAY_NAMES[o.subscription?.plan_name || 'free'] || 'Free'
+                },
                 custom_limits: {
                   employee_limit: empLimit,
                   attendance_enabled: attendanceEnabled,
@@ -1169,11 +1190,127 @@ export default function PlatformAdminPage() {
     const effPlan = paidPlans.includes('suite') || paidPlans.includes('plan_3') ? 'suite' : (paidPlans.length > 0 ? paidPlans.join('+') : 'free');
     await supabase.from("organizations").update({ enabled_features: calculatedFeatures as any, subscription_plan: effPlan }).eq("id", orgId);
 
+    // If paid plan activated from admin, ensure 1 full year validity from activation date
+    if (paidPlans.length > 0) {
+      const nowIso = new Date().toISOString();
+      const oneYearLaterIso = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+      await supabase.from("subscriptions").update({
+        billing_cycle: 'yearly',
+        current_period_start: nowIso,
+        current_period_end: oneYearLaterIso,
+        status: 'active'
+      }).eq("org_id", orgId);
+    }
+
     toast({ 
       title: "Plan Updated", 
-      description: `Assigned: ${newPlans.map(p => PLAN_DISPLAY_NAMES[p] || p).join(", ")}` 
+      description: `Assigned: ${newPlans.map(p => PLAN_DISPLAY_NAMES[p] || p).join(", ")} (1 Year Active)` 
     });
     await fetchDashboardData(false);
+  };
+
+  const handleOpenPlanModal = (org: OrgData) => {
+    setSelectedOrgForPlan(org);
+    const rawPlans = (org as any).subscription_plan_names || (org.subscription?.plan_name ? String(org.subscription.plan_name).split('+') : ['free']);
+    const normalized = rawPlans.map(normalizePlanKey);
+    setPlanModalSelectedPlans(Array.from(new Set(['free', ...normalized])));
+
+    const existingStart = org.subscription?.current_period_start || org.created_at;
+    const existingEnd = org.subscription?.current_period_end;
+
+    const startDateStr = existingStart ? new Date(existingStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    setPlanModalStartDate(startDateStr);
+
+    if (existingEnd) {
+      setPlanModalEndDate(new Date(existingEnd).toISOString().split('T')[0]);
+      const s = new Date(startDateStr);
+      const e = new Date(existingEnd);
+      const diffMonths = Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24 * 30.4375));
+      if (diffMonths >= 23) setPlanModalDuration('2_years');
+      else if (diffMonths >= 11) setPlanModalDuration('1_year');
+      else if (diffMonths >= 5) setPlanModalDuration('6_months');
+      else if (diffMonths >= 2) setPlanModalDuration('3_months');
+      else setPlanModalDuration('1_month');
+    } else {
+      setPlanModalDuration('1_year');
+      const d = new Date(startDateStr);
+      d.setFullYear(d.getFullYear() + 1);
+      setPlanModalEndDate(d.toISOString().split('T')[0]);
+    }
+
+    setIsPlanModalOpen(true);
+  };
+
+  const handlePlanDurationChange = (duration: string) => {
+    setPlanModalDuration(duration);
+    if (duration === 'custom') return;
+    const s = new Date(planModalStartDate || new Date().toISOString().split('T')[0]);
+    const e = new Date(s);
+    if (duration === '1_month') e.setMonth(e.getMonth() + 1);
+    else if (duration === '3_months') e.setMonth(e.getMonth() + 3);
+    else if (duration === '6_months') e.setMonth(e.getMonth() + 6);
+    else if (duration === '1_year') e.setFullYear(e.getFullYear() + 1);
+    else if (duration === '2_years') e.setFullYear(e.getFullYear() + 2);
+    setPlanModalEndDate(e.toISOString().split('T')[0]);
+  };
+
+  const handleSavePlanValidity = async () => {
+    if (!selectedOrgForPlan) return;
+    setSavingPlan(true);
+    try {
+      const orgId = selectedOrgForPlan.id;
+      const plans = planModalSelectedPlans;
+      const paidPlans = plans.filter(p => p !== 'free');
+      const cycle = (planModalDuration === '1_year' || planModalDuration === '2_years') ? 'yearly' : 'monthly';
+      
+      const startDate = new Date(planModalStartDate).toISOString();
+      const endDate = new Date(planModalEndDate).toISOString();
+
+      const { error: rpcError } = await supabase.rpc("admin_set_plans", {
+        p_org_id: orgId,
+        p_plan_names: plans,
+      });
+      if (rpcError) console.warn("admin_set_plans RPC note:", rpcError);
+
+      const { data: allDbPlans } = await supabase.from("plans").select("id, name");
+      const planIdMap = new Map((allDbPlans || []).map(p => [normalizePlanKey(p.name), p.id]));
+
+      await supabase.from("subscriptions").delete().eq("org_id", orgId);
+
+      for (const pName of plans) {
+        const planId = planIdMap.get(normalizePlanKey(pName));
+        if (planId) {
+          await supabase.from("subscriptions").insert({
+            org_id: orgId,
+            plan_id: planId,
+            status: "active",
+            billing_cycle: cycle,
+            current_period_start: startDate,
+            current_period_end: pName === 'free' && paidPlans.length === 0 ? null : endDate
+          });
+        }
+      }
+
+      const primaryPlan = paidPlans.includes('suite') ? 'suite' : (paidPlans.length > 0 ? paidPlans.join('+') : 'free');
+      const calculatedFeatures = computeFeaturesForPlans(plans);
+      await supabase.from("organizations").update({
+        subscription_plan: primaryPlan,
+        enabled_features: calculatedFeatures as any
+      }).eq("id", orgId);
+
+      toast({
+        title: "Plan & Validity Updated",
+        description: `Active from ${new Date(startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} to ${new Date(endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} (${cycle === 'yearly' ? 'Yearly' : 'Monthly'})`
+      });
+
+      setIsPlanModalOpen(false);
+      await fetchDashboardData(false);
+    } catch (err: any) {
+      console.error("Error saving plan validity:", err);
+      toast({ title: "Failed to update plan", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingPlan(false);
+    }
   };
   
   const handleOpenQuotaModal = (org: OrgData) => {
@@ -2144,6 +2281,15 @@ export default function PlatformAdminPage() {
                           <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
                           Adjust Limits & Quota
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenPlanModal(org)}
+                          className="w-[180px] justify-center bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 font-semibold shadow-xs h-9 text-xs flex items-center gap-1.5 border-0"
+                        >
+                          <Calendar className="w-3.5 h-3.5" />
+                          Plan & Validity ({sub.billing_cycle === 'yearly' ? 'Yearly' : (sub.current_period_end ? 'Monthly' : 'Free')})
+                        </Button>
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button variant="outline" className="w-[180px] justify-between bg-white border-slate-300 text-slate-700 hover:bg-slate-50">
@@ -2193,6 +2339,19 @@ export default function PlatformAdminPage() {
                              </Badge>
                           ))}
                         </div>
+                        {sub.current_period_end && (
+                          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-700 mt-0.5 bg-indigo-50/90 border border-indigo-200/70 px-2 py-0.5 rounded-md">
+                            <Clock className="w-3 h-3 text-indigo-600 shrink-0" />
+                            <span>
+                              {new Date(sub.current_period_start || org.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              {" - "}
+                              {new Date(sub.current_period_end).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </span>
+                            <span className="text-[9px] uppercase font-bold text-indigo-700 bg-indigo-200/70 px-1 py-0.2 rounded">
+                              {sub.billing_cycle || 'yearly'}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
@@ -4813,6 +4972,190 @@ export default function PlatformAdminPage() {
               ) : (
                 <>
                   <Check className="w-4 h-4 mr-1.5" /> Save & Apply Quotas
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Manage Plan & Subscription Validity Modal ── */}
+      <Dialog open={isPlanModalOpen} onOpenChange={setIsPlanModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white border-slate-200 text-slate-800 shadow-2xl p-6 z-[9999]">
+          <DialogHeader className="border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold text-slate-900">
+                  Upgrade Plan & Subscription Validity
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  Set plans and choose active billing duration (Monthly, 3 Mo, 6 Mo, 1 Year, or Custom) for <strong className="text-slate-800 font-semibold">{selectedOrgForPlan?.name}</strong>.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-5 py-4">
+            {/* 1. Plan Selection */}
+            <div>
+              <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-2">
+                1. Select Active Plans
+              </Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {availablePlans.map((plan) => {
+                  const isChecked = planModalSelectedPlans.includes(plan.id);
+                  return (
+                    <div
+                      key={plan.id}
+                      onClick={() => {
+                        if (plan.id === 'free') return;
+                        setPlanModalSelectedPlans(prev =>
+                          prev.includes(plan.id) ? prev.filter(p => p !== plan.id) : [...prev, plan.id]
+                        );
+                      }}
+                      className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                        isChecked
+                          ? 'border-indigo-500 bg-indigo-50/60 shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Checkbox
+                          checked={isChecked}
+                          disabled={plan.id === 'free'}
+                          onCheckedChange={() => {
+                            if (plan.id === 'free') return;
+                            setPlanModalSelectedPlans(prev =>
+                              prev.includes(plan.id) ? prev.filter(p => p !== plan.id) : [...prev, plan.id]
+                            );
+                          }}
+                        />
+                        <span className="text-xs font-semibold text-slate-800">{plan.label}</span>
+                      </div>
+                      <Badge className={PLAN_COLORS[plan.id] || PLAN_COLORS.free}>
+                        {PLAN_DISPLAY_NAMES[plan.id] || plan.id}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. Billing Duration Selection */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+              <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                2. Plan Duration & Billing Cycle
+              </Label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { id: '1_year', label: '1 Year (12 Months)', desc: 'Annual (Default)' },
+                  { id: '6_months', label: '6 Months', desc: 'Half-Yearly' },
+                  { id: '3_months', label: '3 Months', desc: 'Quarterly' },
+                  { id: '1_month', label: '1 Month', desc: 'Monthly' },
+                  { id: '2_years', label: '2 Years', desc: 'Extended' },
+                  { id: 'custom', label: 'Custom Dates', desc: 'Pick exact range' },
+                ].map((dur) => (
+                  <button
+                    key={dur.id}
+                    type="button"
+                    onClick={() => handlePlanDurationChange(dur.id)}
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
+                      planModalDuration === dur.id
+                        ? 'border-indigo-600 bg-indigo-600 text-white shadow-xs'
+                        : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <div className="text-xs font-bold">{dur.label}</div>
+                    <div className={`text-[10px] ${planModalDuration === dur.id ? 'text-indigo-100' : 'text-slate-400'}`}>
+                      {dur.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Date Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div>
+                  <Label className="text-[11px] font-semibold text-slate-600 block mb-1">
+                    Start Date (Active From)
+                  </Label>
+                  <Input
+                    type="date"
+                    value={planModalStartDate}
+                    onChange={(e) => {
+                      setPlanModalStartDate(e.target.value);
+                      if (planModalDuration !== 'custom' && e.target.value) {
+                        const s = new Date(e.target.value);
+                        const end = new Date(s);
+                        if (planModalDuration === '1_month') end.setMonth(end.getMonth() + 1);
+                        else if (planModalDuration === '3_months') end.setMonth(end.getMonth() + 3);
+                        else if (planModalDuration === '6_months') end.setMonth(end.getMonth() + 6);
+                        else if (planModalDuration === '1_year') end.setFullYear(end.getFullYear() + 1);
+                        else if (planModalDuration === '2_years') end.setFullYear(end.getFullYear() + 2);
+                        setPlanModalEndDate(end.toISOString().split('T')[0]);
+                      }
+                    }}
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] font-semibold text-slate-600 block mb-1">
+                    End Date (Valid Till)
+                  </Label>
+                  <Input
+                    type="date"
+                    value={planModalEndDate}
+                    onChange={(e) => {
+                      setPlanModalEndDate(e.target.value);
+                      setPlanModalDuration('custom');
+                    }}
+                    className="h-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Summary Banner */}
+              <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-between text-xs text-indigo-900 font-medium">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>
+                    Valid From: <strong>{planModalStartDate ? new Date(planModalStartDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Today'}</strong>
+                    {" "}till{" "}
+                    <strong>{planModalEndDate ? new Date(planModalEndDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</strong>
+                  </span>
+                </div>
+                <Badge className="bg-indigo-600 text-white font-bold text-[10px]">
+                  {planModalDuration === '1_year' ? '12 Months' : planModalDuration === '6_months' ? '6 Months' : planModalDuration === '3_months' ? '3 Months' : planModalDuration === '1_month' ? '1 Month' : planModalDuration === '2_years' ? '24 Months' : 'Custom'}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="border-t border-slate-100 pt-3 flex items-center justify-between sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsPlanModalOpen(false)}
+              disabled={savingPlan}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSavePlanValidity}
+              disabled={savingPlan}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+            >
+              {savingPlan ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving Plan & Validity...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 mr-1.5" /> Save & Activate Plan
                 </>
               )}
             </Button>

@@ -47,6 +47,7 @@ import {
   ChevronRight,
   Info,
   Tag,
+  Calendar,
   X
 } from "lucide-react";
 
@@ -1202,6 +1203,59 @@ export default function CheckoutPage() {
                       Includes +{checkoutData.expenseEmployeesToAdd} Expense Management Staff Slot(s)
                     </div>
                   )}
+                </div>
+
+                {/* Plan Validity & Billing Duration */}
+                <div className="p-3.5 rounded-xl bg-gradient-to-br from-indigo-50/90 to-purple-50/70 border border-indigo-200/70 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                      Plan Validity & Duration
+                    </span>
+                    <Badge className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-[10px] px-2 py-0.5 border-0 shadow-2xs">
+                      {checkoutData.isAddonOnlyPurchase
+                        ? `${checkoutData.addonBillingMonths || 1} Month(s) Active`
+                        : checkoutData.billingCycle === "yearly"
+                        ? "1 Year (12 Months)"
+                        : "1 Month"}
+                    </Badge>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-indigo-200/60 text-[11px]">
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Active From</span>
+                      <span className="font-bold text-slate-800">
+                        {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-500 block text-[10px] uppercase tracking-wider font-semibold">Valid Till</span>
+                      <span className="font-bold text-indigo-700">
+                        {checkoutData.isAddonOnlyPurchase && checkoutData.syncedPeriodEnd
+                          ? new Date(checkoutData.syncedPeriodEnd).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                          : (() => {
+                              const d = new Date();
+                              if (checkoutData.billingCycle === "yearly") {
+                                d.setFullYear(d.getFullYear() + 1);
+                              } else {
+                                d.setMonth(d.getMonth() + 1);
+                              }
+                              return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+                            })()}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="text-[10px] text-slate-600 flex items-center gap-1.5 pt-1 border-t border-indigo-200/50 font-medium">
+                    <Clock className="w-3 h-3 text-indigo-500 shrink-0" />
+                    <span>
+                      {checkoutData.isAddonOnlyPurchase
+                        ? `Billing synced with organization's active annual subscription (${checkoutData.addonBillingMonths || 1} months billing).`
+                        : checkoutData.billingCycle === "yearly"
+                        ? `Full 1-year annual subscription (365 days) activated from today.`
+                        : `Monthly subscription activated from today.`}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Coupon / Promo Code Box */}
