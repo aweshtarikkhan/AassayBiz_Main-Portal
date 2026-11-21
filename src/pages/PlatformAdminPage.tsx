@@ -550,14 +550,18 @@ export default function PlatformAdminPage() {
             finalDashData = {
               ...finalDashData,
               organizations: finalDashData.organizations.map(o => {
-                const orgPhone = o.phone || (o.owner?.id ? phoneMap.get(o.owner.id) : null) || (o.owner as any)?.phone || null;
+                const ownerUserId = o.owner?.user_id || o.owner?.id;
+                const ownerAccId = o.owner?.account_id || (o as any).owner_account_id;
+                const orgPhone = o.phone || (o.owner as any)?.phone || (ownerUserId ? phoneMap.get(ownerUserId) : null) || (ownerAccId ? phoneMap.get(ownerAccId) : null) || null;
                 return {
                   ...o,
                   phone: orgPhone,
                   owner: o.owner ? {
                     ...o.owner,
-                    account_id: (o.owner.id ? idMap.get(o.owner.id) : null) || o.owner.account_id || null,
-                    phone: (o.owner as any)?.phone || (o.owner.id ? phoneMap.get(o.owner.id) : null) || orgPhone || null
+                    id: ownerUserId || o.owner.id,
+                    user_id: ownerUserId,
+                    account_id: ownerAccId || (ownerUserId ? idMap.get(ownerUserId) : null) || null,
+                    phone: (o.owner as any)?.phone || orgPhone || (ownerUserId ? phoneMap.get(ownerUserId) : null) || null
                   } : null
                 };
               })
@@ -1992,7 +1996,7 @@ export default function PlatformAdminPage() {
                 <Search className="w-4 h-4 text-slate-400 shrink-0" />
                 <input
                   type="text"
-                  placeholder="Search by business name, email ID, or Account ID (#1XXXXX)..."
+                  placeholder="Search by business name, email ID, mobile no., or Account ID (#1XXXXX)..."
                   value={orgSearch}
                   onChange={e => setOrgSearch(e.target.value)}
                   className="flex-1 outline-none text-sm text-slate-800 placeholder:text-slate-400 bg-transparent"
@@ -2134,6 +2138,8 @@ export default function PlatformAdminPage() {
                     o.name?.toLowerCase().includes(q) ||
                     o.owner?.email?.toLowerCase().includes(q) ||
                     o.email?.toLowerCase().includes(q) ||
+                    (o.phone && o.phone.includes(cleanQ)) ||
+                    ((o.owner as any)?.phone && String((o.owner as any)?.phone).includes(cleanQ)) ||
                     String(o.owner?.account_id || "").toLowerCase().includes(cleanQ) ||
                     String((o as any).owner_account_id || "").toLowerCase().includes(cleanQ) ||
                     `#${o.owner?.account_id || (o as any).owner_account_id || ""}`.toLowerCase().includes(q) ||
@@ -2141,6 +2147,7 @@ export default function PlatformAdminPage() {
                     (dashData.users || []).some(u => u.org_id === o.id && (
                       String(u.account_id || "").toLowerCase().includes(cleanQ) ||
                       u.email?.toLowerCase().includes(q) ||
+                      (u.phone && u.phone.includes(cleanQ)) ||
                       `${u.first_name || ""} ${u.last_name || ""}`.toLowerCase().includes(q)
                     ))
                   )
@@ -2232,9 +2239,22 @@ export default function PlatformAdminPage() {
                               </span>
                             )}
                             {(org.phone || (org.owner as any)?.phone) && (
-                              <span className="flex items-center gap-1 font-mono text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md">
-                                <Phone className="w-3 h-3 text-emerald-600" /> {org.phone || (org.owner as any)?.phone}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className="flex items-center gap-1.5 font-mono text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md">
+                                  <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  <span>{org.phone || (org.owner as any)?.phone}</span>
+                                </span>
+                                <a
+                                  href={`https://wa.me/91${String(org.phone || (org.owner as any)?.phone).replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="Chat on WhatsApp"
+                                  className="p-1 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-700 transition-colors"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <MessageSquare className="w-3 h-3" />
+                                </a>
+                              </div>
                             )}
                             
                             {/* Prominent Account Creation Date & Time */}
