@@ -412,7 +412,7 @@ export default function EmployeesPage() {
       hourly_rate: Number(form.hourly_rate) || 0,
       monthly_salary: wageType === "monthly" ? (Number(form.monthly_salary) || 0) : (wageType === "daily" ? (Number(form.daily_rate) * 26) : (Number(form.hourly_rate) * 208)),
       paid_leaves_per_month: Number(form.paid_leaves_per_month) || 0,
-      is_active: form.grant_portal_access ? true : !!form.is_active,
+      is_active: !!form.is_active,
       notes: form.notes || null,
       pan: form.pan || null,
       bank_account: form.bank_account || null,
@@ -546,9 +546,6 @@ export default function EmployeesPage() {
         p_email: cleanEmail,
         p_password: portalPassword
       });
-
-      // Ensure employee is active in database
-      await supabase.from("employees").update({ is_active: true }).eq("id", portalEmp.id);
 
       if (rpcErr) {
         console.warn("RPC attendance grant warning:", rpcErr);
