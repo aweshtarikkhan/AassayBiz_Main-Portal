@@ -815,6 +815,12 @@ IMPORTANT CONTACT RULES:
   * Specialized Add-on Modules: Task & Expense Management Pricing and Quotas:
     - Task Management Add-on: ₹99/employee/month (₹1,188/employee/year). Includes task assignments, deadlines, attachments, status updates, priority filters, and real-time syncing with the Employee Attendance Portal.
     - Expense Management Add-on: ₹499/employee/month (₹5,988/employee/year). Includes local travel claims with per-km vehicle rates, fuel slips, outstation allowances, multi-tier approvals (Send to Accounts, Approved by Accounts, Settled), and accounting exports.
+    - Strict Add-on Prerequisite Base Plan Rules:
+      * Task Management Add-on: Users can only purchase or activate this add-on if they have an active Business HR or Business Suite plan (or select it concurrently in checkout). It is locked on Free plan and cannot be added to Accounting-only, CRM-only, or Promotion-only.
+      * Expense Management Add-on: Users can only purchase or activate this add-on if they have an active Business HR or Business Suite plan (or select it concurrently in checkout).
+      * Extra Employee Attendance (+ Extra Employee): Users can only purchase extra staff attendance capacity if they have an active Business HR or Business Suite plan (or select it concurrently).
+      * Extra CRM Sales Team Members: Users can only purchase extra CRM sales executive logins if they have an active Business CRM or Business Suite plan (or select it concurrently).
+      * Extra Platform / Admin Users: Users can only purchase extra admin/manager logins if they have an active paid plan or Business Suite.
     - Exact Capacity Quota Enforcement: When an organization purchases Task or Expense capacity via the Pricing Page, Update Plan modal, or Checkout, exactly the purchased employee count is activated and credited to the organization's 'task_employee_limit' and 'expense_employee_limit'. Only the exact purchased number of employees can be granted access.
     - Dynamic Pricing (No Hardcoding): Platform Administrators can configure and adjust monthly and annual prices for Task Management, Expense Management, HR staff, and CRM sales team from Platform Admin -> Plans & Pricing. Updated prices immediately reflect across all calculators, modals, and checkout invoices in real time.
 

@@ -10,7 +10,7 @@ import {
   Globe, PlayCircle, ShieldCheck, Building2, Quote, Timer, Users, Layers,
   Calculator, UserCheck, Megaphone, BrainCircuit, Link2,
   Gift, Crown, Bell, Target, MessageSquare, Clock,
-  Plus, Minus, Bot, CheckSquare, Receipt,
+  Plus, Minus, Bot, CheckSquare, Receipt, Lock,
 } from "lucide-react";
 import { usePlatformPricing } from "@/lib/platform-pricing";
 import { PublicHeader } from "@/components/public/PublicHeader";
@@ -94,6 +94,19 @@ export default function PricingPage() {
 
   const isYearly = billingCycle === "yearly";
   const finalSelected = new Set(selectedPlans);
+  const hasHrOrSuite = finalSelected.has("hr") || finalSelected.has("suite");
+  const hasCrmOrSuite = finalSelected.has("crm") || finalSelected.has("suite");
+
+  useEffect(() => {
+    if (!hasHrOrSuite) {
+      if (hrExtra > 0) setHrExtra(0);
+      if (taskExtra > 0) setTaskExtra(0);
+      if (expenseExtra > 0) setExpenseExtra(0);
+    }
+    if (!hasCrmOrSuite) {
+      if (crmExtra > 0) setCrmExtra(0);
+    }
+  }, [hasHrOrSuite, hasCrmOrSuite]);
 
   let totalAmount = 0;
   if (finalSelected.has("suite")) {
@@ -441,7 +454,19 @@ export default function PricingPage() {
                           <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
                             <button onClick={(e) => { e.stopPropagation(); setHrExtra(Math.max(0, hrExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
                             <span className="font-bold text-sm w-5 text-center text-slate-800">{hrExtra}</span>
-                            <button onClick={(e) => { e.stopPropagation(); setHrExtra(hrExtra + 1); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                if (!finalSelected.has("hr") && !finalSelected.has("suite")) {
+                                  setSelectedPlans(prev => prev.includes("hr") ? prev : [...prev, "hr"]);
+                                  toast({ title: "Business HR Selected", description: "Selected Business HR plan to enable extra employee attendance capacity." });
+                                }
+                                setHrExtra(hrExtra + 1); 
+                              }} 
+                              className="text-slate-400 hover:text-slate-700 transition-colors"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
                         <div className="flex items-center gap-2.5">
@@ -576,7 +601,19 @@ export default function PricingPage() {
                           <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
                             <button onClick={(e) => { e.stopPropagation(); setCrmExtra(Math.max(0, crmExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
                             <span className="font-bold text-sm w-5 text-center text-slate-800">{crmExtra}</span>
-                            <button onClick={(e) => { e.stopPropagation(); setCrmExtra(crmExtra + 1); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                if (!finalSelected.has("crm") && !finalSelected.has("suite")) {
+                                  setSelectedPlans(prev => prev.includes("crm") ? prev : [...prev, "crm"]);
+                                  toast({ title: "Business CRM Selected", description: "Selected Business CRM plan to enable extra CRM sales team members." });
+                                }
+                                setCrmExtra(crmExtra + 1); 
+                              }} 
+                              className="text-slate-400 hover:text-slate-700 transition-colors"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
                         
@@ -817,12 +854,19 @@ export default function PricingPage() {
               <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/40 via-white to-amber-50/20 p-5 shadow-xs flex flex-col justify-between">
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
                         <CheckSquare className="w-5 h-5" />
                       </div>
                       <div>
-                        <h4 className="text-base font-bold text-slate-900">Task Management Module</h4>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-base font-bold text-slate-900">Task Management Module</h4>
+                          {!hasHrOrSuite && (
+                            <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                              <Lock className="w-2.5 h-2.5 text-amber-700" /> Requires Business HR or Suite
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[11px] font-semibold text-amber-700 bg-amber-100/80 border border-amber-200 px-2 py-0.5 rounded-full inline-block mt-0.5">
                           ₹{pricing.taskPriceMonthly}/employee/month
                         </span>
@@ -854,8 +898,18 @@ export default function PricingPage() {
                     <span className="w-8 text-center font-bold text-sm text-slate-800">{taskExtra}</span>
                     <button
                       type="button"
-                      onClick={() => setTaskExtra(taskExtra + 1)}
-                      className="w-7 h-7 flex items-center justify-center rounded text-slate-500 hover:bg-slate-100"
+                      onClick={() => {
+                        if (!hasHrOrSuite) {
+                          toast({
+                            title: "Business HR or Suite Required",
+                            description: "Task Management add-on requires Business HR or Business Suite. Please select Business HR or Suite first.",
+                            variant: "destructive"
+                          });
+                          return;
+                        }
+                        setTaskExtra(taskExtra + 1);
+                      }}
+                      className={`w-7 h-7 flex items-center justify-center rounded ${!hasHrOrSuite ? "text-slate-400 opacity-60 cursor-not-allowed" : "text-slate-500 hover:bg-slate-100"}`}
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -867,12 +921,19 @@ export default function PricingPage() {
               <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/40 via-white to-emerald-50/20 p-5 shadow-xs flex flex-col justify-between">
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
                         <Receipt className="w-5 h-5" />
                       </div>
                       <div>
-                        <h4 className="text-base font-bold text-slate-900">Expense & Travel Claims</h4>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-base font-bold text-slate-900">Expense & Travel Claims</h4>
+                          {!hasHrOrSuite && (
+                            <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                              <Lock className="w-2.5 h-2.5 text-emerald-700" /> Requires Business HR or Suite
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100/80 border border-emerald-200 px-2 py-0.5 rounded-full inline-block mt-0.5">
                           ₹{pricing.expensePriceMonthly}/employee/month
                         </span>
@@ -904,8 +965,18 @@ export default function PricingPage() {
                     <span className="w-8 text-center font-bold text-sm text-slate-800">{expenseExtra}</span>
                     <button
                       type="button"
-                      onClick={() => setExpenseExtra(expenseExtra + 1)}
-                      className="w-7 h-7 flex items-center justify-center rounded text-slate-500 hover:bg-slate-100"
+                      onClick={() => {
+                        if (!hasHrOrSuite) {
+                          toast({
+                            title: "Business HR or Suite Required",
+                            description: "Expense Management add-on requires Business HR or Business Suite. Please select Business HR or Suite first.",
+                            variant: "destructive"
+                          });
+                          return;
+                        }
+                        setExpenseExtra(expenseExtra + 1);
+                      }}
+                      className={`w-7 h-7 flex items-center justify-center rounded ${!hasHrOrSuite ? "text-slate-400 opacity-60 cursor-not-allowed" : "text-slate-500 hover:bg-slate-100"}`}
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
