@@ -103,7 +103,7 @@ function TemplatePreviewBox({
   const [scale, setScale] = useState(0.35);
 
   const isPos = templateId === "pos_clean" || templateId === "pos_detailed";
-  const isA5 = templateId === "retail_a5";
+  const isA5 = templateId === "retail_a5" || templateId === "industry_a5_modern" || templateId === "industry_a5_classic";
   const targetWidth = isPos ? 302 : (isA5 ? 559 : 794);
   const targetMinHeight = isPos ? 550 : (isA5 ? 794 : 1123);
   const aspectClass = isPos ? "aspect-[80/150]" : (isA5 ? "aspect-[148/210]" : "aspect-[210/297]");
@@ -125,7 +125,7 @@ function TemplatePreviewBox({
   const previewOrg = {
     ...org,
     template_style: templateId,
-    template_paper_size: isPos ? "pos80" : (isA5 ? "a5" : "a4"),
+    template_paper_size: isPos ? "pos80" : (isA6 ? "a6" : (isA5 ? "a5" : "a4")),
   };
 
   return (
@@ -198,7 +198,7 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
     const tpl = DOCUMENT_TEMPLATES.find((t) => t.id === templateId);
     const recommended = (tpl as any)?.recommendedPaperSize || "a4";
     const enforcedSize =
-      templateId === "retail_a5" ? "a5" :
+      (templateId === "retail_a5" || templateId === "industry_a5_modern" || templateId === "industry_a5_classic") ? "a5" :
       templateId === "pos_clean" || templateId === "pos_detailed" || templateId === "pos" ? "pos80" :
       templateId === "compact" ? "a6" :
       recommended;
@@ -219,7 +219,10 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
   const handlePaperSizeChange = async (sizeId: string) => {
     if (!org) return;
     const compatible = DOCUMENT_TEMPLATES.filter((t) => {
-      if (sizeId === "a5") return t.id === "retail_a5";
+      if (sizeId === "a5") {
+        if (isRetail) return t.id === "retail_a5";
+        return t.id === "industry_a5_modern" || t.id === "industry_a5_classic";
+      }
       if (sizeId === "pos80") return t.id === "pos_clean" || t.id === "pos_detailed";
       return ((t as any).recommendedPaperSize || "a4") === sizeId;
     });
@@ -252,7 +255,8 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
 
   const displayTemplates = DOCUMENT_TEMPLATES.filter((t) => {
     if (paperSize === "a5") {
-      return t.id === "retail_a5";
+      if (isRetail) return t.id === "retail_a5";
+      return t.id === "industry_a5_modern" || t.id === "industry_a5_classic";
     }
     if (paperSize === "pos80") {
       return t.id === "pos_clean" || t.id === "pos_detailed";
@@ -260,6 +264,10 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
     if (isRetail) {
       // In retail, strictly show only the retail A5 & POS templates
       return t.id === "retail_a5" || t.id === "pos_clean" || t.id === "pos_detailed";
+    }
+    // In Industry category on A4 / other sizes, do not show retail or A5 templates
+    if (t.id === "retail_a5" || t.id === "industry_a5_modern" || t.id === "industry_a5_classic" || t.id === "pos_clean" || t.id === "pos_detailed") {
+      return false;
     }
     const rec = (t as any).recommendedPaperSize || "a4";
     return rec === paperSize;
@@ -444,13 +452,13 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
             </DialogTitle>
           </DialogHeader>
           <div className="flex justify-center bg-slate-100 p-4 sm:p-8 rounded-lg overflow-x-auto border">
-            <div className={`${modalTemplateId === 'pos_clean' || modalTemplateId === 'pos_detailed' ? 'w-[320px]' : modalTemplateId === 'retail_a5' ? 'w-[580px]' : 'w-[794px]'} bg-white rounded-md shadow-md overflow-hidden border`}>
+            <div className={`${modalTemplateId === 'pos_clean' || modalTemplateId === 'pos_detailed' ? 'w-[320px]' : (modalTemplateId === 'industry_a6_monochrome' || modalTemplateId === 'industry_a6_slant' || modalTemplateId === 'industry_a6_geometric') ? 'w-[420px]' : (modalTemplateId === 'retail_a5' || modalTemplateId === 'industry_a5_modern' || modalTemplateId === 'industry_a5_classic') ? 'w-[580px]' : 'w-[794px]'} bg-white rounded-md shadow-md overflow-hidden border`}>
               {modalTemplateId && (
                 <StyledInvoiceTemplate
                   org={{
                     ...sampleOrg,
                     template_style: modalTemplateId,
-                    template_paper_size: modalTemplateId === 'pos_clean' || modalTemplateId === 'pos_detailed' ? 'pos80' : modalTemplateId === 'retail_a5' ? 'a5' : 'a4',
+                    template_paper_size: modalTemplateId === 'pos_clean' || modalTemplateId === 'pos_detailed' ? 'pos80' : (modalTemplateId === 'industry_a6_monochrome' || modalTemplateId === 'industry_a6_slant' || modalTemplateId === 'industry_a6_geometric') ? 'a6' : (modalTemplateId === 'retail_a5' || modalTemplateId === 'industry_a5_modern' || modalTemplateId === 'industry_a5_classic') ? 'a5' : 'a4',
                   }}
                   invoice={SAMPLE_PREVIEW_DATA.invoice}
                   lines={SAMPLE_PREVIEW_DATA.lines}

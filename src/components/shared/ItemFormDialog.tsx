@@ -57,6 +57,7 @@ export function ItemFormDialog({ open, onOpenChange, editItem, onItemSaved, cate
     low_stock_threshold: 5,
     show_sub_unit: false,
     show_low_stock_warning: false,
+    batch_no: "",
     has_expiry: false,
     expiry_date: "",
   };
@@ -113,6 +114,7 @@ export function ItemFormDialog({ open, onOpenChange, editItem, onItemSaved, cate
           show_sub_unit: Boolean(editItem.sub_unit && editItem.sub_unit.trim()),
           low_stock_threshold: editItem.low_stock_threshold !== null && editItem.low_stock_threshold !== undefined ? Number(editItem.low_stock_threshold) : 5,
           show_low_stock_warning: Boolean(editItem.low_stock_threshold !== null && editItem.low_stock_threshold !== undefined && Number(editItem.low_stock_threshold) > 0),
+          batch_no: (editItem as any).batch_no || "",
           has_expiry: Boolean(editItem.has_expiry),
           expiry_date: editItem.expiry_date || "",
         });
@@ -206,6 +208,7 @@ export function ItemFormDialog({ open, onOpenChange, editItem, onItemSaved, cate
       low_stock_threshold: form.show_low_stock_warning ? (Number(form.low_stock_threshold) || 0) : null,
       discount: form.discount,
       show_online: form.show_online,
+      batch_no: form.batch_no?.trim() ? form.batch_no.trim() : null,
       has_expiry: form.has_expiry,
       expiry_date: form.has_expiry && form.expiry_date ? form.expiry_date : null,
       is_active: true
@@ -667,6 +670,18 @@ export function ItemFormDialog({ open, onOpenChange, editItem, onItemSaved, cate
                       <Label className="text-slate-600">As of Date</Label>
                       <Input type="date" className="h-11 bg-white" value={form.as_of_date} onChange={(e) => setForm({...form, as_of_date: e.target.value})} />
                     </div>
+                  </div>
+
+                  {/* Batch Number */}
+                  <div className="space-y-1.5 pt-2">
+                    <Label className="text-slate-600 font-medium text-xs">Batch Number (Optional)</Label>
+                    <Input 
+                      className="h-10 bg-white max-w-[280px]" 
+                      placeholder="e.g. B-01 or BATCH-2026-A"
+                      value={form.batch_no || ""} 
+                      onChange={(e) => setForm({...form, batch_no: e.target.value})} 
+                    />
+                    <p className="text-[11px] text-slate-400">Assign a batch number for tracking and invoice printing</p>
                   </div>
 
                   {/* Expiry Details */}

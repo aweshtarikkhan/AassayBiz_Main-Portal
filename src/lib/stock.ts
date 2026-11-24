@@ -6,10 +6,13 @@ export interface StockMovementInput {
   changeQty: number; // negative = stock out, positive = stock in
   balanceAfter?: number | null;
   reason: string;
-  refType?: "invoice" | "credit_note" | "adjustment" | "manual" | null;
+  refType?: "invoice" | "credit_note" | "adjustment" | "manual" | "bill" | "grn" | "delivery_challan" | null;
   refId?: string | null;
   refNumber?: string | null;
   createdBy?: string | null;
+  batchNo?: string | null;
+  expiryDate?: string | null;
+  unitCost?: number | null;
 }
 
 /** Insert a batch of stock movements. Best-effort: errors are swallowed but logged. */
@@ -25,6 +28,9 @@ export async function logStockMovements(movements: StockMovementInput[]) {
     ref_id: m.refId ?? null,
     ref_number: m.refNumber ?? null,
     created_by: m.createdBy ?? null,
+    batch_no: m.batchNo ?? null,
+    expiry_date: m.expiryDate ?? null,
+    unit_cost: m.unitCost ?? null,
   }));
   const { error } = await (supabase as any).from("stock_movements").insert(rows);
   if (error) console.warn("stock movement log failed:", error.message);

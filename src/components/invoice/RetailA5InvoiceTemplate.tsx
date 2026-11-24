@@ -37,7 +37,15 @@ export function RetailA5InvoiceTemplate({
   const rawBillToObj = invoice?.billing_address || (invoice?.clients as any)?.billing_address;
   const parsedBillTo = typeof rawBillToObj === "string" ? (() => { try { return JSON.parse(rawBillToObj); } catch { return null; } })() : rawBillToObj;
 
-  const clientName = (invoice?.metadata as any)?.client_name || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.name : null) || (invoice.clients as any)?.display_name || (invoice.clients as any)?.company_name || (invoice.vendors as any)?.name || (invoice as any)?.client_name || "Walk-in Customer";
+  const rawClientName = (invoice?.metadata as any)?.client_name || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.name : null) || (invoice.clients as any)?.display_name || (invoice.clients as any)?.company_name || (invoice.vendors as any)?.name || (invoice as any)?.client_name || "";
+  // If customer name is not given or is default "Walk-in Customer", keep it blank
+  const clientName = (rawClientName === "Walk-in Customer") ? "" : rawClientName;
+  const referredBy = (invoice?.metadata as any)?.referred_by;
+  const referredByLabel = (invoice?.metadata as any)?.referred_by_label || "Referred By";
+  const showNotes = (invoice?.metadata as any)?.show_notes !== false;
+  const notesText = (invoice.notes || (invoice?.metadata as any)?.notes || "")?.trim();
+  const ewayBillNo = (invoice as any)?.eway_bill_no || (invoice?.metadata as any)?.eway_bill_no;
+  const ewayVehicleNo = (invoice as any)?.eway_vehicle_no || (invoice?.metadata as any)?.eway_vehicle_no;
   const clientPhone = (invoice?.metadata as any)?.client_mobile || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.phone : null) || (invoice.clients as any)?.phone || (invoice.vendors as any)?.phone || invoice.client_phone || "";
   const number = type === "estimate" ? invoice.estimate_number : (type === "po" ? invoice.po_number : (type === "bill" ? invoice.bill_number : invoice.invoice_number));
 
@@ -67,9 +75,8 @@ export function RetailA5InvoiceTemplate({
     return isNaN(dt.getTime()) ? String(d) : dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   };
 
-  // Ensure minimum 4 rows for clean template look
+  // Lines to display (only show as many rows as there are items)
   const displayLines = [...lines];
-  const emptyRowsCount = Math.max(0, 4 - displayLines.length);
 
   return (
     <div
@@ -85,7 +92,7 @@ export function RetailA5InvoiceTemplate({
       }}
     >
       {/* ── TOP HEADER ── */}
-      <div className="relative pb-3 border-b-2" style={{ borderColor: primaryBlue }}>
+      <div className="relative pb-3.5 border-b-2" style={{ borderColor: primaryBlue }}>
         {/* Top Right Decorative Angled Banner */}
         <div className="absolute -top-4 -right-5 flex items-start pointer-events-none">
           {/* Subtle light blue diagonal lines */}
@@ -131,7 +138,7 @@ export function RetailA5InvoiceTemplate({
             <p className="text-[10px] text-slate-500 font-medium">
               {(org as any)?.tagline || (org as any)?.business_type || "Retail & General Store"}
             </p>
-            <div className="mt-1 space-y-0.5 text-[9.5px] text-slate-600">
+            <div className="mt-1 space-y-1 text-[10px] text-slate-600 leading-normal">
               {org?.phone && (
                 <div className="flex items-center gap-1.5">
                   <Phone className="w-2.5 h-2.5 shrink-0" style={{ color: primaryBlue }} />
@@ -144,12 +151,12 @@ export function RetailA5InvoiceTemplate({
                   <span>{org.email}</span>
                 </div>
               )}
-              <div className="flex items-center gap-1.5">
-                <MapPin className="w-2.5 h-2.5 shrink-0" style={{ color: primaryBlue }} />
-                <span className="truncate max-w-[200px]">{orgAddressStr}</span>
+              <div className="flex items-start gap-1.5 pt-0.5">
+                <MapPin className="w-2.5 h-2.5 shrink-0 mt-0.5" style={{ color: primaryBlue }} />
+                <span className="break-words max-w-[280px] leading-snug">{orgAddressStr}</span>
               </div>
               {org?.gst_number && (
-                <div className="text-[9.5px] font-semibold text-slate-700">
+                <div className="text-[10px] font-semibold text-slate-800 pt-0.5 tracking-tight">
                   GSTIN: {org.gst_number}
                 </div>
               )}
@@ -164,16 +171,24 @@ export function RetailA5InvoiceTemplate({
         <div className="space-y-1 text-[10.5px]">
           <div className="flex items-center gap-1.5">
             <span className="font-bold text-slate-700 shrink-0">Customer Name :</span>
-            <span className="border-b border-slate-400 font-semibold text-slate-900 pb-0.5 flex-1 truncate">
-              {clientName}
+            <span className="border-b border-slate-400 font-semibold text-slate-900 pb-0.5 flex-1 truncate min-h-[16px]">
+              {clientName || ""}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="font-bold text-slate-700 shrink-0">Phone No. :</span>
-            <span className="border-b border-slate-400 font-medium text-slate-900 pb-0.5 flex-1 truncate">
-              {clientPhone || "-"}
+            <span className="border-b border-slate-400 font-medium text-slate-900 pb-0.5 flex-1 truncate min-h-[16px]">
+              {clientPhone || ""}
             </span>
           </div>
+          {referredBy && (
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-slate-700 shrink-0">{referredByLabel} :</span>
+              <span className="border-b border-slate-400 font-bold text-slate-900 pb-0.5 flex-1 truncate">
+                {referredBy}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Right: Boxed Invoice Info */}
@@ -222,9 +237,14 @@ export function RetailA5InvoiceTemplate({
                   </td>
                   <td className="py-1.5 px-2 text-left border-t border-r border-slate-200 font-semibold text-slate-900">
                     <div>{itemName}</div>
-                    {line.hsn_code && (
-                      <span className="text-[8.5px] text-slate-400 font-normal">HSN: {line.hsn_code}</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {line.hsn_code && (
+                        <span className="text-[8.5px] text-slate-400 font-normal">HSN: {line.hsn_code}</span>
+                      )}
+                      {line.batch_no && (
+                        <span className="text-[8.5px] text-slate-500 font-normal">Batch: {line.batch_no}</span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-1.5 px-2 text-center border-t border-r border-slate-200 font-medium text-slate-800">
                     {qty} {line.unit || ""}
@@ -241,20 +261,6 @@ export function RetailA5InvoiceTemplate({
                 </tr>
               );
             })}
-
-            {/* Empty placeholder rows to match clean voucher aesthetic */}
-            {Array.from({ length: emptyRowsCount }).map((_, eIdx) => (
-              <tr key={`empty-${eIdx}`} className="bg-white">
-                <td className="py-2.5 px-2 text-center border-t border-r border-slate-200 text-slate-300 font-medium">
-                  {displayLines.length + eIdx + 1}.
-                </td>
-                <td className="py-2.5 px-2 text-left border-t border-r border-slate-200"></td>
-                <td className="py-2.5 px-2 text-center border-t border-r border-slate-200"></td>
-                <td className="py-2.5 px-2 text-right border-t border-r border-slate-200"></td>
-                <td className="py-2.5 px-2 text-center border-t border-r border-slate-200"></td>
-                <td className="py-2.5 px-2 text-right border-t border-slate-200"></td>
-              </tr>
-            ))}
           </tbody>
         </table>
       </div>

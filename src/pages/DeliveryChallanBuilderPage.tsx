@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatSequenceNumber } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 import { useAuth } from "@/lib/auth";
+import { getOrgCategory } from "@/lib/business-category";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +31,7 @@ const emptyLine = (): Line => ({ item_id: "", description: "", quantity: 1, unit
 
 export default function DeliveryChallanBuilderPage() {
   const org = useAppStore((s) => s.organization);
+  const isRetail = getOrgCategory(org) === "retail";
   const { user } = useAuth();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -59,9 +61,22 @@ export default function DeliveryChallanBuilderPage() {
 
   const formatAddress = (addr: any): string => {
     if (!addr) return "";
-    if (typeof addr === "string") return addr;
+    if (typeof addr === "string") {
+      try {
+        const trimmed = addr.trim();
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+          const parsed = JSON.parse(trimmed);
+          if (parsed && typeof parsed === "object") {
+            const parts = [parsed.street, parsed.city, parsed.state, parsed.zip || parsed.pincode, parsed.country].filter(Boolean);
+            return parts.length > 0 ? parts.join(", ") : "";
+          }
+        }
+      } catch (_) {}
+      return addr;
+    }
     if (typeof addr === "object") {
-      return [addr.street, addr.city, addr.state, addr.zip || addr.pincode, addr.country].filter(Boolean).join(", ");
+      const parts = [addr.street, addr.city, addr.state, addr.zip || addr.pincode, addr.country].filter(Boolean);
+      return parts.length > 0 ? parts.join(", ") : "";
     }
     return String(addr);
   };
@@ -87,7 +102,8 @@ export default function DeliveryChallanBuilderPage() {
         const defBr = br.data?.find((b: any) => b.is_default);
         if (defBr) setBranchId(defBr.id);
         else if (br.data && br.data.length > 0) setBranchId(br.data[0].id);
-        else setBranchId("default");
+        else if (isRetail) setBranchId("default");
+        else setBranchId("");
       } else {
         const { data: d } = await (supabase as any).from("delivery_challans").select("*").eq("id", id).maybeSingle();
         const { data: l } = await (supabase as any).from("delivery_challan_lines").select("*").eq("dc_id", id).order("sort_order");
@@ -287,17 +303,28 @@ export default function DeliveryChallanBuilderPage() {
 
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold">Dispatch Branch / From</Label>
-            <Select value={branchId || "default"} onValueChange={setBranchId}>
+            <Select 
+              value={branchId || (isRetail ? "default" : undefined)} 
+              onValueChange={(val) => setBranchId(val === "none" ? "" : val)}
+            >
               <SelectTrigger className="text-xs h-9 w-full">
-                <SelectValue placeholder="Main Store / Location" />
+                <SelectValue placeholder={isRetail ? "Main Store / Location" : (branches.length === 0 ? "No branches found" : "Select Branch")} />
               </SelectTrigger>
               <SelectContent className="z-50 max-h-60">
-                <SelectItem value="default">Main Store / Location</SelectItem>
-                {branches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name} {b.is_default ? "(Primary)" : ""}
+                {isRetail && (
+                  <SelectItem value="default">Main Store / Location</SelectItem>
+                )}
+                {branches.length === 0 && !isRetail ? (
+                  <SelectItem value="none" disabled>
+                    No branches configured
                   </SelectItem>
-                ))}
+                ) : (
+                  branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name} {b.is_default ? "(Primary)" : ""}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             <p className="text-[10px] text-muted-foreground">Manage branches in Settings</p>

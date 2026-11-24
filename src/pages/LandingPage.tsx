@@ -274,37 +274,31 @@ export default function LandingPage() {
       <PublicHeader />
 
       {/* Modern SaaS Hero Section matching user screenshot */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-[#f8fafc] via-[#f5f7fb] to-white pt-12 pb-20 lg:pt-18 lg:pb-28 border-b border-slate-200/70">
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#f8fafc] via-[#f5f7fb] to-white pt-8 pb-14 sm:pt-12 sm:pb-20 lg:pt-18 lg:pb-28 border-b border-slate-200/70">
         {/* Subtle gradient background orbs matching logo colors */}
         <div className="absolute top-0 right-1/4 -translate-y-12 w-[600px] h-[600px] bg-[#28166f]/10 rounded-full blur-[140px] pointer-events-none" />
         <div className="absolute bottom-0 left-0 translate-y-1/4 w-[500px] h-[500px] bg-[#e77817]/10 rounded-full blur-[140px] pointer-events-none" />
         
-        <div className="mx-auto max-w-7xl px-6 relative z-10 grid lg:grid-cols-12 gap-10 lg:gap-8 items-center">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 relative z-10 grid lg:grid-cols-12 gap-8 lg:gap-8 items-center">
           
           {/* Left Column: Headline, Copy & CTAs */}
-          <div className="lg:col-span-6 text-left flex flex-col justify-center items-start">
+          <div className="lg:col-span-6 flex flex-col justify-center items-center sm:items-start text-center sm:text-left">
             
-            {/* Pill Eyebrow */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#f5f3ff] border border-purple-200/80 text-[#28166f] text-xs font-bold uppercase tracking-wider mb-5 shadow-xs whitespace-nowrap">
-              <Sparkles className="w-3.5 h-3.5 text-[#f97316] fill-[#f97316] shrink-0" />
-              <span>SIMPLIFY YOUR BUSINESS &bull; AMPLIFY YOUR GROWTH</span>
-            </div>
-
             {/* Main Headline */}
-            <h1 className="text-4xl sm:text-5xl md:text-[54px] lg:text-[56px] font-black tracking-tight leading-[1.12] text-[#0f172a] mb-5">
+            <h1 className="text-[32px] sm:text-5xl md:text-[54px] lg:text-[56px] font-black tracking-tight leading-[1.15] text-[#0f172a] mb-4 sm:mb-5">
               <span className="block">
                 Everything you{" "}
-                <span className="bg-gradient-to-r from-[#d946ef] via-[#ec4899] to-[#f97316] bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-[#28166f] via-[#7c3aed] to-[#e77817] bg-clip-text text-transparent">
                   need.
                 </span>
               </span>
               <span className="block relative mt-1">
                 One smart{" "}
                 <span className="relative inline-block">
-                  <span className="bg-gradient-to-r from-[#6366f1] via-[#d946ef] to-[#f97316] bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-[#28166f] via-[#e77817] to-[#ea580c] bg-clip-text text-transparent">
                     platform.
                   </span>
-                  {/* Curved orange underline arc under platform */}
+                  {/* Curved orange underline arc under platform matching logo */}
                   <svg
                     className="absolute -bottom-2.5 left-0 w-full h-3 overflow-visible pointer-events-none"
                     viewBox="0 0 100 12"
@@ -313,10 +307,10 @@ export default function LandingPage() {
                   >
                     <path
                       d="M 2 8 Q 50 1 98 8"
-                      stroke="#f97316"
+                      stroke="#e77817"
                       strokeWidth="3.2"
                       strokeLinecap="round"
-                      opacity="0.85"
+                      opacity="0.9"
                     />
                   </svg>
                 </span>
@@ -324,16 +318,16 @@ export default function LandingPage() {
             </h1>
 
             {/* Subtitle description */}
-            <p className="text-base sm:text-lg lg:text-xl text-slate-600 leading-relaxed mb-8 max-w-xl font-normal">
+            <p className="text-sm sm:text-lg lg:text-xl text-slate-600 leading-relaxed mb-6 sm:mb-8 max-w-xl font-normal">
               Invoicing, Accounting, CRM, HRMS, Marketing, Feedback, AI Analysis — everything your business need
             </p>
 
             {/* Enlarged Prominent CTA Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-start gap-4 sm:gap-5 mb-8 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-3.5 sm:gap-5 mb-6 sm:mb-8 w-full sm:w-auto">
               {/* Button 1: Start Free -> /book-demo */}
               <Button
                 size="lg"
-                className="h-[65px] w-full sm:w-[225px] text-lg font-bold bg-gradient-to-r from-[#1c0842] via-[#2a0b63] to-[#1c0842] hover:opacity-95 text-white shadow-xl shadow-purple-950/25 rounded-[20px] border-t border-purple-300/30 border-b border-purple-950 transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+                className="h-[54px] sm:h-[62px] w-full sm:w-[260px] text-base sm:text-lg font-bold bg-gradient-to-r from-[#1c0842] via-[#2a0b63] to-[#1c0842] hover:opacity-95 text-white shadow-xl shadow-purple-950/25 rounded-full border-t border-purple-300/30 border-b border-purple-950 transition-all duration-300 hover:scale-[1.02] cursor-pointer"
                 asChild
               >
                 <Link to="/book-demo" className="w-full h-full flex items-center justify-center gap-3">
@@ -346,7 +340,7 @@ export default function LandingPage() {
               {/* Button 2: Book a Demo -> /book-demo */}
               <Button
                 size="lg"
-                className="h-[65px] w-full sm:w-[225px] text-lg font-bold bg-[#fffdfa] hover:bg-[#fff9ef] text-slate-900 shadow-md shadow-amber-500/10 rounded-[20px] border-2 border-[#f59e0b] transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+                className="h-[54px] sm:h-[62px] w-full sm:w-[260px] text-base sm:text-lg font-bold bg-[#fffdfa] hover:bg-[#fff9ef] text-slate-900 shadow-md shadow-amber-500/10 rounded-full border-2 border-[#f59e0b] transition-all duration-300 hover:scale-[1.02] cursor-pointer"
                 asChild
               >
                 <Link to="/book-demo" className="w-full h-full flex items-center justify-center gap-3">
@@ -358,30 +352,30 @@ export default function LandingPage() {
             </div>
 
             {/* Trust Badges Strip with dividers */}
-            <div className="flex flex-wrap items-center justify-start gap-x-3.5 sm:gap-x-4 gap-y-2.5 text-xs sm:text-sm font-semibold text-slate-700">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
-                  <CreditCard className="w-3.5 h-3.5" />
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3.5 text-xs sm:text-sm font-semibold text-slate-700 w-full">
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-100/80 sm:bg-transparent px-3 py-1.5 sm:p-0 rounded-full sm:rounded-none border border-slate-200/60 sm:border-0 shadow-2xs sm:shadow-none">
+                <div className="w-5 h-5 rounded-md bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                  <CreditCard className="w-3 h-3" />
                 </div>
-                <span>No Credit Card Required</span>
+                <span className="text-[11px] sm:text-sm">No Credit Card Required</span>
               </div>
 
               <span className="text-slate-300 font-light hidden sm:inline select-none">|</span>
 
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500 shrink-0">
-                  <Zap className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-100/80 sm:bg-transparent px-3 py-1.5 sm:p-0 rounded-full sm:rounded-none border border-slate-200/60 sm:border-0 shadow-2xs sm:shadow-none">
+                <div className="w-5 h-5 rounded-md bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500 shrink-0">
+                  <Zap className="w-3 h-3 fill-amber-500 text-amber-500" />
                 </div>
-                <span>Easy Setup</span>
+                <span className="text-[11px] sm:text-sm">Easy Setup</span>
               </div>
 
               <span className="text-slate-300 font-light hidden sm:inline select-none">|</span>
 
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shrink-0">
-                  <Users className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-100/80 sm:bg-transparent px-3 py-1.5 sm:p-0 rounded-full sm:rounded-none border border-slate-200/60 sm:border-0 shadow-2xs sm:shadow-none">
+                <div className="w-5 h-5 rounded-md bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shrink-0">
+                  <Users className="w-3 h-3" />
                 </div>
-                <span>Trusted by Growing Businesses</span>
+                <span className="text-[11px] sm:text-sm">Trusted by Growing Businesses</span>
               </div>
             </div>
 
@@ -396,8 +390,8 @@ export default function LandingPage() {
       </section>
 
       {/* Stats / Trust Section */}
-      <section className="relative -mt-10 sm:-mt-12 z-20 mx-4 sm:mx-8 lg:mx-auto max-w-6xl">
-        <div className="rounded-3xl bg-gradient-to-r from-[#211559] via-[#28166f] to-[#1c1248] border border-white/15 shadow-2xl overflow-hidden relative py-7 px-6">
+      <section className="relative -mt-8 sm:-mt-12 z-20 mx-3 sm:mx-8 lg:mx-auto max-w-6xl">
+        <div className="rounded-3xl bg-gradient-to-r from-[#211559] via-[#28166f] to-[#1c1248] border border-white/15 shadow-2xl overflow-hidden relative py-5 sm:py-7 px-3 sm:px-6">
           <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-80 h-80 bg-[#e77817]/20 rounded-full blur-3xl pointer-events-none" />
 
           {/* Stats Row */}
@@ -887,10 +881,10 @@ export default function LandingPage() {
       {/* Interactive Product Sandbox & Feature Showcase */}
       <LandingInteractiveShowcase />
 
-      {/* Optimize Your Business with Us - Banner Box (Slim & Compact 50% Height) */}
-      <section className="py-14 sm:py-16 bg-[#fafbfc] relative overflow-hidden border-t border-slate-200/60">
+      {/* Optimize Your Business with Us - Banner Box */}
+      <section className="py-10 sm:py-16 bg-[#fafbfc] relative overflow-hidden border-t border-slate-200/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-gradient-to-r from-[#1c0d58] via-[#4a1460] to-[#e77817] px-5 py-2.5 sm:px-8 sm:py-3 lg:px-10 lg:py-3 shadow-lg border border-white/10 flex flex-col lg:flex-row items-center justify-between gap-3 lg:gap-6">
+          <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-gradient-to-r from-[#1c0d58] via-[#4a1460] to-[#e77817] p-5 sm:p-7 lg:p-8 shadow-xl border border-white/10 flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-8">
             
             {/* Ambient background curves & glowing rings */}
             <div className="absolute -right-20 -top-20 w-64 h-64 rounded-full border border-white/10 pointer-events-none" />
@@ -898,106 +892,106 @@ export default function LandingPage() {
             <div className="absolute right-6 top-4 w-40 h-40 rounded-full border border-white/20 pointer-events-none" />
             <div className="absolute top-1/2 right-20 -translate-y-1/2 w-48 h-48 bg-[#ff781f]/25 rounded-full blur-[50px] pointer-events-none" />
 
-            {/* Left Content: Title + Feature Badges (Matched Width Edge-to-Edge) */}
-            <div className="relative z-10 w-fit max-w-full">
-              <h2 className="text-base sm:text-xl md:text-2xl lg:text-[28px] xl:text-[32px] font-black text-white leading-none tracking-normal mb-2.5 sm:mb-3 text-center lg:text-left whitespace-nowrap">
-                Optimize your business <span className="text-[#ff8522]">with us</span>
+            {/* Left Content: Title + Feature Badges */}
+            <div className="relative z-10 w-full lg:max-w-2xl flex flex-col items-center lg:items-start">
+              <h2 className="text-xl sm:text-2xl md:text-[28px] lg:text-[30px] font-black text-white leading-tight tracking-tight mb-4 text-center lg:text-left">
+                Optimize your business <span className="text-[#ffaa47]">with us</span>
               </h2>
 
-              {/* Feature Icon Badges Row (stretches to exact width of the headline) */}
-              <div className="w-full flex items-center justify-between">
+              {/* Feature Icon Badges: Clean, responsive layout that NEVER collides on mobile */}
+              <div className="w-full flex flex-wrap items-center justify-center lg:justify-start gap-3 sm:gap-4 lg:gap-5">
                 {/* 1. Invoicing */}
-                <div className="flex flex-col items-center gap-1 text-center shrink-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-sky-500 to-cyan-400 p-[1.5px] shadow-sm flex items-center justify-center">
+                <div className="flex flex-col items-center gap-1 text-center min-w-[55px] sm:min-w-[62px]">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-sky-500/30 border border-sky-400/50 p-1 shadow-sm flex items-center justify-center">
                     <div className="w-full h-full rounded-full bg-sky-500 flex items-center justify-center">
                       <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                     </div>
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-medium text-white/95">Invoicing</span>
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-white/95">Invoicing</span>
                 </div>
 
-                <div className="h-4 sm:h-5 w-px bg-white/25 hidden sm:block shrink-0" />
+                <div className="h-5 w-px bg-white/20 hidden lg:block shrink-0" />
 
                 {/* 2. Accounting */}
-                <div className="flex flex-col items-center gap-1 text-center shrink-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-purple-600 to-fuchsia-400 p-[1.5px] shadow-sm flex items-center justify-center">
+                <div className="flex flex-col items-center gap-1 text-center min-w-[55px] sm:min-w-[62px]">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-purple-500/30 border border-purple-400/50 p-1 shadow-sm flex items-center justify-center">
                     <div className="w-full h-full rounded-full bg-purple-600 flex items-center justify-center">
                       <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                     </div>
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-medium text-white/95">Accounting</span>
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-white/95">Accounting</span>
                 </div>
 
-                <div className="h-4 sm:h-5 w-px bg-white/25 hidden sm:block shrink-0" />
+                <div className="h-5 w-px bg-white/20 hidden lg:block shrink-0" />
 
                 {/* 3. CRM */}
-                <div className="flex flex-col items-center gap-1 text-center shrink-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-pink-600 to-rose-400 p-[1.5px] shadow-sm flex items-center justify-center">
+                <div className="flex flex-col items-center gap-1 text-center min-w-[55px] sm:min-w-[62px]">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-pink-500/30 border border-pink-400/50 p-1 shadow-sm flex items-center justify-center">
                     <div className="w-full h-full rounded-full bg-pink-600 flex items-center justify-center">
                       <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                     </div>
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-medium text-white/95">CRM</span>
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-white/95">CRM</span>
                 </div>
 
-                <div className="h-4 sm:h-5 w-px bg-white/25 hidden sm:block shrink-0" />
+                <div className="h-5 w-px bg-white/20 hidden lg:block shrink-0" />
 
                 {/* 4. HRMS */}
-                <div className="flex flex-col items-center gap-1 text-center shrink-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 p-[1.5px] shadow-sm flex items-center justify-center">
+                <div className="flex flex-col items-center gap-1 text-center min-w-[55px] sm:min-w-[62px]">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-emerald-500/30 border border-emerald-400/50 p-1 shadow-sm flex items-center justify-center">
                     <div className="w-full h-full rounded-full bg-emerald-600 flex items-center justify-center">
                       <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                     </div>
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-medium text-white/95">HRMS</span>
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-white/95">HRMS</span>
                 </div>
 
-                <div className="h-4 sm:h-5 w-px bg-white/25 hidden sm:block shrink-0" />
+                <div className="h-5 w-px bg-white/20 hidden lg:block shrink-0" />
 
                 {/* 5. Marketing */}
-                <div className="flex flex-col items-center gap-1 text-center shrink-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-orange-600 to-amber-400 p-[1.5px] shadow-sm flex items-center justify-center">
+                <div className="flex flex-col items-center gap-1 text-center min-w-[55px] sm:min-w-[62px]">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-orange-500/30 border border-orange-400/50 p-1 shadow-sm flex items-center justify-center">
                     <div className="w-full h-full rounded-full bg-orange-600 flex items-center justify-center">
                       <Megaphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                     </div>
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-medium text-white/95">Marketing</span>
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-white/95">Marketing</span>
                 </div>
 
-                <div className="h-4 sm:h-5 w-px bg-white/25 hidden sm:block shrink-0" />
+                <div className="h-5 w-px bg-white/20 hidden lg:block shrink-0" />
 
                 {/* 6. Feedback */}
-                <div className="flex flex-col items-center gap-1 text-center shrink-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 p-[1.5px] shadow-sm flex items-center justify-center">
+                <div className="flex flex-col items-center gap-1 text-center min-w-[55px] sm:min-w-[62px]">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-amber-500/30 border border-amber-400/50 p-1 shadow-sm flex items-center justify-center">
                     <div className="w-full h-full rounded-full bg-amber-500 flex items-center justify-center">
                       <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white fill-white" />
                     </div>
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-medium text-white/95">Feedback</span>
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-white/95">Feedback</span>
                 </div>
 
-                <div className="h-4 sm:h-5 w-px bg-white/25 hidden sm:block shrink-0" />
+                <div className="h-5 w-px bg-white/20 hidden lg:block shrink-0" />
 
                 {/* 7. AI Analysis */}
-                <div className="flex flex-col items-center gap-1 text-center shrink-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-400 p-[1.5px] shadow-sm flex items-center justify-center">
+                <div className="flex flex-col items-center gap-1 text-center min-w-[55px] sm:min-w-[62px]">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-indigo-500/30 border border-indigo-400/50 p-1 shadow-sm flex items-center justify-center">
                     <div className="w-full h-full rounded-full bg-indigo-500 flex items-center justify-center">
                       <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                     </div>
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-medium text-white/95">AI Analysis</span>
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-white/95">AI Analysis</span>
                 </div>
               </div>
             </div>
 
-            {/* Right Content: Action Buttons (Book a Demo) */}
-            <div className="relative z-10 shrink-0 lg:mr-4 xl:mr-8 flex items-center gap-3">
+            {/* Right Content: Action Button -> Contact Us linking to /contact */}
+            <div className="relative z-10 shrink-0 w-full sm:w-auto flex justify-center items-center">
               <Link
-                to="/book-demo"
-                className="group flex items-center justify-between gap-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm lg:text-base px-6 py-2.5 rounded-full shadow-lg hover:shadow-[0_0_20px_rgba(251,191,36,0.5)] transition-all duration-300 hover:scale-[1.02]"
+                to="/contact"
+                className="group w-full sm:w-auto flex items-center justify-center gap-3 bg-gradient-to-r from-amber-400 to-[#e77817] hover:from-amber-300 hover:to-[#f28723] text-slate-950 font-black text-sm sm:text-base px-7 py-3.5 rounded-full shadow-lg hover:shadow-[0_0_20px_rgba(251,191,36,0.5)] transition-all duration-300 hover:scale-[1.02] cursor-pointer"
               >
-                <span>Book a Demo</span>
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-950 flex items-center justify-center text-amber-400 shadow-xs group-hover:translate-x-0.5 transition-transform">
+                <span>Contact Us</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-950 flex items-center justify-center text-amber-400 shadow-xs group-hover:translate-x-1 transition-transform">
                   <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 stroke-[2.5]" />
                 </div>
               </Link>

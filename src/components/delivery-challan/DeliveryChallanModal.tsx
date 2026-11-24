@@ -45,9 +45,22 @@ export function DeliveryChallanModal({
   const generateWhatsAppMessage = () => {
     const formatAddress = (addr: any): string => {
       if (!addr) return "";
-      if (typeof addr === "string") return addr;
+      if (typeof addr === "string") {
+        try {
+          const trimmed = addr.trim();
+          if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+            const parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === "object") {
+              const parts = [parsed.street, parsed.city, parsed.state, parsed.zip || parsed.pincode, parsed.country].filter(Boolean);
+              return parts.length > 0 ? parts.join(", ") : "";
+            }
+          }
+        } catch (_) {}
+        return addr;
+      }
       if (typeof addr === "object") {
-        return [addr.street, addr.city, addr.state, addr.zip || addr.pincode, addr.country].filter(Boolean).join(", ");
+        const parts = [addr.street, addr.city, addr.state, addr.zip || addr.pincode, addr.country].filter(Boolean);
+        return parts.length > 0 ? parts.join(", ") : "";
       }
       return String(addr);
     };

@@ -9,6 +9,7 @@ import { PlanSelectorModal } from "@/components/shared/PlanSelectorModal";
 import { useAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { logStockMovements, detectNegativeStock } from "@/lib/stock";
+import { recordPaymentBankingTransaction, getOrCreateCashAccount } from "@/lib/banking-sync";
 import { CustomFieldsForm, saveCustomFieldValues } from "@/components/shared/CustomFieldsForm";
 import { CURRENCIES, formatCurrency } from "@/lib/currency";
 import { formatSequenceNumber } from "@/lib/utils";
@@ -88,6 +89,7 @@ interface LineItem {
   primary_unit?: string;
   base_unit_price?: number;
   expiry_warning?: string;
+  batch_no?: string;
 }
 
 const UNITS = COMMON_UNITS;
@@ -111,6 +113,7 @@ function createEmptyLine(): LineItem {
     sub_unit_conversion_rate: 1,
     primary_unit: "pcs",
     base_unit_price: 0,
+    batch_no: "",
   };
 }
 
@@ -124,6 +127,10 @@ function SortableLineItem({
   onAddItem,
   currency,
   org,
+  prefShowBatchNo = true,
+  onAutoAddLine,
+  allLines = [],
+  itemBatches = {},
 }: {
   line: LineItem;
   index: number;
@@ -135,10 +142,18 @@ function SortableLineItem({
   currency: string;
   org: any;
   onAutoAddLine?: () => void;
+  prefShowBatchNo?: boolean;
+  allLines?: LineItem[];
+  itemBatches?: Record<string, { batch_no: string; quantity: number; created_at: string }[]>;
 }) {
   const hasGst = Boolean((org?.gst_number?.trim() || (org as any)?.tax_number?.trim()) || (org as any)?.gst_enabled);
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: line.id });
   const [itemDropdownOpen, setItemDropdownOpen] = useState(false);
+
+  const availableBatches = useMemo(() => {
+    if (!line.item_id || !itemBatches) return [];
+    return itemBatches[line.item_id] || [];
+  }, [line.item_id, itemBatches]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -196,6 +211,33 @@ function SortableLineItem({
     onChange(index, "tax_id", hasGst ? (item.tax_id || null) : null);
     onChange(index, "sub_unit", item.sub_unit || "");
     onChange(index, "sub_unit_conversion_rate", Number(item.sub_unit_conversion_rate) || 1);
+    // FIFO Batch Auto-fill:
+    // Find available batches for this item ordered by FIFO (oldest purchase first)
+    const available = (itemBatches && item.id ? itemBatches[item.id] : []) || [];
+    let chosenBatch = "";
+
+    if (available.length > 0) {
+      // Find batches already used by EARLIER rows on this invoice for the same item
+      const usedByEarlierRows = (allLines || []).slice(0, index)
+        .filter((l) => l.item_id === item.id && l.batch_no?.trim())
+        .map((l) => l.batch_no!.trim().toLowerCase());
+
+      // Pick the first unused FIFO batch
+      const nextUnused = available.find((b) => !usedByEarlierRows.includes(b.batch_no.toLowerCase()));
+      if (nextUnused) {
+        chosenBatch = nextUnused.batch_no;
+      } else {
+        // If all batches have already been assigned to previous lines, cycle in FIFO order
+        const cycleIdx = usedByEarlierRows.length % available.length;
+        chosenBatch = available[cycleIdx].batch_no;
+      }
+    } else if (item.batch_no) {
+      chosenBatch = item.batch_no;
+    }
+
+    if (chosenBatch) {
+      onChange(index, "batch_no", chosenBatch);
+    }
     setItemDropdownOpen(false);
     onAutoAddLine?.();
   };
@@ -296,6 +338,103 @@ function SortableLineItem({
             onChange={(e) => onChange(index, "description", e.target.value)}
             rows={2}
           />
+          {prefShowBatchNo && (
+            <div className="flex flex-col gap-1 mt-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap font-medium">Batch #:</span>
+                <div className="relative flex-1 flex items-center gap-1">
+                  <Input
+                    list={`batch-list-${line.id || index}`}
+                    className="h-7 text-xs px-2 flex-1 font-mono"
+                    placeholder="Batch number (e.g. B-012)"
+                    value={line.batch_no || ""}
+                    onChange={(e) => onChange(index, "batch_no", e.target.value)}
+                  />
+                  <datalist id={`batch-list-${line.id || index}`}>
+                    {availableBatches.map((b, bIdx) => (
+                      <option key={`${b.batch_no}-${bIdx}`} value={b.batch_no}>
+                        {b.batch_no} {b.quantity ? `(Qty: ${b.quantity})` : ""} {bIdx === 0 ? "★ FIFO (Oldest)" : ""}
+                      </option>
+                    ))}
+                  </datalist>
+
+                  {availableBatches.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-1.5 text-[10px] text-blue-600 hover:text-blue-700 hover:bg-blue-50 border border-blue-200"
+                          title="Choose batch (FIFO)"
+                        >
+                          Batches ({availableBatches.length})
+                          <ChevronDown className="h-3 w-3 ml-0.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56 text-xs bg-white dark:bg-slate-900 shadow-md">
+                        <div className="px-2 py-1.5 text-[11px] font-semibold text-muted-foreground border-b flex justify-between items-center">
+                          <span>Available Batches (FIFO)</span>
+                          <span className="text-[9px] bg-blue-100 text-blue-700 px-1 rounded">Oldest First</span>
+                        </div>
+                        {availableBatches.map((b, bIdx) => {
+                          const isSelected = line.batch_no?.trim().toLowerCase() === b.batch_no.toLowerCase();
+                          return (
+                            <DropdownMenuItem
+                              key={`${b.batch_no}-${bIdx}`}
+                              onClick={() => onChange(index, "batch_no", b.batch_no)}
+                              className="flex justify-between items-center cursor-pointer text-xs py-1.5 px-2"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                {isSelected ? (
+                                  <Check className="h-3 w-3 text-emerald-600" />
+                                ) : (
+                                  <span className="w-3" />
+                                )}
+                                <span className={`font-mono font-medium ${isSelected ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : ''}`}>
+                                  {b.batch_no}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                {b.quantity > 0 && <span>Qty: {b.quantity}</span>}
+                                {bIdx === 0 && (
+                                  <span className="text-[9px] bg-emerald-100 text-emerald-700 font-medium px-1 rounded">FIFO</span>
+                                )}
+                              </div>
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              </div>
+              {availableBatches.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1 pl-12">
+                  <span className="text-[9px] text-muted-foreground">FIFO:</span>
+                  {availableBatches.map((b, bIdx) => {
+                    const isSelected = line.batch_no?.trim().toLowerCase() === b.batch_no.toLowerCase();
+                    return (
+                      <button
+                        key={`${b.batch_no}-badge-${bIdx}`}
+                        type="button"
+                        onClick={() => onChange(index, "batch_no", b.batch_no)}
+                        className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
+                          isSelected
+                            ? "bg-blue-600 text-white border-blue-600 font-medium"
+                            : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                        }`}
+                      >
+                        {b.batch_no}
+                        {b.quantity > 0 ? ` (${b.quantity})` : ""}
+                        {bIdx === 0 ? " ★" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
           {line.expiry_warning && <div className="text-[10px] text-red-500 font-medium mt-1">{line.expiry_warning}</div>}
         </div>
         {/* Quantity */}
@@ -482,6 +621,7 @@ export default function InvoiceBuilderPage() {
   });
   const [catalogItems, setCatalogItems] = useState<any[]>([]);
   const [taxRates, setTaxRates] = useState<any[]>([]);
+  const [itemBatches, setItemBatches] = useState<Record<string, { batch_no: string; quantity: number; created_at: string }[]>>({});
 
   const [clientId, setClientId] = useState("");
   const [clientAdvanceCredit, setClientAdvanceCredit] = useState(0);
@@ -500,6 +640,27 @@ export default function InvoiceBuilderPage() {
   const [shippingPhone, setShippingPhone] = useState("");
   const [shippingGst, setShippingGst] = useState("");
   const isRetail = isRetailOrg(org);
+  const showReferredByPref = (org as any)?.invoice_preferences?.show_referred_by !== false;
+  const referredByLabel = (org as any)?.invoice_preferences?.referred_by_label || "Referred By";
+  const rawReferredByOpts = (org as any)?.invoice_preferences?.referred_by_options;
+  const referredByOptions: string[] = Array.isArray(rawReferredByOpts)
+    ? rawReferredByOpts
+    : (rawReferredByOpts ? String(rawReferredByOpts).split(',').map((s: string) => s.trim()).filter(Boolean) : []);
+  const [addReferredBy, setAddReferredBy] = useState(false);
+  const [selectedReferredByLabel, setSelectedReferredByLabel] = useState<string>(() => {
+    if (referredByOptions.length > 0) return referredByOptions[0];
+    if (referredByLabel && referredByLabel !== "Referred By") return referredByLabel;
+    return "Doctor Name";
+  });
+  const [referredByName, setReferredByName] = useState("");
+
+  useEffect(() => {
+    if (referredByOptions.length > 0 && (!selectedReferredByLabel || selectedReferredByLabel === "Doctor Name")) {
+      setSelectedReferredByLabel(referredByOptions[0]);
+    } else if (referredByLabel && referredByLabel !== "Referred By" && (!selectedReferredByLabel || selectedReferredByLabel === "Doctor Name")) {
+      setSelectedReferredByLabel(referredByLabel);
+    }
+  }, [referredByOptions, referredByLabel]);
   const [retailCustomerName, setRetailCustomerName] = useState("");
   const [retailCustomerPhone, setRetailCustomerPhone] = useState("");
   const [retailUseExistingClient, setRetailUseExistingClient] = useState(false);
@@ -521,14 +682,15 @@ export default function InvoiceBuilderPage() {
   const initialPrefs = (org as any)?.invoice_preferences || {};
   const [autoRoundOff, setAutoRoundOff] = useState<boolean>(initialPrefs.auto_round_off !== false);
   const [showBankDetails, setShowBankDetails] = useState<boolean>(initialPrefs.pdf_show_bank_details !== false && initialPrefs.show_bank_details !== false);
-  const [showTerms, setShowTerms] = useState<boolean>(isRetail ? false : initialPrefs.pdf_show_terms !== false);
+  const [showTerms, setShowTerms] = useState<boolean>(initialPrefs.pdf_show_terms !== false);
   const [showNotes, setShowNotes] = useState<boolean>(initialPrefs.pdf_show_notes !== false);
 
-  const [prefShowTerms, setPrefShowTerms] = useState<boolean>(isRetail ? false : initialPrefs.show_terms !== false);
+  const [prefShowTerms, setPrefShowTerms] = useState<boolean>(initialPrefs.show_terms !== false);
   const [prefShowNotes, setPrefShowNotes] = useState<boolean>(initialPrefs.show_notes !== false);
-  const [prefShowBankDetails, setPrefShowBankDetails] = useState<boolean>(initialPrefs.show_bank_details !== false);
-  const [prefShowDisplayOptions, setPrefShowDisplayOptions] = useState<boolean>(isRetail ? false : initialPrefs.show_display_options !== false);
-  const [prefShowCompliance, setPrefShowCompliance] = useState<boolean>(initialPrefs.show_compliance !== false);
+  const [prefShowBankDetails, setPrefShowBankDetails] = useState<boolean>(isRetail ? false : initialPrefs.show_bank_details !== false);
+  const [prefShowCompliance, setPrefShowCompliance] = useState<boolean>(isRetail ? false : initialPrefs.show_compliance !== false);
+  const [prefShowBatchNo, setPrefShowBatchNo] = useState<boolean>(initialPrefs.show_batch_no !== false);
+  const [showBatchNo, setShowBatchNo] = useState<boolean>(initialPrefs.pdf_show_batch_no !== false);
   const [lines, setLines] = useState<LineItem[]>([createEmptyLine()]);
   const [deductStock, setDeductStock] = useState(true);
   const [prevDeductStock, setPrevDeductStock] = useState(true);
@@ -593,6 +755,64 @@ export default function InvoiceBuilderPage() {
       setClients(c.data || []);
       setCatalogItems(i.data || []);
       setTaxRates(t.data || []);
+
+      // Fetch item batches from purchase bills and stock movements (FIFO sorted)
+      try {
+        const [billRes, stockRes] = await Promise.all([
+          supabase
+            .from("bill_lines")
+            .select("item_id, batch_no, quantity, created_at")
+            .eq("org_id", org.id)
+            .not("batch_no", "is", null)
+            .order("created_at", { ascending: true }),
+          supabase
+            .from("stock_movements")
+            .select("item_id, batch_no, change_qty, created_at")
+            .eq("org_id", org.id)
+            .gt("change_qty", 0)
+            .not("batch_no", "is", null)
+            .order("created_at", { ascending: true }),
+        ]);
+
+        const batchMap: Record<string, { batch_no: string; quantity: number; created_at: string }[]> = {};
+
+        const addBatch = (itemId: string, bNo: string, qty: number, createdAt: string) => {
+          const cleanBNo = bNo?.trim();
+          if (!itemId || !cleanBNo) return;
+          if (!batchMap[itemId]) batchMap[itemId] = [];
+          const existing = batchMap[itemId].find((b) => b.batch_no.toLowerCase() === cleanBNo.toLowerCase());
+          if (existing) {
+            existing.quantity += Number(qty || 0);
+          } else {
+            batchMap[itemId].push({
+              batch_no: cleanBNo,
+              quantity: Math.max(0, Number(qty || 0)),
+              created_at: createdAt || new Date().toISOString(),
+            });
+          }
+        };
+
+        (billRes.data || []).forEach((bl: any) => {
+          if (bl.item_id && bl.batch_no) {
+            addBatch(bl.item_id, bl.batch_no, Number(bl.quantity || 0), bl.created_at);
+          }
+        });
+
+        (stockRes.data || []).forEach((sm: any) => {
+          if (sm.item_id && sm.batch_no) {
+            addBatch(sm.item_id, sm.batch_no, Number(sm.change_qty || 0), sm.created_at);
+          }
+        });
+
+        // Ensure each item's batches are ordered by created_at ascending (FIFO: First-in, first-out)
+        Object.keys(batchMap).forEach((itemId) => {
+          batchMap[itemId].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        });
+
+        setItemBatches(batchMap);
+      } catch (err) {
+        console.warn("Failed to load item batches:", err);
+      }
       if (subRes?.data?.plan_name) {
         const plans = subRes.data.plan_name.split('+').map((s: string) => normalizePlanKey(s)).filter(Boolean);
         setActiveOrgPlans(plans);
@@ -641,18 +861,19 @@ export default function InvoiceBuilderPage() {
         const effectivePrefs = (freshOrg as any)?.invoice_preferences || (org as any)?.invoice_preferences;
         if (effectivePrefs) {
           // Builder input sections
-          if (effectivePrefs.show_terms !== undefined) setPrefShowTerms(isRetail ? false : effectivePrefs.show_terms !== false);
+          if (effectivePrefs.show_terms !== undefined) setPrefShowTerms(effectivePrefs.show_terms !== false);
           if (effectivePrefs.show_notes !== undefined) setPrefShowNotes(effectivePrefs.show_notes !== false);
-          if (effectivePrefs.show_bank_details !== undefined) setPrefShowBankDetails(effectivePrefs.show_bank_details !== false);
-          if (effectivePrefs.show_display_options !== undefined) setPrefShowDisplayOptions(isRetail ? false : effectivePrefs.show_display_options !== false);
-          if (effectivePrefs.show_compliance !== undefined) setPrefShowCompliance(effectivePrefs.show_compliance !== false);
+          if (effectivePrefs.show_bank_details !== undefined) setPrefShowBankDetails(isRetail ? false : effectivePrefs.show_bank_details !== false);
+          if (effectivePrefs.show_compliance !== undefined) setPrefShowCompliance(isRetail ? false : effectivePrefs.show_compliance !== false);
+          if (effectivePrefs.show_batch_no !== undefined) setPrefShowBatchNo(effectivePrefs.show_batch_no !== false);
+          if (effectivePrefs.pdf_show_batch_no !== undefined) setShowBatchNo(effectivePrefs.pdf_show_batch_no !== false);
 
           // PDF document display defaults
           if (effectivePrefs.pdf_show_bank_details !== undefined) {
-            setShowBankDetails(effectivePrefs.pdf_show_bank_details !== false);
-            setIncludeBankDetails(effectivePrefs.pdf_show_bank_details !== false);
+            setShowBankDetails(isRetail ? false : effectivePrefs.pdf_show_bank_details !== false);
+            setIncludeBankDetails(isRetail ? false : effectivePrefs.pdf_show_bank_details !== false);
           }
-          if (effectivePrefs.pdf_show_terms !== undefined) setShowTerms(isRetail ? false : effectivePrefs.pdf_show_terms !== false);
+          if (effectivePrefs.pdf_show_terms !== undefined) setShowTerms(effectivePrefs.pdf_show_terms !== false);
           if (effectivePrefs.pdf_show_notes !== undefined) setShowNotes(effectivePrefs.pdf_show_notes !== false);
           if (effectivePrefs.auto_round_off !== undefined) setAutoRoundOff(effectivePrefs.auto_round_off !== false);
           if (effectivePrefs.pdf_show_signature !== undefined) setShowSignature(effectivePrefs.pdf_show_signature !== false);
@@ -662,7 +883,6 @@ export default function InvoiceBuilderPage() {
           setPaymentTerms(0);
           setPrefShowTerms(false);
           setShowTerms(false);
-          setPrefShowDisplayOptions(false);
         }
 
         // Auto-select Default / Primary Bank Account
@@ -752,6 +972,22 @@ export default function InvoiceBuilderPage() {
       if (inv.metadata && (inv.metadata as any).shipping_same_as_billing !== undefined) {
         setShippingSameAsBilling((inv.metadata as any).shipping_same_as_billing);
       }
+      if (inv.metadata && ((inv.metadata as any).referred_by || (inv.metadata as any).referred_by_label)) {
+        setAddReferredBy(true);
+        const metaRefName = String((inv.metadata as any).referred_by || "");
+        const metaRefLabel = String((inv.metadata as any).referred_by_label || "");
+        if (metaRefLabel) {
+          setSelectedReferredByLabel(metaRefLabel);
+          setReferredByName(metaRefName);
+        } else {
+          if (referredByOptions.includes(metaRefName) || metaRefName === "Doctor Name" || metaRefName === "Referred By") {
+            setSelectedReferredByLabel(metaRefName);
+            setReferredByName("");
+          } else {
+            setReferredByName(metaRefName);
+          }
+        }
+      }
       if (inv.shipping_address) {
         try {
           const parsed = typeof inv.shipping_address === "string" ? JSON.parse(inv.shipping_address) : inv.shipping_address;
@@ -787,9 +1023,24 @@ export default function InvoiceBuilderPage() {
       setAdjustmentName(inv.adjustment_name || "Adjustment");
         if (inv.metadata) {
           if ((inv.metadata as any).auto_round_off !== undefined) setAutoRoundOff((inv.metadata as any).auto_round_off);
-          if ((inv.metadata as any).show_bank_details !== undefined) setShowBankDetails((inv.metadata as any).show_bank_details);
-          if ((inv.metadata as any).show_terms !== undefined) setShowTerms((inv.metadata as any).show_terms);
-          if ((inv.metadata as any).show_notes !== undefined) setShowNotes((inv.metadata as any).show_notes);
+          if ((inv.metadata as any).show_bank_details !== undefined) {
+            setShowBankDetails((inv.metadata as any).show_bank_details);
+            setPrefShowBankDetails((inv.metadata as any).show_bank_details);
+            if ((inv.metadata as any).show_bank_details) setIncludeBankDetails(true);
+          }
+          if ((inv.metadata as any).show_terms !== undefined) {
+            setShowTerms((inv.metadata as any).show_terms);
+            setPrefShowTerms((inv.metadata as any).show_terms);
+          }
+          if ((inv.metadata as any).show_notes !== undefined) {
+            setShowNotes((inv.metadata as any).show_notes);
+            setPrefShowNotes((inv.metadata as any).show_notes);
+          }
+          if ((inv.metadata as any).pdf_show_batch_no !== undefined || (inv.metadata as any).show_batch_no !== undefined) {
+            const b = (inv.metadata as any).pdf_show_batch_no ?? (inv.metadata as any).show_batch_no;
+            setShowBatchNo(b);
+            setPrefShowBatchNo(b);
+          }
         }
       const isTdsTcsOn = Boolean(
         (inv as any).tds_tcs_applicable ||
@@ -871,6 +1122,7 @@ export default function InvoiceBuilderPage() {
           hsn_code: (l as any).hsn_code || "",
           sub_unit: (l as any).sub_unit || "",
           sub_unit_conversion_rate: Number((l as any).sub_unit_conversion_rate) || 1,
+          batch_no: (l as any).batch_no || "",
         })));
       }
     };
@@ -1316,7 +1568,7 @@ export default function InvoiceBuilderPage() {
       }
     }
 
-    const isBankPrinting = prefShowBankDetails && includeBankDetails && showBankDetails;
+    const isBankPrinting = prefShowBankDetails && includeBankDetails;
     const bankDetailsPayload = isBankPrinting && (bankName.trim() || bankAccountNumber.trim() || bankIfsc.trim()) ? {
       enabled: true,
       bank_name: bankName.trim(),
@@ -1376,10 +1628,12 @@ export default function InvoiceBuilderPage() {
         auto_round_off: autoRoundOff,
         round_off: finalAdjustment,
         show_bank_details: isBankPrinting,
-        show_terms: isRetail ? false : (prefShowTerms && showTerms),
-        show_notes: prefShowNotes && showNotes,
+        show_terms: prefShowTerms && Boolean(terms.trim()),
+        show_notes: prefShowNotes && Boolean(notes.trim()),
         show_signature: showSignature,
         pref_show_compliance: prefShowCompliance,
+        show_batch_no: prefShowBatchNo,
+        pdf_show_batch_no: prefShowBatchNo,
         tds_tcs_applicable: tdsTcsApplicable,
         tds_tcs_type: tdsTcsType,
         tds_tcs_rate: cleanTdsTcsRate,
@@ -1390,6 +1644,8 @@ export default function InvoiceBuilderPage() {
         is_retail: isRetail,
         client_name: isRetail ? effectiveClientName : undefined,
         client_mobile: isRetail ? effectiveClientPhone : undefined,
+        referred_by: addReferredBy && referredByName.trim() ? referredByName.trim() : undefined,
+        referred_by_label: addReferredBy && referredByName.trim() ? (selectedReferredByLabel || "Doctor Name").trim() : undefined,
       },
       invoice_number: invoiceNumber,
       issue_date: issueDate,
@@ -1423,7 +1679,7 @@ export default function InvoiceBuilderPage() {
       balance_due: calculatedBalance,
       status: finalStatus,
       notes: prefShowNotes ? notes : null,
-      terms_conditions: isRetail ? null : (prefShowTerms ? terms : null),
+      terms_conditions: prefShowTerms ? terms : null,
       ...(status === "sent" ? { sent_at: new Date().toISOString() } : {}),
     };
 
@@ -1554,7 +1810,8 @@ export default function InvoiceBuilderPage() {
             sort_order: i,
             hsn_code: hasGst ? (l.hsn_code?.trim() || null) : null,
             sub_unit: l.sub_unit,
-            sub_unit_conversion_rate: l.sub_unit_conversion_rate
+            sub_unit_conversion_rate: l.sub_unit_conversion_rate,
+            batch_no: l.batch_no?.trim() || null
           };
         });
 
@@ -1592,17 +1849,36 @@ export default function InvoiceBuilderPage() {
             if (it.type !== "product") continue;
             const newQty = Math.max(0, Number(it.stock_quantity || 0) + delta[it.id]);
             await supabase.from("items").update({ stock_quantity: newQty }).eq("id", it.id);
-            movements.push({
-              orgId: org!.id,
-              itemId: it.id,
-              changeQty: delta[it.id],
-              balanceAfter: newQty,
-              reason: id ? "Invoice updated" : "Invoice created",
-              refType: "invoice",
-              refId: invoiceId,
-              refNumber: invoiceNumber,
-              createdBy: user?.id || null,
-            });
+            // Record movements per line with batch_no if deducting stock
+            const itemLines = deductStock ? linePayloads.filter((ln) => ln.item_id === it.id) : [];
+            if (itemLines.length > 0) {
+              for (const ln of itemLines) {
+                movements.push({
+                  orgId: org!.id,
+                  itemId: it.id,
+                  changeQty: -Math.abs(Number(ln.quantity || 0)),
+                  balanceAfter: newQty,
+                  reason: id ? "Invoice updated" : "Invoice created",
+                  refType: "invoice",
+                  refId: invoiceId,
+                  refNumber: invoiceNumber,
+                  createdBy: user?.id || null,
+                  batchNo: ln.batch_no || null,
+                });
+              }
+            } else {
+              movements.push({
+                orgId: org!.id,
+                itemId: it.id,
+                changeQty: delta[it.id],
+                balanceAfter: newQty,
+                reason: id ? "Invoice updated" : "Invoice created",
+                refType: "invoice",
+                refId: invoiceId,
+                refNumber: invoiceNumber,
+                createdBy: user?.id || null,
+              });
+            }
           }
           await logStockMovements(movements);
         }
@@ -1618,7 +1894,7 @@ export default function InvoiceBuilderPage() {
       if (isModePaid && total > 0 && invoiceId) {
         try {
           const payNum = `PAY-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-          await supabase.from("payments").insert({
+          const { data: newPay } = await supabase.from("payments").insert({
             org_id: org!.id,
             client_id: clientId,
             invoice_id: invoiceId,
@@ -1627,7 +1903,27 @@ export default function InvoiceBuilderPage() {
             payment_date: issueDate,
             payment_mode: paymentMode,
             notes: `Paid via ${paymentMode.replace(/_/g, " ")} on invoice creation`,
-          });
+          }).select().single();
+
+          // Sync into bank_transactions (Credit / Money in to Bank Ledger)
+          let targetBankId = selectedBankAccountId;
+          if (!targetBankId && paymentMode === "cash") {
+            const cashAcc = await getOrCreateCashAccount(org!.id, org!.currency_code);
+            targetBankId = cashAcc?.id;
+          }
+          if (targetBankId) {
+            await recordPaymentBankingTransaction({
+              orgId: org!.id,
+              bankAccountId: targetBankId,
+              amount: total,
+              paymentDate: issueDate,
+              invoiceNumber: invoiceNumber,
+              clientName: clients.find(c => c.id === clientId)?.name,
+              paymentId: newPay?.id,
+              paymentNumber: payNum,
+              notes: `Received for Invoice ${invoiceNumber}`,
+            });
+          }
         } catch (payErr) {
           console.error("Failed to record payment:", payErr);
         }
@@ -2364,6 +2660,91 @@ export default function InvoiceBuilderPage() {
                   </div>
                 </>
               )}
+
+              {/* Referred By Section (Placed directly below Invoice # and Issue Date) */}
+              {showReferredByPref && (
+                <div className="pt-2.5 border-t border-border/70 space-y-2.5">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="addReferredBy"
+                      checked={addReferredBy}
+                      onCheckedChange={(checked) => {
+                        const val = Boolean(checked);
+                        setAddReferredBy(val);
+                        if (val && !selectedReferredByLabel) {
+                          setSelectedReferredByLabel(
+                            referredByOptions.length > 0
+                              ? referredByOptions[0]
+                              : (referredByLabel !== "Referred By" ? referredByLabel : "Doctor Name")
+                          );
+                        }
+                      }}
+                    />
+                    <Label htmlFor="addReferredBy" className="text-xs font-semibold cursor-pointer select-none">
+                      Add {selectedReferredByLabel || "Doctor Name"}
+                    </Label>
+                  </div>
+
+                  {addReferredBy && (
+                    <div className="space-y-2 pl-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[11px] font-semibold text-muted-foreground">Select Option / Category</Label>
+                          <Select
+                            value={selectedReferredByLabel}
+                            onValueChange={(val) => setSelectedReferredByLabel(val)}
+                          >
+                            <SelectTrigger className="h-9 text-xs bg-background">
+                              <SelectValue placeholder="Select Option" />
+                            </SelectTrigger>
+                            <SelectContent className="z-50">
+                              {referredByOptions.length > 0 &&
+                                referredByOptions.map((opt, idx) => (
+                                  <SelectItem key={idx} value={opt} className="text-xs">
+                                    {opt}
+                                  </SelectItem>
+                                ))}
+                              {!referredByOptions.includes("Doctor Name") && (
+                                <SelectItem value="Doctor Name" className="text-xs">
+                                  Doctor Name
+                                </SelectItem>
+                              )}
+                              {!referredByOptions.includes("Referred By") && (
+                                <SelectItem value="Referred By" className="text-xs">
+                                  Referred By
+                                </SelectItem>
+                              )}
+                              {!referredByOptions.includes("Consultant") && (
+                                <SelectItem value="Consultant" className="text-xs">
+                                  Consultant
+                                </SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[11px] font-semibold text-muted-foreground">
+                            Enter {selectedReferredByLabel || "Doctor Name"}
+                          </Label>
+                          <Input
+                            placeholder={`Write ${selectedReferredByLabel || "Doctor Name"}... (e.g. Dr. Rajesh Sharma)`}
+                            value={referredByName}
+                            onChange={(e) => setReferredByName(e.target.value)}
+                            className="h-9 text-xs bg-background"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[10.5px] text-muted-foreground">
+                        Prints on invoice PDF as:{" "}
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">
+                          {selectedReferredByLabel || "Doctor Name"} : {referredByName.trim() || "(Enter name above)"}
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -2402,6 +2783,9 @@ export default function InvoiceBuilderPage() {
                   onAddItem={() => setAddItemOpen(true)}
                   currency={org?.currency_code || "INR"}
                   org={org}
+                  prefShowBatchNo={prefShowBatchNo}
+                  allLines={lines}
+                  itemBatches={itemBatches}
                   onAutoAddLine={() => {
                     if (index === lines.length - 1) addLine();
                   }}
@@ -2507,6 +2891,17 @@ export default function InvoiceBuilderPage() {
                     line.quantity = 1;
                     line.hsn_code = item.hsn_code || "";
                     line.tax_id = item.tax_id || null;
+                    // Assign FIFO batch
+                    const avail = itemBatches[item.id] || [];
+                    if (avail.length > 0) {
+                      const alreadyUsed = [...lines, ...newLines]
+                        .filter((l) => l.item_id === item.id && l.batch_no?.trim())
+                        .map((l) => l.batch_no!.trim().toLowerCase());
+                      const nextUnused = avail.find((b) => !alreadyUsed.includes(b.batch_no.toLowerCase()));
+                      line.batch_no = nextUnused ? nextUnused.batch_no : avail[alreadyUsed.length % avail.length].batch_no;
+                    } else if (item.batch_no) {
+                      line.batch_no = item.batch_no;
+                    }
                     // Calculate amount
                     line.amount = line.quantity * line.rate;
                     newLines.push(line);
@@ -2546,21 +2941,32 @@ export default function InvoiceBuilderPage() {
               >
                 {prefShowNotes ? "✓ Notes" : "+ Notes"}
               </Button>
-              {!isRetail && (
-                <Button
-                  type="button"
-                  variant={prefShowTerms ? "default" : "outline"}
-                  size="sm"
-                  className="h-6 px-2 text-[11px] font-normal"
-                  onClick={() => {
-                    const next = !prefShowTerms;
-                    setPrefShowTerms(next);
-                    setShowTerms(next);
-                  }}
-                >
-                  {prefShowTerms ? "✓ Terms" : "+ Terms"}
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant={prefShowTerms ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-[11px] font-normal"
+                onClick={() => {
+                  const next = !prefShowTerms;
+                  setPrefShowTerms(next);
+                  setShowTerms(next);
+                }}
+              >
+                {prefShowTerms ? (isRetail ? "✓ T&C" : "✓ Terms") : (isRetail ? "+ T&C" : "+ Terms")}
+              </Button>
+              <Button
+                type="button"
+                variant={prefShowBatchNo ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-[11px] font-normal"
+                onClick={() => {
+                  const next = !prefShowBatchNo;
+                  setPrefShowBatchNo(next);
+                  setShowBatchNo(next);
+                }}
+              >
+                {prefShowBatchNo ? "✓ Batch No" : "+ Batch No"}
+              </Button>
               <Button
                 type="button"
                 variant={prefShowBankDetails ? "default" : "outline"}
@@ -2570,7 +2976,8 @@ export default function InvoiceBuilderPage() {
                   const next = !prefShowBankDetails;
                   setPrefShowBankDetails(next);
                   setShowBankDetails(next);
-                  if (!next) setIncludeBankDetails(false);
+                  if (next) setIncludeBankDetails(true);
+                  else setIncludeBankDetails(false);
                 }}
               >
                 {prefShowBankDetails ? "✓ Bank Details" : "+ Bank Details"}
@@ -2578,23 +2985,14 @@ export default function InvoiceBuilderPage() {
               {!isRetail && (
                 <Button
                   type="button"
-                  variant={prefShowDisplayOptions ? "default" : "outline"}
+                  variant={prefShowCompliance ? "default" : "outline"}
                   size="sm"
                   className="h-6 px-2 text-[11px] font-normal"
-                  onClick={() => setPrefShowDisplayOptions(!prefShowDisplayOptions)}
+                  onClick={() => setPrefShowCompliance(!prefShowCompliance)}
                 >
-                  {prefShowDisplayOptions ? "✓ Display Options" : "+ Display Options"}
+                  {prefShowCompliance ? "✓ Compliance" : "+ Compliance"}
                 </Button>
               )}
-              <Button
-                type="button"
-                variant={prefShowCompliance ? "default" : "outline"}
-                size="sm"
-                className="h-6 px-2 text-[11px] font-normal"
-                onClick={() => setPrefShowCompliance(!prefShowCompliance)}
-              >
-                {prefShowCompliance ? "✓ Compliance" : "+ Compliance"}
-              </Button>
             </div>
           </div>
 
@@ -2637,7 +3035,7 @@ export default function InvoiceBuilderPage() {
           )}
 
           {/* Terms & Conditions */}
-          {!isRetail && prefShowTerms && (
+          {prefShowTerms && (
             <div className="space-y-2">
               <Label>Terms & Conditions</Label>
               <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Payment terms, late fees..." />
@@ -2750,36 +3148,7 @@ export default function InvoiceBuilderPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Display Options */}
-          {!isRetail && prefShowDisplayOptions && (
-            <div className="space-y-2 rounded-md border p-3">
-              <div className="text-sm font-medium">Display Options</div>
-              <p className="text-xs text-muted-foreground mb-2">Configure what appears on the invoice PDF.</p>
-              
-              <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
-                <Checkbox checked={autoRoundOff} onCheckedChange={(v) => setAutoRoundOff(!!v)} />
-                <span className="text-sm font-medium">Auto Round Off Total</span>
-              </label>
-              {prefShowBankDetails && (
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
-                  <Checkbox checked={showBankDetails} onCheckedChange={(v) => setShowBankDetails(!!v)} />
-                  <span className="text-sm font-medium">Show Bank / UPI Details</span>
-                </label>
-              )}
-              {prefShowTerms && (
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
-                  <Checkbox checked={showTerms} onCheckedChange={(v) => setShowTerms(!!v)} />
-                  <span className="text-sm font-medium">Show Terms & Conditions</span>
-                </label>
-              )}
-              {prefShowNotes && (
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
-                  <Checkbox checked={showNotes} onCheckedChange={(v) => setShowNotes(!!v)} />
-                  <span className="text-sm font-medium">Show Notes</span>
-                </label>
-              )}
-            </div>
-          )}
+
 
           <label className="flex items-start gap-2 rounded-md border p-3 cursor-pointer hover:bg-muted/40">
             <Checkbox
@@ -3028,20 +3397,26 @@ export default function InvoiceBuilderPage() {
                 </div>
               )}
             </div>
-            <div className="flex items-center justify-between text-sm gap-2">
-              <Input
-                  className="h-7 w-24 text-xs"
-                  value={finalAdjustmentName}
-                  onChange={(e) => setAdjustmentName(e.target.value)}
-                  disabled={autoRoundOff}
+            <div className="flex items-center justify-between text-sm py-1 border-t border-dashed">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <Checkbox
+                  checked={autoRoundOff}
+                  onCheckedChange={(v) => {
+                    const checked = !!v;
+                    setAutoRoundOff(checked);
+                    if (!checked) {
+                      setAdjustment(0);
+                    }
+                  }}
+                  className="h-4 w-4"
                 />
-                <Input
-                  type="number"
-                  className="h-7 w-24 text-xs text-right"
-                  value={finalAdjustment}
-                  onChange={(e) => setAdjustment(parseFloat(e.target.value) || 0)}
-                  disabled={autoRoundOff}
-                />
+                <span className="text-sm font-medium">Round Off</span>
+              </label>
+              <span className={`text-xs font-semibold tabular-nums ${finalAdjustment > 0 ? "text-emerald-600" : finalAdjustment < 0 ? "text-rose-600" : "text-muted-foreground"}`}>
+                {autoRoundOff
+                  ? (finalAdjustment !== 0 ? (finalAdjustment > 0 ? `+${fmt(finalAdjustment)}` : fmt(finalAdjustment)) : "₹0.00")
+                  : "₹0.00"}
+              </span>
             </div>
             <div className="border-t pt-3 flex justify-between text-lg font-bold">
               <span>Total</span>

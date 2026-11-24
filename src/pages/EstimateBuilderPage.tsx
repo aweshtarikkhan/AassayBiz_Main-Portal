@@ -813,58 +813,6 @@ export default function EstimateBuilderPage() {
         </CardContent>
       </Card>
 
-      {/* Display Options */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="space-y-2 rounded-md border p-3">
-            <div className="text-sm font-medium">Display Options</div>
-            <p className="text-xs text-muted-foreground mb-2">Configure what appears on the quotation PDF.</p>
-            <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
-              <Checkbox checked={autoRoundOff} onCheckedChange={(v) => setAutoRoundOff(!!v)} />
-              <span className="text-sm font-medium">Auto Round Off Total</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
-              <Checkbox checked={showBankDetails} onCheckedChange={(v) => setShowBankDetails(!!v)} />
-              <span className="text-sm font-medium">Show Bank / UPI Details</span>
-            </label>
-            {showBankDetails && (
-              <div className="pl-6 space-y-3 pt-2">
-                {savedBankAccounts.length > 0 && (
-                  <div className="space-y-1">
-                    <Label className="text-xs">Select Saved Account</Label>
-                    <Select value={selectedBankAccountId || ""} onValueChange={handleBankAccountSelect}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Choose account..." /></SelectTrigger>
-                      <SelectContent>
-                        {savedBankAccounts.map((acc: any) => {
-                          const parsedNotes = acc.notes ? (() => { try { return JSON.parse(acc.notes); } catch { return {}; } })() : {};
-                          return <SelectItem key={acc.id} value={acc.id}>{acc.bank_name} — {parsedNotes.account_holder_name || acc.name}</SelectItem>;
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1"><Label className="text-xs">Bank Name</Label><Input className="h-8 text-xs" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. HDFC Bank" /></div>
-                  <div className="space-y-1"><Label className="text-xs">Account Holder</Label><Input className="h-8 text-xs" value={bankAccountName} onChange={e => setBankAccountName(e.target.value)} /></div>
-                  <div className="space-y-1"><Label className="text-xs">Account Number</Label><Input className="h-8 text-xs" value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)} /></div>
-                  <div className="space-y-1"><Label className="text-xs">IFSC Code</Label><Input className="h-8 text-xs" value={bankIfsc} onChange={e => setBankIfsc(e.target.value)} /></div>
-                  <div className="space-y-1"><Label className="text-xs">Branch</Label><Input className="h-8 text-xs" value={bankBranch} onChange={e => setBankBranch(e.target.value)} /></div>
-                  <div className="space-y-1"><Label className="text-xs">UPI ID</Label><Input className="h-8 text-xs" value={bankUpiId} onChange={e => setBankUpiId(e.target.value)} /></div>
-                </div>
-              </div>
-            )}
-            <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
-              <Checkbox checked={showTerms} onCheckedChange={(v) => setShowTerms(!!v)} />
-              <span className="text-sm font-medium">Show Terms & Conditions</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
-              <Checkbox checked={showNotes} onCheckedChange={(v) => setShowNotes(!!v)} />
-              <span className="text-sm font-medium">Show Notes</span>
-            </label>
-          </div>
-        </CardContent>
-      </Card>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardContent className="pt-6 space-y-4">
@@ -875,6 +823,39 @@ export default function EstimateBuilderPage() {
             <div className="space-y-2">
               <Label>Terms & Conditions</Label>
               <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} placeholder="Terms & conditions" />
+            </div>
+
+            <div className="pt-2 border-t space-y-3">
+              <label className="flex items-center gap-2 cursor-pointer hover:bg-muted/40 p-1 rounded">
+                <Checkbox checked={showBankDetails} onCheckedChange={(v) => setShowBankDetails(!!v)} />
+                <span className="text-sm font-medium">Show Bank / UPI Details</span>
+              </label>
+              {showBankDetails && (
+                <div className="space-y-3 pt-1">
+                  {savedBankAccounts.length > 0 && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Select Saved Account</Label>
+                      <Select value={selectedBankAccountId || ""} onValueChange={handleBankAccountSelect}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Choose account..." /></SelectTrigger>
+                        <SelectContent>
+                          {savedBankAccounts.map((acc: any) => {
+                            const parsedNotes = acc.notes ? (() => { try { return JSON.parse(acc.notes); } catch { return {}; } })() : {};
+                            return <SelectItem key={acc.id} value={acc.id}>{acc.bank_name} — {parsedNotes.account_holder_name || acc.name}</SelectItem>;
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1"><Label className="text-xs">Bank Name</Label><Input className="h-8 text-xs" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. HDFC Bank" /></div>
+                    <div className="space-y-1"><Label className="text-xs">Account Holder</Label><Input className="h-8 text-xs" value={bankAccountName} onChange={e => setBankAccountName(e.target.value)} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Account Number</Label><Input className="h-8 text-xs" value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)} /></div>
+                    <div className="space-y-1"><Label className="text-xs">IFSC Code</Label><Input className="h-8 text-xs" value={bankIfsc} onChange={e => setBankIfsc(e.target.value)} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Branch</Label><Input className="h-8 text-xs" value={bankBranch} onChange={e => setBankBranch(e.target.value)} /></div>
+                    <div className="space-y-1"><Label className="text-xs">UPI ID</Label><Input className="h-8 text-xs" value={bankUpiId} onChange={e => setBankUpiId(e.target.value)} /></div>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -939,11 +920,26 @@ export default function EstimateBuilderPage() {
                 <span className="font-medium">{fmt(totalTax)}</span>
               </div>
             )}
-            <div className="flex items-center gap-2">
-              <Input className="text-sm h-8 flex-1" value={adjustmentName}
-                onChange={(e) => setAdjustmentName(e.target.value)} />
-              <Input type="number" className="w-24 h-8 text-xs" value={adjustment}
-                onChange={(e) => setAdjustment(parseFloat(e.target.value) || 0)} />
+            <div className="flex items-center justify-between text-sm py-1 border-t border-dashed">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <Checkbox
+                  checked={autoRoundOff}
+                  onCheckedChange={(v) => {
+                    const checked = !!v;
+                    setAutoRoundOff(checked);
+                    if (!checked) {
+                      setAdjustment(0);
+                    }
+                  }}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm font-medium">Round Off</span>
+              </label>
+              <span className={`text-xs font-semibold tabular-nums ${roundOffAdjustment > 0 ? "text-emerald-600" : roundOffAdjustment < 0 ? "text-rose-600" : "text-muted-foreground"}`}>
+                {autoRoundOff
+                  ? (roundOffAdjustment !== 0 ? (roundOffAdjustment > 0 ? `+${fmt(roundOffAdjustment)}` : fmt(roundOffAdjustment)) : "₹0.00")
+                  : "₹0.00"}
+              </span>
             </div>
             <div className="border-t pt-3 flex justify-between text-lg font-bold">
               <span>Total</span><span>{fmt(total)}</span>

@@ -59,6 +59,12 @@ export function ProfessionalNavyInvoiceTemplate({
     : Boolean((org?.gst_number || org?.tax_number)?.trim() && org?.gst_enabled !== false);
 
   const clientName = (invoice.clients as any)?.display_name || (invoice.vendors as any)?.name || (invoice.vendors as any)?.display_name || invoice.client_name || "Client Name";
+  const referredBy = (invoice?.metadata as any)?.referred_by;
+  const referredByLabel = (invoice?.metadata as any)?.referred_by_label || "Referred By";
+  const showNotes = (invoice?.metadata as any)?.show_notes !== false;
+  const notesText = (invoice.notes || (invoice?.metadata as any)?.notes || "")?.trim();
+  const ewayBillNo = (invoice as any)?.eway_bill_no || (invoice?.metadata as any)?.eway_bill_no;
+  const ewayVehicleNo = (invoice as any)?.eway_vehicle_no || (invoice?.metadata as any)?.eway_vehicle_no;
   const clientGst = (invoice.clients as any)?.tax_number || (invoice.vendors as any)?.tax_number || invoice.client_gst;
   const number = type === "estimate" ? invoice.estimate_number : (type === "po" ? invoice.po_number : (type === "bill" ? invoice.bill_number : invoice.invoice_number));
   const date = type === "estimate" ? invoice.estimate_date : (type === "po" ? invoice.po_date : (type === "bill" ? invoice.bill_date : invoice.invoice_date));
@@ -299,6 +305,12 @@ export function ProfessionalNavyInvoiceTemplate({
             <div style={{ fontSize: 11, lineHeight: 1.6 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: darkBlue, marginBottom: 4 }}>{clientName}</div>
               {billToAddressLines.map((line, i) => <div key={i}>{line}</div>)}
+              {referredBy && (
+                <div style={{ display: "flex", marginTop: 4, color: navy, fontWeight: 700 }}>
+                  <span style={{ marginRight: 4 }}>{referredByLabel}:</span>
+                  <span>{referredBy}</span>
+                </div>
+              )}
               {hasGst && clientGst && (
                 <div style={{ display: "flex", marginTop: 4 }}>
                   <span style={{ fontWeight: 600, marginRight: 4 }}>GSTIN:</span>
@@ -323,6 +335,17 @@ export function ProfessionalNavyInvoiceTemplate({
           </div>
         )}
       </div>
+
+      {/* Compliance E-Way Bill */}
+      {ewayBillNo && (
+        <div style={{ marginBottom: 15, padding: "8px 12px", border: "1px solid " + grayBorder, borderRadius: 6, background: "#f8fafc", fontSize: 10 }}>
+          <div style={{ fontWeight: 700, color: darkBlue, marginBottom: 4, textTransform: "uppercase" }}>E-Way Bill Details</div>
+          <div style={{ display: "flex", gap: 16 }}>
+            <div><span style={{ color: "#64748b" }}>E-Way Bill No:</span> <strong>{ewayBillNo}</strong></div>
+            {ewayVehicleNo && <div><span style={{ color: "#64748b" }}>Vehicle No:</span> <strong>{ewayVehicleNo}</strong></div>}
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div style={{ borderRadius: 6, overflow: "hidden", border: "1px solid " + grayBorder, marginBottom: 15 }}>
@@ -411,7 +434,15 @@ export function ProfessionalNavyInvoiceTemplate({
               ) : null}
             </div>
 
-            {/* Bank & UPI Details */}
+            {/* Notes */}
+      {showNotes && notesText && (
+        <div style={{ marginBottom: 15, padding: "10px 12px", border: "1px solid " + grayBorder, borderRadius: 6, background: "#f9fafb", fontSize: 10 }}>
+          <div style={{ fontWeight: 700, color: darkBlue, marginBottom: 4 }}>NOTES:</div>
+          <div style={{ whiteSpace: "pre-wrap", color: "#374151" }}>{notesText}</div>
+        </div>
+      )}
+
+      {/* Bank & UPI Details */}
             {type !== "po" && showBank && (bankName || bankAccNum || org?.upi_id) && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 15 }}>
           {/* Bank */}

@@ -1,3 +1,4 @@
+import { isRetailOrg } from "@/lib/business-category";
 import React, { useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { numberToWords } from "@/lib/number-to-words";
@@ -56,6 +57,9 @@ export function ClassicTabularInvoiceTemplate({
     : Boolean((org?.gst_number || org?.tax_number)?.trim() && org?.gst_enabled !== false);
 
   const cl = invoice?.clients || invoice?.client;
+  const isRetailDoc = Boolean((invoice?.metadata as any)?.is_retail || isRetailOrg(org));
+  const referredBy = (invoice?.metadata as any)?.referred_by;
+  const referredByLabel = (invoice?.metadata as any)?.referred_by_label || "Referred By";
   const billToName = cl?.company_name || cl?.display_name || cl?.name || invoice?.client_name || "";
   const billToGst = cl?.tax_number || cl?.gst_number || cl?.gstin || invoice?.client_gst || "";
   const billToEmail = cl?.email || invoice?.client_email || "";
@@ -197,9 +201,13 @@ export function ClassicTabularInvoiceTemplate({
         </div>
         
         <div className="border border-gray-400">
-          <div className="text-white font-bold px-3 py-1 text-xs" style={{backgroundColor: primary}}>SHIP TO</div>
+          <div className="text-white font-bold px-3 py-1 text-xs" style={{backgroundColor: primary}}>{referredBy ? referredByLabel.toUpperCase() : "SHIP TO"}</div>
           <div className="p-2.5">
-            <h3 className="font-bold text-xs mb-0.5">{shipToName}</h3>
+            {referredBy ? (
+              <h3 className="font-bold text-xs mb-0.5">{referredBy}</h3>
+            ) : (!isRetailDoc && (
+              <h3 className="font-bold text-xs mb-0.5">{shipToName}</h3>
+            ))}
             <p className="whitespace-pre-wrap leading-tight text-[10px] text-gray-600">{shipToAddress}</p>
             {shipToGst && <p className="mt-2"><strong>GSTIN:</strong> {shipToGst}</p>}
             <p className="mt-1">

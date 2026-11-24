@@ -55,6 +55,8 @@ export function CorporateBlueInvoiceTemplate({
 
   const clientName = (invoice?.metadata as any)?.client_name || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.name : null) || (invoice.clients as any)?.display_name || (invoice.clients as any)?.company_name || (invoice.vendors as any)?.name || (invoice.vendors as any)?.display_name || invoice.client_name || "Client Name";
   const clientGst = (invoice.clients as any)?.tax_number || (invoice.vendors as any)?.tax_number || invoice.client_gst;
+  const referredBy = (invoice?.metadata as any)?.referred_by;
+  const referredByLabel = (invoice?.metadata as any)?.referred_by_label || "Referred By";
   const clientPhone = (invoice?.metadata as any)?.client_mobile || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.phone : null) || (invoice.clients as any)?.phone || (invoice.vendors as any)?.phone || invoice.client_phone;
   const number = type === "estimate" ? invoice.estimate_number : (type === "po" ? invoice.po_number : (type === "bill" ? invoice.bill_number : invoice.invoice_number));
   const balanceDue = type === "estimate" ? Number(invoice.total) : Number(invoice.balance_due ?? invoice.total);
@@ -256,6 +258,7 @@ export function CorporateBlueInvoiceTemplate({
           <div style={{ display: "flex", gap: 24, marginTop: 6, fontWeight: 600, color: "#1e293b" }}>
             {clientGst && <div>GSTIN : <span style={{ fontWeight: 700 }}>{clientGst}</span></div>}
             {clientPhone && <div>Mobile : <span style={{ fontWeight: 700 }}>{clientPhone}</span></div>}
+            {referredBy && <div style={{ color: primaryBlue, fontWeight: 700 }}>{referredByLabel} : <span>{referredBy}</span></div>}
           </div>
         </div>
       </div>

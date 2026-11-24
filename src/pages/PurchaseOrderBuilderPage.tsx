@@ -885,33 +885,6 @@ export default function PurchaseOrderBuilderPage() {
                   );
                 })}
 
-                <div className="flex justify-between items-center text-slate-600">
-                  <Input
-                    type="text"
-                    className="h-8 w-28 text-xs"
-                    value={adjustmentName}
-                    onChange={(e) => setAdjustmentName(e.target.value)}
-                    disabled={autoRoundOff}
-                  />
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      className="h-8 w-24 text-right"
-                      value={autoRoundOff ? totals.finalAdjustment : adjustment}
-                      onChange={(e) => setAdjustment(e.target.value)}
-                      disabled={autoRoundOff}
-                    />
-                    <span className="text-slate-900 font-medium">{formatCurrency(totals.finalAdjustment, currency)}</span>
-                  </div>
-                </div>
-
-                {tdsTcsApplicable && tdsTcsType === "tcs" && totals.tcsAmount > 0 && (
-                  <div className="flex justify-between items-center text-slate-600">
-                    <span>TCS ({tdsTcsRate}%)</span>
-                    <span>{formatCurrency(totals.tcsAmount, currency)}</span>
-                  </div>
-                )}
-
                 {/* TDS/TCS Configuration Section */}
                 <div className="space-y-2 border-y py-3 my-2">
                   <label className="flex items-center justify-between cursor-pointer">
@@ -952,6 +925,28 @@ export default function PurchaseOrderBuilderPage() {
                     </div>
                   )}
                 </div>
+
+                <div className="flex items-center justify-between text-sm py-1 border-t border-dashed">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <Checkbox
+                      checked={autoRoundOff}
+                      onCheckedChange={(v) => {
+                        const checked = !!v;
+                        setAutoRoundOff(checked);
+                        if (!checked) {
+                          setAdjustment("0");
+                        }
+                      }}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm font-medium">Round Off</span>
+                  </label>
+                  <span className={`text-xs font-semibold tabular-nums ${totals.finalAdjustment > 0 ? "text-emerald-600" : totals.finalAdjustment < 0 ? "text-rose-600" : "text-muted-foreground"}`}>
+                    {autoRoundOff
+                      ? (totals.finalAdjustment !== 0 ? (totals.finalAdjustment > 0 ? `+${formatCurrency(totals.finalAdjustment, currency)}` : formatCurrency(totals.finalAdjustment, currency)) : formatCurrency(0, currency))
+                      : formatCurrency(0, currency)}
+                  </span>
+                </div>
                 
                 <div className="flex justify-between items-center font-bold text-base border-t border-slate-200 border-dashed pt-3 text-blue-700 mt-2">
                   <div className="flex items-center gap-2"><span>Total</span></div>
@@ -962,7 +957,7 @@ export default function PurchaseOrderBuilderPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="shadow-sm border-slate-200">
           <CardHeader className="pb-3 border-b bg-slate-50/50">
             <div className="flex items-center gap-2">
@@ -1026,35 +1021,6 @@ export default function PurchaseOrderBuilderPage() {
               <Calendar className="h-3.5 w-3.5" />
               Payment is due as per the selected terms.
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="pb-3 border-b bg-slate-50/50 flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 bg-blue-100 text-blue-700 rounded-md flex items-center justify-center">
-                <Eye className="h-3.5 w-3.5" />
-              </div>
-              <CardTitle className="text-sm font-semibold text-blue-700">Display Options</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-4 space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
-              <Checkbox checked={autoRoundOff} onCheckedChange={(v) => setAutoRoundOff(!!v)} />
-              <span className="text-sm font-medium text-slate-700">Auto Round Off Total</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
-              <Checkbox checked={includeBankDetails} onCheckedChange={(v) => setIncludeBankDetails(!!v)} />
-              <span className="text-sm font-medium text-slate-700">Show Bank / UPI Details</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
-              <Checkbox checked={showTerms} onCheckedChange={(v) => setShowTerms(!!v)} />
-              <span className="text-sm font-medium text-slate-700">Show Terms & Conditions</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
-              <Checkbox checked={showNotes} onCheckedChange={(v) => setShowNotes(!!v)} />
-              <span className="text-sm font-medium text-slate-700">Show Notes</span>
-            </label>
           </CardContent>
         </Card>
       </div>

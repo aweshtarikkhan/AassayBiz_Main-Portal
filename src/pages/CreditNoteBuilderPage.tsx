@@ -359,7 +359,7 @@ export default function CreditNoteBuilderPage() {
   const selectedInvoice = invoices.find((inv) => inv.id === invoiceId);
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 w-full">
       <PageHeader title={isEdit ? "Edit Credit Note" : "New Credit Note"}>
         <Button variant="outline" size="sm" onClick={() => navigate("/credit-notes")}>
           <ArrowLeft className="mr-1 h-4 w-4" /> Back
@@ -518,8 +518,8 @@ export default function CreditNoteBuilderPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-6">
-        <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="space-y-4 lg:col-span-7">
           <div className="space-y-2"><Label>Notes</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
           <div className="space-y-2"><Label>Terms & Conditions</Label><Textarea value={terms} onChange={(e) => setTerms(e.target.value)} /></div>
           <label className="flex items-start gap-2 rounded-md border border-input bg-card p-3 cursor-pointer hover:bg-accent/40 transition">
@@ -530,14 +530,16 @@ export default function CreditNoteBuilderPage() {
             </div>
           </label>
         </div>
-        <Card>
-          <CardContent className="pt-6 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{fmt(subtotal)}</span></div>
-            {totalDiscount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Discount</span><span className="text-destructive">-{fmt(totalDiscount)}</span></div>}
-            {totalTax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Tax</span><span>+{fmt(totalTax)}</span></div>}
-            <div className="flex justify-between border-t pt-2 font-bold text-base"><span>Total</span><span>{fmt(total)}</span></div>
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-5">
+          <Card>
+            <CardContent className="pt-6 space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{fmt(subtotal)}</span></div>
+              {totalDiscount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Discount</span><span className="text-destructive">-{fmt(totalDiscount)}</span></div>}
+              {totalTax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Tax</span><span>+{fmt(totalTax)}</span></div>}
+              <div className="flex justify-between border-t pt-2 font-bold text-base"><span>Total</span><span>{fmt(total)}</span></div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

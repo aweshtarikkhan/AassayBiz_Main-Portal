@@ -82,11 +82,11 @@ export default function EmployeesPage() {
   const [portalLoading, setPortalLoading] = useState(false);
   const featureStore = useFeatureStore();
   const isTaskModuleEnabled = 
-    org?.invoice_preferences?.task_management_enabled === true || 
-    featureStore.taskManagementEnabled === true;
+    org?.invoice_preferences?.task_management_enabled !== false &&
+    (org?.invoice_preferences?.task_management_enabled === true || featureStore.taskManagementEnabled === true);
   const isExpenseModuleEnabled = 
-    org?.invoice_preferences?.expense_management_enabled === true || 
-    featureStore.expenseManagementEnabled === true;
+    org?.invoice_preferences?.expense_management_enabled !== false &&
+    (org?.invoice_preferences?.expense_management_enabled === true || featureStore.expenseManagementEnabled === true);
 
   const taskLimit = 
     org?.invoice_preferences?.task_employee_limit !== undefined && org?.invoice_preferences?.task_employee_limit !== null

@@ -455,13 +455,21 @@ export function AppLayout() {
                 return { ...acc, ...m };
               }, {});
 
-              const isTaskActive = 
-                Boolean((activeOrg as any)?.invoice_preferences?.task_management_enabled) ||
-                subOverrides.task_management_enabled === true;
+              const hasHrOrSuite = parsedPlans.includes('suite') || parsedPlans.includes('hr') || parsedPlans.includes('plan_3') || parsedPlans.includes('plan_4');
+              const hasCrmOrSuite = parsedPlans.includes('suite') || parsedPlans.includes('crm') || parsedPlans.includes('plan_3') || parsedPlans.includes('plan_5');
 
-              const isExpenseActive = 
-                Boolean((activeOrg as any)?.invoice_preferences?.expense_management_enabled) ||
-                subOverrides.expense_management_enabled === true;
+              // If platform admin explicitly disabled, it MUST remain disabled!
+              const adminTaskExplicitFalse = (activeOrg as any)?.invoice_preferences?.task_management_enabled === false || subOverrides.task_management_enabled === false;
+              const adminTaskExplicitTrue = (activeOrg as any)?.invoice_preferences?.task_management_enabled === true || subOverrides.task_management_enabled === true;
+              const isTaskActive = !adminTaskExplicitFalse && (adminTaskExplicitTrue || hasHrOrSuite);
+
+              const adminExpenseExplicitFalse = (activeOrg as any)?.invoice_preferences?.expense_management_enabled === false || subOverrides.expense_management_enabled === false;
+              const adminExpenseExplicitTrue = (activeOrg as any)?.invoice_preferences?.expense_management_enabled === true || subOverrides.expense_management_enabled === true;
+              const isExpenseActive = !adminExpenseExplicitFalse && (adminExpenseExplicitTrue || hasHrOrSuite);
+
+              const adminCrmExplicitFalse = (activeOrg as any)?.invoice_preferences?.crm_team_enabled === false || subOverrides.crm_team_enabled === false;
+              const adminCrmExplicitTrue = (activeOrg as any)?.invoice_preferences?.crm_team_enabled === true || subOverrides.crm_team_enabled === true;
+              const isCrmActive = !adminCrmExplicitFalse && (adminCrmExplicitTrue || hasCrmOrSuite);
 
               const taskLimit = 
                 subOverrides.task_employee_limit !== undefined && subOverrides.task_employee_limit !== null

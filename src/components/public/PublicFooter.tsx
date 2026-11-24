@@ -191,24 +191,6 @@ export function PublicFooter() {
                   )}
                 </li>
                 <li>
-                  {socials?.custom_pamphlet_url ? (
-                    <a
-                      href={socials.custom_pamphlet_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group inline-flex items-center gap-2 hover:text-[#ff9438] transition-colors py-0.5"
-                    >
-                      <span>Marketing Pamphlet (PDF)</span>
-                      <ChevronRight className="w-4 h-4 text-[#ff9438]/70 group-hover:text-[#ff9438] group-hover:translate-x-1 transition-all shrink-0" />
-                    </a>
-                  ) : (
-                    <Link to="/pamphlet" className="group inline-flex items-center gap-2 hover:text-[#ff9438] transition-colors py-0.5">
-                      <span>Marketing Pamphlet (PDF)</span>
-                      <ChevronRight className="w-4 h-4 text-[#ff9438]/70 group-hover:text-[#ff9438] group-hover:translate-x-1 transition-all shrink-0" />
-                    </Link>
-                  )}
-                </li>
-                <li>
                   <Link to="/partner-with-us" className="group inline-flex items-center gap-2 hover:text-[#ff9438] transition-colors py-0.5">
                     <span>Partner With Us</span>
                     <ChevronRight className="w-4 h-4 text-[#ff9438]/70 group-hover:text-[#ff9438] group-hover:translate-x-1 transition-all shrink-0" />
@@ -253,7 +235,7 @@ export function PublicFooter() {
               </div>
 
               {/* 3 Portal & Partner Buttons (Identical dimensions, UI & styling) */}
-              <div className="flex flex-col gap-2.5 w-full max-w-[260px]">
+              <div className="flex flex-col gap-2.5 w-full sm:max-w-[260px]">
                 {/* 1. Attendance Portal */}
                 <a
                   href="https://attendance.aassaybiz.com/"
@@ -301,9 +283,7 @@ export function PublicFooter() {
           {/* Bottom Copyright & Legal Links Bar */}
           <div className="pt-8 flex flex-col xl:flex-row items-center justify-between gap-4 text-xs sm:text-sm">
             <p className="text-slate-400 text-center xl:text-left md:whitespace-nowrap flex items-center justify-center xl:justify-start gap-1 flex-wrap">
-              <span>&copy; {new Date().getFullYear()}</span>
-              <AassayBizBrand theme="dark" />
-              <span>. All Rights Reserved Ensagile Transform Pvt. Ltd. | CIN - U72300MP2025PTC074472</span>
+              <span>&copy; 2026 Emerging Thoughts Pvt. Ltd. | CIN - U72300MP2025PTC074472</span>
             </p>
             <div className="flex flex-wrap lg:flex-nowrap items-center justify-center gap-2 sm:gap-2.5">
               <Link 

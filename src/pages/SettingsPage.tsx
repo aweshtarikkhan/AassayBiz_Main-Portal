@@ -22,7 +22,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Loader2, Search, Shield, Settings2, Receipt, Building2, Package, User, Mail, Phone, Globe, Warehouse, ExternalLink, Bell, Landmark, CreditCard, Pencil, LogOut, Copy, Check, MapPin, Hash, Lock, FileText, Printer, Play, CheckCircle2, Layout, SlidersHorizontal } from "lucide-react";
+import { Plus, Trash2, UserCheck, X, Loader2, Search, Shield, Settings2, Receipt, Building2, Package, User, Mail, Phone, Globe, Warehouse, ExternalLink, Bell, Landmark, CreditCard, Pencil, LogOut, Copy, Check, MapPin, Hash, Lock, FileText, Printer, Play, CheckCircle2, Layout, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -88,7 +88,6 @@ export default function SettingsPage() {
       show_notes: true,
       show_terms: true,
       show_bank_details: true,
-      show_display_options: true,
       show_compliance: true,
       pdf_show_bank_details: true,
       pdf_show_terms: true,
@@ -98,7 +97,6 @@ export default function SettingsPage() {
       default_bank_account_id: "",
       bill_show_terms: true,
       bill_show_notes: true,
-      bill_show_display_options: true,
       bill_show_compliance: true,
       bill_default_add_stock: true,
       bill_default_payment_terms: 30,
@@ -112,6 +110,7 @@ export default function SettingsPage() {
     },
   });
   const [isFetchingGst, setIsFetchingGst] = useState(false);
+  const [newReferredByOption, setNewReferredByOption] = useState("");
   const [isSavingTermsNotes, setIsSavingTermsNotes] = useState(false);
   const [isSavingPurchaseTermsNotes, setIsSavingPurchaseTermsNotes] = useState(false);
   const [isSavingPurchaseDefaults, setIsSavingPurchaseDefaults] = useState(false);
@@ -207,18 +206,24 @@ export default function SettingsPage() {
           show_notes: (org as any)?.invoice_preferences?.show_notes !== false,
           show_terms: (org as any)?.invoice_preferences?.show_terms !== false,
           show_bank_details: (org as any)?.invoice_preferences?.show_bank_details !== false,
-          show_display_options: (org as any)?.invoice_preferences?.show_display_options !== false,
           show_compliance: (org as any)?.invoice_preferences?.show_compliance !== false,
+          show_batch_no: (org as any)?.invoice_preferences?.show_batch_no !== false,
+          show_referred_by: (org as any)?.invoice_preferences?.show_referred_by !== false,
+          referred_by_label: (org as any)?.invoice_preferences?.referred_by_label || "Referred By",
+          referred_by_options: Array.isArray((org as any)?.invoice_preferences?.referred_by_options)
+            ? (org as any).invoice_preferences.referred_by_options
+            : ((org as any)?.invoice_preferences?.referred_by_options ? String((org as any).invoice_preferences.referred_by_options).split(',').map((s) => s.trim()).filter(Boolean) : []),
           pdf_show_bank_details: (org as any)?.invoice_preferences?.pdf_show_bank_details !== false,
           pdf_show_terms: (org as any)?.invoice_preferences?.pdf_show_terms !== false,
           pdf_show_notes: (org as any)?.invoice_preferences?.pdf_show_notes !== false,
           auto_round_off: (org as any)?.invoice_preferences?.auto_round_off !== false,
           pdf_show_signature: (org as any)?.invoice_preferences?.pdf_show_signature !== false,
+          pdf_show_batch_no: (org as any)?.invoice_preferences?.pdf_show_batch_no !== false,
           default_bank_account_id: (org as any)?.invoice_preferences?.default_bank_account_id || "",
           bill_show_terms: (org as any)?.invoice_preferences?.bill_show_terms !== false,
           bill_show_notes: (org as any)?.invoice_preferences?.bill_show_notes !== false,
-          bill_show_display_options: (org as any)?.invoice_preferences?.bill_show_display_options !== false,
           bill_show_compliance: (org as any)?.invoice_preferences?.bill_show_compliance !== false,
+          bill_show_batch_no: (org as any)?.invoice_preferences?.bill_show_batch_no !== false,
           bill_default_add_stock: (org as any)?.invoice_preferences?.bill_default_add_stock !== false,
           bill_default_payment_terms: (org as any)?.invoice_preferences?.bill_default_payment_terms !== undefined
             ? Number((org as any).invoice_preferences.bill_default_payment_terms)
@@ -230,11 +235,46 @@ export default function SettingsPage() {
           bill_pdf_show_notes: (org as any)?.invoice_preferences?.bill_pdf_show_notes !== false,
           bill_pdf_auto_round_off: (org as any)?.invoice_preferences?.bill_pdf_auto_round_off !== false,
           bill_pdf_show_signature: (org as any)?.invoice_preferences?.bill_pdf_show_signature !== false,
+          bill_pdf_show_batch_no: (org as any)?.invoice_preferences?.bill_pdf_show_batch_no !== false,
         },
       });
       fetchTaxRates();
     }
   }, [profile, user, org?.id]);
+
+  
+  const handleAddReferredByOption = () => {
+    const val = newReferredByOption.trim();
+    if (!val) return;
+    const currentOptions = Array.isArray(orgForm.invoice_preferences?.referred_by_options)
+      ? orgForm.invoice_preferences.referred_by_options
+      : [];
+    if (!currentOptions.includes(val)) {
+      const nextOptions = [...currentOptions, val];
+      setOrgForm((prev: any) => ({
+        ...prev,
+        invoice_preferences: {
+          ...(prev.invoice_preferences || {}),
+          referred_by_options: nextOptions,
+        }
+      }));
+    }
+    setNewReferredByOption("");
+  };
+
+  const handleRemoveReferredByOption = (idxToRemove: number) => {
+    const currentOptions = Array.isArray(orgForm.invoice_preferences?.referred_by_options)
+      ? orgForm.invoice_preferences.referred_by_options
+      : [];
+    const nextOptions = currentOptions.filter((_, i) => i !== idxToRemove);
+    setOrgForm((prev: any) => ({
+      ...prev,
+      invoice_preferences: {
+        ...(prev.invoice_preferences || {}),
+        referred_by_options: nextOptions,
+      }
+    }));
+  };
 
   const handlePhoneChange = (val: string) => {
     const cleaned = val.replace(/\D/g, '').slice(0, 10);
@@ -1305,17 +1345,7 @@ export default function SettingsPage() {
                     />
                   </div>
 
-                  {/* Display Options */}
-                  <div className="flex items-center justify-between pb-3 border-b">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-medium">Display Options Panel</Label>
-                      <p className="text-xs text-muted-foreground">Show quick display formatting panel inside the invoice builder</p>
-                    </div>
-                    <Switch
-                      checked={orgForm.invoice_preferences?.show_display_options !== false}
-                      onCheckedChange={(v) => handleTogglePreference("show_display_options", v)}
-                    />
-                  </div>
+
 
                   {/* Compliance (optional) */}
                   <div className="flex items-center justify-between">
@@ -1328,6 +1358,112 @@ export default function SettingsPage() {
                       onCheckedChange={(v) => handleTogglePreference("show_compliance", v)}
                     />
                   </div>
+
+                  {/* Batch Number in Builder */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Batch Number Field</Label>
+                      <p className="text-xs text-muted-foreground">Show Batch Number input column in invoice builder line items</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.show_batch_no !== false}
+                      onCheckedChange={(v) => handleTogglePreference("show_batch_no", v)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Referred By / Doctor Settings (Retail Mode) */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <UserCheck className="h-5 w-5 text-primary" />
+                      Referred By / Doctor Preferences (Retail Mode)
+                    </CardTitle>
+                    <CardDescription>
+                      Configure Doctor or Referrer options to appear on retail invoices instead of shipping address.
+                    </CardDescription>
+                  </div>
+                  <Button size="sm" onClick={saveOrg}>Save Preferences</Button>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Enable "Add Referred By" on Invoices</Label>
+                      <p className="text-xs text-muted-foreground">Allows choosing a Doctor or Referrer in the Invoice Builder (replaces Ship To on retail invoices)</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.show_referred_by !== false}
+                      onCheckedChange={(v) => handleTogglePreference("show_referred_by", v)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Field Label Name</Label>
+                      <Input
+                        placeholder="e.g. Referred By, Doctor Name, Consultant"
+                        value={orgForm.invoice_preferences?.referred_by_label ?? "Referred By"}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setOrgForm((prev: any) => ({
+                            ...prev,
+                            invoice_preferences: {
+                              ...(prev.invoice_preferences || {}),
+                              referred_by_label: val,
+                            }
+                          }));
+                        }}
+                        className="h-9 text-xs"
+                      />
+                      <p className="text-[11px] text-muted-foreground">This label will be shown in the invoice builder and printed on invoice PDFs.</p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Add Referrer / Doctor Names</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="e.g. Dr. Amit Sharma, Dr. Pooja Verma"
+                          value={newReferredByOption}
+                          onChange={(e) => setNewReferredByOption(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddReferredByOption();
+                            }
+                          }}
+                          className="h-9 text-xs flex-1"
+                        />
+                        <Button type="button" size="sm" onClick={handleAddReferredByOption} className="h-9 px-3">
+                          <Plus className="h-4 w-4 mr-1" /> Add
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">Press Enter or click Add. Added names will appear in the Invoice Builder dropdown.</p>
+                    </div>
+                  </div>
+
+                  {Array.isArray(orgForm.invoice_preferences?.referred_by_options) && orgForm.invoice_preferences.referred_by_options.length > 0 && (
+                    <div className="pt-2">
+                      <Label className="text-xs text-muted-foreground block mb-1.5">
+                        Configured Options ({orgForm.invoice_preferences.referred_by_options.length}):
+                      </Label>
+                      <div className="flex flex-wrap gap-2">
+                        {orgForm.invoice_preferences.referred_by_options.map((opt: string, idx: number) => (
+                          <Badge key={idx} variant="secondary" className="px-2.5 py-1 text-xs flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border">
+                            <span>{opt}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveReferredByOption(idx)}
+                              className="text-slate-400 hover:text-red-500 rounded-full p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1392,7 +1528,7 @@ export default function SettingsPage() {
                   </div>
 
                   {/* Authorized Signature on PDF */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between pb-3 border-b">
                     <div className="space-y-0.5">
                       <Label className="text-sm font-medium">Include Authorized Signature on PDF</Label>
                       <p className="text-xs text-muted-foreground">Print authorized signatory line, uploaded signature, and company stamp block on invoice documents</p>
@@ -1400,6 +1536,18 @@ export default function SettingsPage() {
                     <Switch
                       checked={orgForm.invoice_preferences?.pdf_show_signature !== false}
                       onCheckedChange={(v) => handleTogglePreference("pdf_show_signature", v)}
+                    />
+                  </div>
+
+                  {/* Print Batch No on PDF */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Print Batch Number on PDF &amp; POS Receipts</Label>
+                      <p className="text-xs text-muted-foreground">Print assigned batch numbers under item names on generated invoice PDFs and thermal receipts</p>
+                    </div>
+                    <Switch
+                      checked={orgForm.invoice_preferences?.pdf_show_batch_no !== false}
+                      onCheckedChange={(v) => handleTogglePreference("pdf_show_batch_no", v)}
                     />
                   </div>
                 </CardContent>
@@ -1730,17 +1878,7 @@ export default function SettingsPage() {
                 />
               </div>
 
-              {/* Display Options */}
-              <div className="flex items-center justify-between pb-3 border-b">
-                <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Display Options Panel</Label>
-                  <p className="text-xs text-muted-foreground">Show Display Options formatting card (Auto Round Off, toggles) inside the purchase invoice builder</p>
-                </div>
-                <Switch
-                  checked={orgForm.invoice_preferences?.bill_show_display_options !== false}
-                  onCheckedChange={(v) => handleTogglePreference("bill_show_display_options", v)}
-                />
-              </div>
+
 
               {/* Compliance */}
               <div className="flex items-center justify-between pb-3 border-b">
@@ -1751,6 +1889,18 @@ export default function SettingsPage() {
                 <Switch
                   checked={orgForm.invoice_preferences?.bill_show_compliance !== false}
                   onCheckedChange={(v) => handleTogglePreference("bill_show_compliance", v)}
+                />
+              </div>
+
+              {/* Batch Number in Purchase Bill */}
+              <div className="flex items-center justify-between pb-3 border-b">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Batch Number Field</Label>
+                  <p className="text-xs text-muted-foreground">Show Batch Number input column in purchase bill line items</p>
+                </div>
+                <Switch
+                  checked={orgForm.invoice_preferences?.bill_show_batch_no !== false}
+                  onCheckedChange={(v) => handleTogglePreference("bill_show_batch_no", v)}
                 />
               </div>
 
@@ -1829,7 +1979,7 @@ export default function SettingsPage() {
               </div>
 
               {/* Authorized Signature on Bill / PDF */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pb-3 border-b">
                 <div className="space-y-0.5">
                   <Label className="text-sm font-medium">Include Authorized Signature on Bill / PDF</Label>
                   <p className="text-xs text-muted-foreground">Print authorized signatory line, uploaded signature, and company stamp block on purchase bills</p>
@@ -1837,6 +1987,18 @@ export default function SettingsPage() {
                 <Switch
                   checked={orgForm.invoice_preferences?.bill_pdf_show_signature !== false}
                   onCheckedChange={(v) => handleTogglePreference("bill_pdf_show_signature", v)}
+                />
+              </div>
+
+              {/* Print Batch No on Purchase Bill PDF */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Print Batch Number on Purchase PDF</Label>
+                  <p className="text-xs text-muted-foreground">Print batch numbers under item names on purchase bill PDFs</p>
+                </div>
+                <Switch
+                  checked={orgForm.invoice_preferences?.bill_pdf_show_batch_no !== false}
+                  onCheckedChange={(v) => handleTogglePreference("bill_pdf_show_batch_no", v)}
                 />
               </div>
             </CardContent>

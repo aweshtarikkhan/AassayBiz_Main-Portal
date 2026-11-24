@@ -26,6 +26,7 @@ import {
   calculateRemainingAddonMonths,
   calculateAddonTotalCost,
 } from "@/lib/subscription";
+import { PlanAddonsModal, AddonPlanType, PlanAddonsValues } from "@/components/shared/PlanAddonsModal";
 
 interface Plan {
   id: string;
@@ -115,6 +116,8 @@ export function PlanSelectorModal({
     const e = sessionStorage.getItem("onboarding_expense");
     return e ? parseInt(e) || 0 : 0;
   });
+  const [addonsModalOpen, setAddonsModalOpen] = useState(false);
+  const [activeAddonPlanType, setActiveAddonPlanType] = useState<AddonPlanType>("hr");
   const { pricing } = usePlatformPricing();
 
 
@@ -458,6 +461,40 @@ export function PlanSelectorModal({
       if (extraPlatformEmployeesToAdd > 0) setExtraPlatformEmployeesToAdd(0);
     }
   }, [canAccessPlatformAddons]);
+
+  const openAddonsModal = (type: AddonPlanType) => {
+    setActiveAddonPlanType(type);
+    setAddonsModalOpen(true);
+  };
+
+  const handleSaveAddons = (newValues: PlanAddonsValues) => {
+    setExtraEmployeesToAdd(newValues.extraEmployees);
+    setExtraCrmMembersToAdd(newValues.extraCrmMembers);
+    setTaskEmployeesToAdd(newValues.taskEmployees);
+    setExpenseEmployeesToAdd(newValues.expenseEmployees);
+
+    if (activeAddonPlanType === "hr" && (newValues.extraEmployees > 0 || newValues.taskEmployees > 0 || newValues.expenseEmployees > 0)) {
+      const hrPlan = plans.find(p => normalizePlanKey(p.name) === "hr");
+      if (hrPlan && !isPlanActive("hr") && !isPlanActive("suite") && !finalSelectedPlanIds.has(hrPlan.id)) {
+        setSelectedPlanIds(prev => Array.from(new Set([...prev, hrPlan.id])));
+      }
+    } else if (activeAddonPlanType === "crm" && newValues.extraCrmMembers > 0) {
+      const crmPlan = plans.find(p => normalizePlanKey(p.name) === "crm");
+      if (crmPlan && !isPlanActive("crm") && !isPlanActive("suite") && !finalSelectedPlanIds.has(crmPlan.id)) {
+        setSelectedPlanIds(prev => Array.from(new Set([...prev, crmPlan.id])));
+      }
+    } else if (activeAddonPlanType === "suite" && (newValues.extraEmployees > 0 || newValues.extraCrmMembers > 0 || newValues.taskEmployees > 0 || newValues.expenseEmployees > 0)) {
+      const suitePlan = plans.find(p => normalizePlanKey(p.name) === "suite");
+      if (suitePlan && !isPlanActive("suite") && !finalSelectedPlanIds.has(suitePlan.id)) {
+        setSelectedPlanIds(prev => Array.from(new Set([...prev, suitePlan.id])));
+      }
+    }
+
+    toast({
+      title: "Add-ons Configured",
+      description: "Your selected add-ons have been saved and applied to your plan selection.",
+    });
+  };
 
   const hasAddonSelected =
     (isHrActive && extraEmployeesToAdd > 0) ||
@@ -1554,6 +1591,28 @@ let planDisplay = targetPlanNames.map((p) => {
                             <span>Platform access up to 3 employees</span>
                           </div>
                         </div>
+
+                        {/* Action Button: Get Started */}
+                        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isIncludedInNewlySelectedSuite && !active) togglePlan(plan.id);
+                            }}
+                            className={`font-bold text-xs rounded-xl px-4 py-2 transition-all ${
+                              active
+                                ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs"
+                                : isSelected
+                                ? "bg-[#e77817] text-white hover:bg-[#d46a0f] shadow-2xs"
+                                : "border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white bg-transparent shadow-2xs"
+                            }`}
+                          >
+                            <span>{active ? "Active Plan" : isSelected ? "Selected" : "Get Started"}</span>
+                            {!active && !isSelected && <ArrowRight className="w-3.5 h-3.5 ml-1" />}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1791,6 +1850,46 @@ let planDisplay = targetPlanNames.map((p) => {
                             <span>Platform access up to 3 employees</span>
                           </div>
                         </div>
+
+                        {/* Action Buttons: Get Started + Add-on */}
+                        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-end gap-2 flex-wrap">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isIncludedInNewlySelectedSuite && !active) togglePlan(plan.id);
+                            }}
+                            className={`font-bold text-xs rounded-xl px-4 py-2 transition-all ${
+                              active
+                                ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs"
+                                : isSelected
+                                ? "bg-[#e77817] text-white hover:bg-[#d46a0f] shadow-2xs"
+                                : "border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white bg-transparent shadow-2xs"
+                            }`}
+                          >
+                            <span>{active ? "Active Plan" : isSelected ? "Selected" : "Get Started"}</span>
+                            {!active && !isSelected && <ArrowRight className="w-3.5 h-3.5 ml-1" />}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openAddonsModal("hr");
+                            }}
+                            className="border border-[#e77817]/40 hover:border-[#e77817] bg-orange-50/60 hover:bg-orange-100 text-[#e77817] font-bold text-xs rounded-xl px-3 py-2 flex items-center gap-1 shadow-2xs"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Add-on</span>
+                            {(extraEmployeesToAdd > 0 || taskEmployeesToAdd > 0 || expenseEmployeesToAdd > 0) && (
+                              <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#e77817] text-white text-[10px] font-bold">
+                                {(extraEmployeesToAdd > 0 ? 1 : 0) + (taskEmployeesToAdd > 0 ? 1 : 0) + (expenseEmployeesToAdd > 0 ? 1 : 0)}
+                              </span>
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1947,6 +2046,46 @@ let planDisplay = targetPlanNames.map((p) => {
                             <span>Platform access up to 3 employees</span>
                           </div>
                         </div>
+
+                        {/* Action Buttons: Get Started + Add-on */}
+                        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-end gap-2 flex-wrap">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isIncludedInNewlySelectedSuite && !active) togglePlan(plan.id);
+                            }}
+                            className={`font-bold text-xs rounded-xl px-4 py-2 transition-all ${
+                              active
+                                ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs"
+                                : isSelected
+                                ? "bg-[#e77817] text-white hover:bg-[#d46a0f] shadow-2xs"
+                                : "border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white bg-transparent shadow-2xs"
+                            }`}
+                          >
+                            <span>{active ? "Active Plan" : isSelected ? "Selected" : "Get Started"}</span>
+                            {!active && !isSelected && <ArrowRight className="w-3.5 h-3.5 ml-1" />}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openAddonsModal("crm");
+                            }}
+                            className="border border-[#e77817]/40 hover:border-[#e77817] bg-orange-50/60 hover:bg-orange-100 text-[#e77817] font-bold text-xs rounded-xl px-3 py-2 flex items-center gap-1 shadow-2xs"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Add-on</span>
+                            {extraCrmMembersToAdd > 0 && (
+                              <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#e77817] text-white text-[10px] font-bold">
+                                1
+                              </span>
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -2078,6 +2217,28 @@ let planDisplay = targetPlanNames.map((p) => {
                             <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                             <span>Platform access up to 3 employees</span>
                           </div>
+                        </div>
+
+                        {/* Action Button: Get Started */}
+                        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isIncludedInNewlySelectedSuite && !active) togglePlan(plan.id);
+                            }}
+                            className={`font-bold text-xs rounded-xl px-4 py-2 transition-all ${
+                              active
+                                ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs"
+                                : isSelected
+                                ? "bg-[#e77817] text-white hover:bg-[#d46a0f] shadow-2xs"
+                                : "border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white bg-transparent shadow-2xs"
+                            }`}
+                          >
+                            <span>{active ? "Active Plan" : isSelected ? "Selected" : "Get Started"}</span>
+                            {!active && !isSelected && <ArrowRight className="w-3.5 h-3.5 ml-1" />}
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -2269,13 +2430,43 @@ let planDisplay = targetPlanNames.map((p) => {
                         </div>
                       </div>
 
-                      {/* Right: Checkbox */}
-                      <div className="flex items-center justify-end lg:border-l lg:border-slate-200 lg:pl-8">
-                        <div className={`h-6 w-6 rounded border flex items-center justify-center transition-colors ${
-                          active || isSelected ? "bg-[#e77817] border-[#e77817] text-white" : "border-slate-300 bg-white"
-                        }`}>
-                          {(active || isSelected) && <Check className="h-4 w-4 stroke-[3]" />}
-                        </div>
+                      {/* Right: Action Buttons (Get Started on top, Add-on directly below) */}
+                      <div className="flex flex-col items-center sm:items-end justify-center lg:border-l lg:border-slate-200 lg:pl-8 gap-2.5 shrink-0">
+                        <Button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!active) togglePlan(plan.id);
+                          }}
+                          className={`w-full sm:w-auto text-center justify-center font-bold px-6 py-2.5 rounded-xl shadow-md transition-all duration-200 text-sm whitespace-nowrap ${
+                            active
+                              ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20"
+                              : isSelected
+                              ? "bg-[#e77817] text-white hover:bg-[#d46a0f] shadow-orange-500/25"
+                              : "bg-[#e77817] hover:bg-[#d46a0f] text-white shadow-orange-500/25"
+                          }`}
+                        >
+                          <span>{active ? "Active Plan" : isSelected ? "Selected" : "Get Started"}</span>
+                          {!active && !isSelected && <ArrowRight className="w-4 h-4 ml-1.5" />}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openAddonsModal("suite");
+                          }}
+                          className="w-full sm:w-auto justify-center border border-[#e77817]/50 hover:border-[#e77817] bg-orange-50/70 hover:bg-orange-100 text-[#e77817] font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1.5 shadow-2xs"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add-on</span>
+                          {(extraEmployeesToAdd > 0 || extraCrmMembersToAdd > 0 || taskEmployeesToAdd > 0 || expenseEmployeesToAdd > 0) && (
+                            <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#e77817] text-white text-[10px] font-bold">
+                              {(extraEmployeesToAdd > 0 ? 1 : 0) + (extraCrmMembersToAdd > 0 ? 1 : 0) + (taskEmployeesToAdd > 0 ? 1 : 0) + (expenseEmployeesToAdd > 0 ? 1 : 0)}
+                            </span>
+                          )}
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -2651,6 +2842,21 @@ let planDisplay = targetPlanNames.map((p) => {
 
           </div>
         )}
+
+        {/* Plan Add-ons Modal */}
+        <PlanAddonsModal
+          open={addonsModalOpen}
+          onOpenChange={setAddonsModalOpen}
+          planType={activeAddonPlanType}
+          billingCycle={billingCycle}
+          initialValues={{
+            extraEmployees: extraEmployeesToAdd,
+            extraCrmMembers: extraCrmMembersToAdd,
+            taskEmployees: taskEmployeesToAdd,
+            expenseEmployees: expenseEmployeesToAdd,
+          }}
+          onSave={handleSaveAddons}
+        />
       </DialogContent>
     </Dialog>
   );

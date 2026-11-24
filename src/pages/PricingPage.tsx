@@ -18,6 +18,7 @@ import { PublicFooter } from "@/components/public/PublicFooter";
 import { BookDemoDialog } from "@/components/public/BookDemoDialog";
 import { AIChatWidget } from "@/components/public/AIChatWidget";
 import { useToast } from "@/hooks/use-toast";
+import { PlanAddonsModal, AddonPlanType, PlanAddonsValues } from "@/components/shared/PlanAddonsModal";
 
 type Lang = "en" | "hi";
 
@@ -33,9 +34,42 @@ export default function PricingPage() {
   const [crmExtra, setCrmExtra] = useState(0);
   const [taskExtra, setTaskExtra] = useState(0);
   const [expenseExtra, setExpenseExtra] = useState(0);
+  const [addonsModalOpen, setAddonsModalOpen] = useState(false);
+  const [activeAddonPlanType, setActiveAddonPlanType] = useState<AddonPlanType>("hr");
   const { pricing } = usePlatformPricing();
   const [isDemoDialogOpen, setIsDemoDialogOpen] = useState(false);
   const { toast } = useToast();
+
+  const openAddonsModal = (type: AddonPlanType) => {
+    setActiveAddonPlanType(type);
+    setAddonsModalOpen(true);
+  };
+
+  const handleSaveAddons = (newValues: PlanAddonsValues) => {
+    setHrExtra(newValues.extraEmployees);
+    setCrmExtra(newValues.extraCrmMembers);
+    setTaskExtra(newValues.taskEmployees);
+    setExpenseExtra(newValues.expenseEmployees);
+
+    if (activeAddonPlanType === "hr" && (newValues.extraEmployees > 0 || newValues.taskEmployees > 0 || newValues.expenseEmployees > 0)) {
+      if (!finalSelected.has("hr") && !finalSelected.has("suite")) {
+        setSelectedPlans((prev) => (prev.includes("hr") ? prev : [...prev, "hr"]));
+      }
+    } else if (activeAddonPlanType === "crm" && newValues.extraCrmMembers > 0) {
+      if (!finalSelected.has("crm") && !finalSelected.has("suite")) {
+        setSelectedPlans((prev) => (prev.includes("crm") ? prev : [...prev, "crm"]));
+      }
+    } else if (activeAddonPlanType === "suite" && (newValues.extraEmployees > 0 || newValues.extraCrmMembers > 0 || newValues.taskEmployees > 0 || newValues.expenseEmployees > 0)) {
+      if (!finalSelected.has("suite")) {
+        setSelectedPlans((prev) => (prev.includes("suite") ? prev : [...prev, "suite"]));
+      }
+    }
+
+    toast({
+      title: "Add-ons Configured",
+      description: "Your selected add-ons have been saved and applied to your plan.",
+    });
+  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -490,16 +524,34 @@ export default function PricingPage() {
                       </div>
                     </div>
 
-                    {/* Button */}
-                    <div className="mt-auto pt-2 flex justify-end">
+                    {/* Buttons */}
+                    <div className="mt-auto pt-2 flex items-center justify-end gap-2 flex-wrap">
                       <Link
-                        to={`/register?plan=hr&billing=${billingCycle}${hrExtra > 0 ? `&hr=${hrExtra}` : ''}`}
+                        to={`/register?plan=hr&billing=${billingCycle}${hrExtra > 0 ? `&hr=${hrExtra}` : ''}${taskExtra > 0 ? `&task=${taskExtra}` : ''}${expenseExtra > 0 ? `&expense=${expenseExtra}` : ''}`}
                         onClick={(e) => e.stopPropagation()}
                         className="border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1 transition-all duration-200 shadow-2xs"
                       >
                         <span>Get Started</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAddonsModal("hr");
+                        }}
+                        className="border border-[#e77817]/40 hover:border-[#e77817] bg-orange-50/60 hover:bg-orange-100/80 text-[#e77817] font-bold text-xs rounded-xl px-3 py-2 flex items-center gap-1 shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add-on</span>
+                        {(hrExtra > 0 || taskExtra > 0 || expenseExtra > 0) && (
+                          <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#e77817] text-white text-[10px] font-bold">
+                            {(hrExtra > 0 ? 1 : 0) + (taskExtra > 0 ? 1 : 0) + (expenseExtra > 0 ? 1 : 0)}
+                          </span>
+                        )}
+                      </Button>
                     </div>
                   </div>
                 );
@@ -625,8 +677,8 @@ export default function PricingPage() {
                       </div>
                     </div>
 
-                    {/* Button */}
-                    <div className="mt-auto pt-2 flex justify-end">
+                    {/* Buttons */}
+                    <div className="mt-auto pt-2 flex items-center justify-end gap-2 flex-wrap">
                       <Link
                         to={`/register?plan=crm&billing=${billingCycle}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}`}
                         onClick={(e) => e.stopPropagation()}
@@ -635,6 +687,24 @@ export default function PricingPage() {
                         <span>Get Started</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAddonsModal("crm");
+                        }}
+                        className="border border-[#e77817]/40 hover:border-[#e77817] bg-orange-50/60 hover:bg-orange-100/80 text-[#e77817] font-bold text-xs rounded-xl px-3 py-2 flex items-center gap-1 shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add-on</span>
+                        {crmExtra > 0 && (
+                          <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#e77817] text-white text-[10px] font-bold">
+                            1
+                          </span>
+                        )}
+                      </Button>
                     </div>
                   </div>
                 );
@@ -1077,16 +1147,34 @@ export default function PricingPage() {
 
                     </div>
 
-                    {/* Right: Solid Action Button */}
-                    <div className="flex items-center justify-end lg:border-l lg:border-slate-200 lg:pl-8">
+                    {/* Right: Solid Action Button + Add-ons Button directly below */}
+                    <div className="flex flex-col items-center sm:items-end justify-center lg:border-l lg:border-slate-200 lg:pl-8 gap-2.5 shrink-0">
                       <Link
-                        to={`/register?plan=suite&billing=${billingCycle}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}`}
+                        to={`/register?plan=suite&billing=${billingCycle}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}${hrExtra > 0 ? `&hr=${hrExtra}` : ''}${taskExtra > 0 ? `&task=${taskExtra}` : ''}${expenseExtra > 0 ? `&expense=${expenseExtra}` : ''}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="bg-[#e77817] hover:bg-[#d46a0f] text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-orange-500/25 flex items-center gap-2 transition-all duration-200 text-sm whitespace-nowrap"
+                        className="w-full sm:w-auto text-center justify-center bg-[#e77817] hover:bg-[#d46a0f] text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-orange-500/25 flex items-center gap-2 transition-all duration-200 text-sm whitespace-nowrap"
                       >
                         <span>Get Started</span>
                         <ArrowRight className="w-4 h-4" />
                       </Link>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAddonsModal("suite");
+                        }}
+                        className="w-full sm:w-auto justify-center border border-[#e77817]/50 hover:border-[#e77817] bg-orange-50/70 hover:bg-orange-100 text-[#e77817] font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1.5 shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add-on</span>
+                        {(hrExtra > 0 || crmExtra > 0 || taskExtra > 0 || expenseExtra > 0) && (
+                          <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#e77817] text-white text-[10px] font-bold">
+                            {(hrExtra > 0 ? 1 : 0) + (crmExtra > 0 ? 1 : 0) + (taskExtra > 0 ? 1 : 0) + (expenseExtra > 0 ? 1 : 0)}
+                          </span>
+                        )}
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -1138,6 +1226,21 @@ export default function PricingPage() {
 
       {/* Book a Demo Modal */}
       <BookDemoDialog open={isDemoDialogOpen} onOpenChange={setIsDemoDialogOpen} />
+
+      {/* Plan Add-ons Modal */}
+      <PlanAddonsModal
+        open={addonsModalOpen}
+        onOpenChange={setAddonsModalOpen}
+        planType={activeAddonPlanType}
+        billingCycle={billingCycle}
+        initialValues={{
+          extraEmployees: hrExtra,
+          extraCrmMembers: crmExtra,
+          taskEmployees: taskExtra,
+          expenseEmployees: expenseExtra,
+        }}
+        onSave={handleSaveAddons}
+      />
 
       {/* AI Chat Widget */}
       <AIChatWidget />

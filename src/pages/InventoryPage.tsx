@@ -354,8 +354,8 @@ export default function InventoryPage() {
                     <TableRow key={trf.id} className="hover:bg-muted/40">
                       <TableCell className="font-semibold text-primary">{trf.transfer_number}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{trf.transfer_date}</TableCell>
-                      <TableCell className="font-medium">{trf.from_branch?.name || "Bhopal"}</TableCell>
-                      <TableCell className="font-medium text-emerald-600">{trf.to_branch?.name || "Indore"}</TableCell>
+                      <TableCell className="font-medium">{trf.from_branch?.name || "—"}</TableCell>
+                      <TableCell className="font-medium text-emerald-600">{trf.to_branch?.name || "—"}</TableCell>
                       <TableCell>
                         {trf.lines && trf.lines.length > 0 ? (
                           trf.lines.map((l: any, idx: number) => (

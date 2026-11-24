@@ -18,7 +18,7 @@ export const DEFAULT_PLATFORM_SOCIALS: PlatformSocials = {
   linkedin: "https://www.linkedin.com/company/aassaybiz",
   phone: "+91 7806025875",
   custom_brochure_url: "https://api.aassaybiz.com/storage/v1/object/public/portal-ads/collateral/official_brochure_1790759572464.pdf",
-  custom_pamphlet_url: "https://api.aassaybiz.com/storage/v1/object/public/portal-ads/collateral/official_pamphlet_1790759605326.pdf",
+  custom_pamphlet_url: "",
 };
 
 const STORAGE_KEY = "assaybiz_platform_socials";
@@ -117,7 +117,6 @@ export async function savePlatformSocials(socials: PlatformSocials): Promise<{ s
       { key: "social_linkedin", value: socials.linkedin || "" },
       { key: "social_phone", value: socials.phone || "" },
       { key: "custom_brochure_url", value: socials.custom_brochure_url || "" },
-      { key: "custom_pamphlet_url", value: socials.custom_pamphlet_url || "" },
     ];
 
     for (const item of settingsEntries) {

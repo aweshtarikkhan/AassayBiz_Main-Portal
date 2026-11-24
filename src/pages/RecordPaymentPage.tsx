@@ -770,7 +770,7 @@ export default function RecordPaymentPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 w-full">
       <PageHeader title="Record Payment Received" description="Record a payment from a client against outstanding invoices">
         <Button variant="outline" size="sm" onClick={() => navigate("/payments")}>
           <ArrowLeft className="mr-1 h-4 w-4" /> Back

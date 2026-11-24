@@ -165,7 +165,7 @@ export function LandingInteractiveShowcase() {
         </div>
 
         {/* 1. Business Type Selector (Compact Segmented Switcher) */}
-        <div className="max-w-xl mx-auto mb-5 p-1 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md flex flex-col sm:flex-row gap-1 shadow-inner">
+        <div className="max-w-xl mx-auto mb-5 p-1 rounded-xl sm:rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md flex flex-row gap-1 shadow-inner overflow-x-auto sm:overflow-visible pb-1 sm:pb-1 scrollbar-none">
           {BUSINESS_PRESETS.map((preset) => {
             const Icon = preset.icon;
             const isSelected = preset.id === selectedPresetId;
@@ -173,7 +173,7 @@ export function LandingInteractiveShowcase() {
               <button
                 key={preset.id}
                 onClick={() => setSelectedPresetId(preset.id)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-2.5 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all duration-200 cursor-pointer whitespace-nowrap ${
                   isSelected
                     ? "bg-gradient-to-r from-[#e77817] to-[#ff9438] text-white shadow-md shadow-orange-500/30 scale-[1.01]"
                     : "text-slate-300 hover:text-white hover:bg-white/5"
@@ -335,10 +335,10 @@ export function LandingInteractiveShowcase() {
                 </div>
 
                 {/* Direct Action CTA Buttons - 100% Visible & Prominent Side-by-Side */}
-                <div className="flex flex-col sm:flex-row gap-2.5 relative z-10">
+                <div className="flex flex-col sm:flex-row gap-2.5 relative z-10 w-full">
                   <Link
                     to="/book-demo"
-                    className="flex-1 h-11 bg-gradient-to-r from-[#e77817] to-[#ff8522] hover:from-[#d46a0f] hover:to-[#ea7617] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-lg shadow-orange-500/25 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01] active:scale-[0.99] text-center"
+                    className="w-full flex-1 h-12 bg-gradient-to-r from-[#e77817] to-[#ff8522] hover:from-[#d46a0f] hover:to-[#ea7617] text-white font-extrabold text-sm rounded-xl shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99] text-center"
                   >
                     <span>Book Free Live Demo</span>
                     <ArrowRight className="w-4 h-4 shrink-0" />
@@ -346,7 +346,7 @@ export function LandingInteractiveShowcase() {
 
                   <Link
                     to="/pricing"
-                    className="flex-1 h-11 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center transition-all text-center"
+                    className="w-full flex-1 h-12 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 text-white font-bold text-sm rounded-xl flex items-center justify-center transition-all text-center"
                   >
                     <span>Explore Plans & Pricing</span>
                   </Link>

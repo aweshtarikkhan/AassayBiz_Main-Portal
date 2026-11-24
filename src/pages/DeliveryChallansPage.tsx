@@ -67,9 +67,22 @@ export default function DeliveryChallansPage() {
 
   const formatLocation = (loc: any): string => {
     if (!loc) return "";
-    if (typeof loc === "string") return loc;
+    if (typeof loc === "string") {
+      try {
+        const trimmed = loc.trim();
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+          const parsed = JSON.parse(trimmed);
+          if (parsed && typeof parsed === "object") {
+            const parts = [parsed.street, parsed.city, parsed.state, parsed.zip || parsed.pincode, parsed.country].filter(Boolean);
+            return parts.length > 0 ? parts.join(", ") : "";
+          }
+        }
+      } catch (_) {}
+      return loc;
+    }
     if (typeof loc === "object") {
-      return [loc.street, loc.city, loc.state, loc.zip || loc.pincode, loc.country].filter(Boolean).join(", ");
+      const parts = [loc.street, loc.city, loc.state, loc.zip || loc.pincode, loc.country].filter(Boolean);
+      return parts.length > 0 ? parts.join(", ") : "";
     }
     return String(loc);
   };
@@ -226,25 +239,39 @@ export default function DeliveryChallansPage() {
                       onClick={() => openPreview(r)}
                     >
                       <TableCell className="font-bold font-mono text-primary">
-                        {r.challan_number}
+                        {typeof r.challan_number === 'string' ? r.challan_number : "—"}
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{r.clients?.display_name || "—"}</div>
-                        {r.destination && (
+                        <div className="font-medium">
+                          {(typeof r.clients?.display_name === 'string' && r.clients.display_name) ||
+                           (typeof r.clients?.name === 'string' && r.clients.name) ||
+                           "—"}
+                        </div>
+                        {r.destination && formatLocation(r.destination) ? (
                           <div className="text-[11px] text-muted-foreground">{formatLocation(r.destination)}</div>
-                        )}
+                        ) : null}
                       </TableCell>
                       <TableCell>
-                        {r.challan_date ? format(new Date(r.challan_date), "dd MMM yyyy") : "—"}
+                        {r.challan_date ? (() => {
+                          try {
+                            return format(new Date(r.challan_date), "dd MMM yyyy");
+                          } catch {
+                            return String(r.challan_date);
+                          }
+                        })() : "—"}
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono font-semibold">{r.vehicle_number || "—"}</span>
+                        <span className="font-mono font-semibold">
+                          {typeof r.vehicle_number === 'string' ? r.vehicle_number : "—"}
+                        </span>
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{r.driver_name || "—"}</div>
-                        {r.driver_phone && (
+                        <div className="font-medium">
+                          {typeof r.driver_name === 'string' ? r.driver_name : "—"}
+                        </div>
+                        {typeof r.driver_phone === 'string' && r.driver_phone ? (
                           <div className="text-[10px] text-muted-foreground font-mono">{r.driver_phone}</div>
-                        )}
+                        ) : null}
                       </TableCell>
                       <TableCell>{getStatusBadge(r.status)}</TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>

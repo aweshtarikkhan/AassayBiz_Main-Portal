@@ -46,34 +46,47 @@ export const DeliveryChallanDocument = forwardRef<HTMLDivElement, DeliveryChalla
         })()
       : format(new Date(), "dd-MMM-yyyy");
 
-    // Supplier details
-    const orgName = org?.name || "Company Name";
-    const orgGst = org?.gst_number || org?.tax_number || "";
-    const orgPhone = org?.phone || "";
-    const orgEmail = org?.email || "";
-    const orgAddress = typeof org?.address === "object"
-      ? [org?.address?.street, org?.address?.city, org?.address?.state, org?.address?.pincode].filter(Boolean).join(", ")
-      : (org?.address || "");
-
-    // Branch / Dispatch From details
-    const whName = branch?.name || orgName;
-    const whGst = branch?.gstin || orgGst;
-    const whLocation = branch?.address || orgAddress;
-
-    // Client / Consignee details
+    // Safe address formatter for string, JSON string, or object
     const formatAddress = (addr: any): string => {
       if (!addr) return "";
-      if (typeof addr === "string") return addr;
+      if (typeof addr === "string") {
+        try {
+          const trimmed = addr.trim();
+          if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+            const parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === "object") {
+              const parts = [parsed.street, parsed.city, parsed.state, parsed.zip || parsed.pincode, parsed.country].filter(Boolean);
+              return parts.length > 0 ? parts.join(", ") : "";
+            }
+          }
+        } catch (_) {}
+        return addr;
+      }
       if (typeof addr === "object") {
-        return [addr.street, addr.city, addr.state, addr.zip || addr.pincode, addr.country].filter(Boolean).join(", ");
+        const parts = [addr.street, addr.city, addr.state, addr.zip || addr.pincode, addr.country].filter(Boolean);
+        return parts.length > 0 ? parts.join(", ") : "";
       }
       return String(addr);
     };
 
-    const clientName = client?.display_name || "Customer / Consignee";
-    const clientGst = client?.tax_number || "";
-    const clientPhone = client?.phone || "";
-    const clientState = client?.state || "";
+    // Supplier details
+    const orgName = (typeof org?.name === "string" && org.name) || "Company Name";
+    const orgGst = (typeof org?.gst_number === "string" && org.gst_number) || (typeof org?.tax_number === "string" && org.tax_number) || "";
+    const orgPhone = (typeof org?.phone === "string" && org.phone) || "";
+    const orgEmail = (typeof org?.email === "string" && org.email) || "";
+    const orgAddress = formatAddress(org?.address);
+
+    // Branch / Dispatch From details
+    const isRetail = org?.business_type === 'retail' || (org?.invoice_preferences as any)?.business_category === 'retail';
+    const whName = (typeof branch?.name === "string" && branch.name) || (isRetail ? "Main Store / Location" : orgName);
+    const whGst = (typeof branch?.gstin === "string" && branch.gstin) || orgGst;
+    const whLocation = formatAddress(branch?.address) || orgAddress;
+
+    // Client / Consignee details
+    const clientName = (typeof client?.display_name === "string" && client.display_name) || (typeof client?.name === "string" && client.name) || "Customer / Consignee";
+    const clientGst = (typeof client?.tax_number === "string" && client.tax_number) || "";
+    const clientPhone = (typeof client?.phone === "string" && client.phone) || "";
+    const clientState = (typeof client?.state === "string" && client.state) || "";
     const clientAddress = formatAddress(client?.shipping_address || client?.billing_address);
     const destinationDisplay = formatAddress(challan.destination) || clientState || "—";
 
@@ -182,7 +195,7 @@ export const DeliveryChallanDocument = forwardRef<HTMLDivElement, DeliveryChalla
             <div className="flex justify-between border-b border-slate-200 pb-1">
               <span className="text-slate-500 font-medium">Dispatch Place:</span>
               <span className="font-semibold text-slate-900 truncate max-w-[180px]">
-                {whName || "Main Office / Primary Store"}
+                {whName}
               </span>
             </div>
             {whGst && (
@@ -191,12 +204,12 @@ export const DeliveryChallanDocument = forwardRef<HTMLDivElement, DeliveryChalla
                 <span className="font-mono text-slate-900 font-medium">{whGst}</span>
               </div>
             )}
-            {whLocation && (
+            {whLocation ? (
               <div className="text-[10px] text-slate-600 border-b border-slate-200 pb-1 leading-snug">
                 <span className="text-slate-500 font-medium">From: </span>
                 {whLocation}
               </div>
-            )}
+            ) : null}
             <div className="flex justify-between border-b border-slate-200 pb-1">
               <span className="text-slate-500 font-medium">Destination / City:</span>
               <span className="font-semibold text-slate-900">
@@ -220,7 +233,7 @@ export const DeliveryChallanDocument = forwardRef<HTMLDivElement, DeliveryChalla
               Dispatched From (Consignor)
             </div>
             <div className="font-bold text-slate-900 text-xs">{orgName}</div>
-            <div className="text-slate-600 leading-snug">{whLocation || orgAddress}</div>
+            <div className="text-slate-600 leading-snug">{whLocation || orgAddress || "Business Address"}</div>
             {orgGst && (
               <div className="pt-1 text-[10px]">
                 <strong className="text-slate-700">GSTIN / UIN:</strong>{" "}

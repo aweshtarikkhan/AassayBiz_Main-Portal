@@ -20,10 +20,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Eye, Trash2, Plus, GripVertical, Printer, Share2, Clock, ChevronDown, AlertTriangle, Layers, Check, Mail, MessageCircle, ArrowLeft, Lock, RefreshCw, FileText, CheckCircle2 } from "lucide-react";
+import { Save, Eye, Trash2, Plus, GripVertical, Printer, Share2, Clock, ChevronDown, AlertTriangle, Layers, Check, Mail, MessageCircle, ArrowLeft, Lock, RefreshCw, FileText, CheckCircle2, CreditCard, Wallet } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ContactPromptDialog } from "@/components/shared/ContactPromptDialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { recordVendorPaymentBankingTransaction, getOrCreateCashAccount } from "@/lib/banking-sync";
 import { BillSettingsSheet } from "@/components/shared/BillSettingsSheet";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -75,6 +77,7 @@ interface LineItem {
   primary_unit?: string;
   base_unit_price?: number;
   expiry_warning?: string;
+  batch_no?: string;
 }
 
 const UNITS = COMMON_UNITS;
@@ -99,6 +102,7 @@ function createEmptyLine(): LineItem {
     sub_unit_conversion_rate: 1,
     primary_unit: "pcs",
     base_unit_price: 0,
+    batch_no: "",
   };
 }
 
@@ -111,6 +115,7 @@ function SortableLineItem({
   onRemove,
   onAddItem,
   currency,
+  billShowBatchNo = true,
 }: {
   line: LineItem;
   index: number;
@@ -120,6 +125,7 @@ function SortableLineItem({
   onRemove: (index: number) => void;
   onAddItem: () => void;
   currency: string;
+  billShowBatchNo?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: line.id });
   const [itemDropdownOpen, setItemDropdownOpen] = useState(false);
@@ -179,6 +185,9 @@ function SortableLineItem({
     onChange(index, "tax_id", item.tax_id || null);
     onChange(index, "sub_unit", item.sub_unit || "");
     onChange(index, "sub_unit_conversion_rate", Number(item.sub_unit_conversion_rate) || 1);
+    if (item.batch_no) {
+      onChange(index, "batch_no", item.batch_no);
+    }
     setItemDropdownOpen(false);
   };
 
@@ -260,6 +269,17 @@ function SortableLineItem({
             onChange={(e) => onChange(index, "description", e.target.value)}
             rows={2}
           />
+          {billShowBatchNo && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap font-medium">Batch #:</span>
+              <Input
+                className="h-7 text-xs px-2"
+                placeholder="Batch number (e.g. B-012)"
+                value={line.batch_no || ""}
+                onChange={(e) => onChange(index, "batch_no", e.target.value)}
+              />
+            </div>
+          )}
           {line.item_id ? (
             <div className="flex items-center gap-1.5 pt-0.5">
               <a
@@ -460,10 +480,25 @@ export default function BillBuilderPage() {
   const org = useAppStore((s) => s.organization);
   const { toast } = useToast();
   const billPref = (org?.invoice_preferences as any) || {};
-  const billShowTerms = billPref.bill_show_terms !== false;
-  const billShowNotes = billPref.bill_show_notes !== false;
-  const billShowDisplayOptions = billPref.bill_show_display_options !== false;
+  const [prefShowTerms, setPrefShowTerms] = useState<boolean>(billPref.bill_show_terms !== false);
+  const [prefShowNotes, setPrefShowNotes] = useState<boolean>(billPref.bill_show_notes !== false);
+  const [prefShowBankDetails, setPrefShowBankDetails] = useState<boolean>(billPref.bill_show_bank_details !== false);
   const billShowCompliance = billPref.bill_show_compliance !== false;
+  const [billShowBatchNo, setBillShowBatchNo] = useState<boolean>(billPref.bill_show_batch_no !== false);
+  const [billPdfShowBatchNo, setBillPdfShowBatchNo] = useState<boolean>(billPref.bill_pdf_show_batch_no !== false);
+  const [paymentMode, setPaymentMode] = useState<string>("unpaid");
+  const [savedBankAccounts, setSavedBankAccounts] = useState<any[]>([]);
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string | null>(null);
+  const [addNewBankDialogOpen, setAddNewBankDialogOpen] = useState(false);
+  const [newBankForm, setNewBankForm] = useState({
+    bank_name: "", account_holder_name: "", account_number: "", ifsc: "", branch: "", upi_id: ""
+  });
+  const [bankName, setBankName] = useState("");
+  const [bankAccountName, setBankAccountName] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankIfsc, setBankIfsc] = useState("");
+  const [bankBranch, setBankBranch] = useState("");
+  const [bankUpiId, setBankUpiId] = useState("");
   const [showSignature, setShowSignature] = useState(() => {
     const org = useAppStore.getState().organization;
     return !!(org?.address?.signature_type && org.address.signature_type !== 'none');
@@ -496,6 +531,12 @@ export default function BillBuilderPage() {
       }
       if (pref.bill_pdf_show_signature !== undefined) {
         setShowSignature(pref.bill_pdf_show_signature !== false);
+      }
+      if (pref.bill_show_batch_no !== undefined) {
+        setBillShowBatchNo(pref.bill_show_batch_no !== false);
+      }
+      if (pref.bill_pdf_show_batch_no !== undefined) {
+        setBillPdfShowBatchNo(pref.bill_pdf_show_batch_no !== false);
       }
     }
   }, [id, org?.invoice_preferences]);
@@ -574,18 +615,63 @@ export default function BillBuilderPage() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  const handleBankAccountSelect = (accountId: string) => {
+    if (accountId === "add-new") {
+      setAddNewBankDialogOpen(true);
+      return;
+    }
+    const acc = savedBankAccounts.find(a => a.id === accountId);
+    if (acc) {
+      setSelectedBankAccountId(accountId);
+      setBankName(acc.bank_name || "");
+      const parsedNotes = acc.notes ? (() => { try { return JSON.parse(acc.notes); } catch { return {}; } })() : {};
+      setBankAccountName(parsedNotes.account_holder_name || acc.name || "");
+      setBankAccountNumber(acc.account_number || "");
+      setBankIfsc(acc.ifsc || "");
+      setBankBranch(parsedNotes.branch || "");
+      setBankUpiId(acc.upi_id || "");
+      setIncludeBankDetails(true);
+    }
+  };
+
+  const handleSaveNewBankAccount = async () => {
+    if (!org?.id || !newBankForm.bank_name.trim()) return;
+    const { data, error } = await supabase.from("bank_accounts").insert({
+      org_id: org.id,
+      name: newBankForm.account_holder_name.trim() || newBankForm.bank_name.trim(),
+      bank_name: newBankForm.bank_name.trim(),
+      account_number: newBankForm.account_number.trim(),
+      ifsc: newBankForm.ifsc.trim(),
+      upi_id: newBankForm.upi_id.trim() || null,
+      account_type: "bank",
+      notes: JSON.stringify({ branch: newBankForm.branch.trim(), account_holder_name: newBankForm.account_holder_name.trim() }),
+    }).select().single();
+    if (!error && data) {
+      setSavedBankAccounts(prev => [...prev, data]);
+      handleBankAccountSelect(data.id);
+      setAddNewBankDialogOpen(false);
+      setNewBankForm({ bank_name: "", account_holder_name: "", account_number: "", ifsc: "", branch: "", upi_id: "" });
+      toast({ title: "Bank Account Added", description: `${data.bank_name} added successfully.` });
+    } else {
+      toast({ title: "Failed to add bank account", description: error?.message || "Error creating bank account", variant: "destructive" });
+    }
+  };
+
   // Fetch reference data
   useEffect(() => {
     if (!org?.id) return;
     const fetchData = async () => {
-      const [c, i, t] = await Promise.all([
+      const [c, i, t, b] = await Promise.all([
         supabase.from("vendors").select("*").eq("org_id", org.id).eq("is_active", true).order("display_name"),
         supabase.from("items").select("*").eq("org_id", org.id).eq("is_active", true).order("name"),
         supabase.from("tax_rates").select("*").eq("org_id", org.id),
+        supabase.from("bank_accounts").select("*").eq("org_id", org.id).eq("is_active", true).order("created_at"),
       ]);
       setVendors(c.data || []);
       setCatalogItems(i.data || []);
       setTaxRates(t.data || []);
+      const allBankAccounts = b.data || [];
+      setSavedBankAccounts(allBankAccounts);
 
       // Auto-generate bill number from fresh DB value
       if (!id) {
@@ -633,6 +719,36 @@ export default function BillBuilderPage() {
         }
         if (freshPrefs.bill_pdf_show_signature !== undefined) {
           setShowSignature(freshPrefs.bill_pdf_show_signature !== false);
+        }
+        if (freshPrefs.bill_show_batch_no !== undefined) {
+          setBillShowBatchNo(freshPrefs.bill_show_batch_no !== false);
+        }
+        if (freshPrefs.bill_pdf_show_batch_no !== undefined) {
+          setBillPdfShowBatchNo(freshPrefs.bill_pdf_show_batch_no !== false);
+        }
+
+        // Auto-select Default / Primary Bank Account
+        const defaultBankId = freshPrefs?.default_bank_account_id;
+        const targetAcc = (allBankAccounts || []).find((a: any) => a.id === defaultBankId) ||
+          (allBankAccounts || []).find((a: any) => a.account_number === freshOrg?.bank_account_number) ||
+          ((allBankAccounts || [])[0]);
+
+        if (targetAcc) {
+          setSelectedBankAccountId(targetAcc.id);
+          const parsedNotes = targetAcc.notes ? (() => { try { return JSON.parse(targetAcc.notes); } catch { return {}; } })() : {};
+          setBankName(targetAcc.bank_name || "");
+          setBankAccountName(parsedNotes.account_holder_name || targetAcc.name || freshOrg?.name || org.name || "");
+          setBankAccountNumber(targetAcc.account_number || "");
+          setBankIfsc(targetAcc.ifsc || "");
+          setBankBranch(parsedNotes.branch || "");
+          setBankUpiId(targetAcc.upi_id || freshOrg?.upi_id || org.upi_id || "");
+        } else if (freshOrg && (freshOrg.bank_name || freshOrg.bank_account_number)) {
+          setBankName(freshOrg.bank_name || "");
+          setBankAccountName(freshOrg.bank_account_name || freshOrg.name || org.name || "");
+          setBankAccountNumber(freshOrg.bank_account_number || "");
+          setBankIfsc(freshOrg.bank_ifsc || "");
+          setBankBranch(freshOrg.bank_branch || "");
+          setBankUpiId(freshOrg.upi_id || org.upi_id || "");
         }
       }
     };
@@ -736,6 +852,21 @@ export default function BillBuilderPage() {
       } else if (meta.showSignature !== undefined) {
         setShowSignature(meta.showSignature !== false);
       }
+      if (extraData.bank_account_id) {
+        setSelectedBankAccountId(extraData.bank_account_id);
+      }
+      if (extraData.payment_mode) {
+        setPaymentMode(extraData.payment_mode);
+      }
+      if (extraData.bank_name) setBankName(extraData.bank_name);
+      if (extraData.bank_account_name) setBankAccountName(extraData.bank_account_name);
+      if (extraData.bank_account_number) setBankAccountNumber(extraData.bank_account_number);
+      if (extraData.bank_ifsc) setBankIfsc(extraData.bank_ifsc);
+      if (extraData.bank_branch) setBankBranch(extraData.bank_branch);
+      if (extraData.bank_upi_id) setBankUpiId(extraData.bank_upi_id);
+      if (extraData.pref_show_bank_details !== undefined) {
+        setPrefShowBankDetails(extraData.pref_show_bank_details);
+      }
       
       setDiscount(Number(inv.discount));
       setDiscountType(inv.discount_type as any);
@@ -798,6 +929,7 @@ export default function BillBuilderPage() {
           hsn_code: (l as any).hsn_code || "",
           sub_unit: (l as any).sub_unit || "",
           sub_unit_conversion_rate: Number((l as any).sub_unit_conversion_rate) || 1,
+          batch_no: (l as any).batch_no || "",
         })));
       }
     };
@@ -1078,17 +1210,35 @@ export default function BillBuilderPage() {
       }
     }
 
+      const isModePaid = Boolean(paymentMode && paymentMode !== "unpaid" && paymentMode !== "none");
+      const paidVal = isModePaid ? total : (id ? Number(amountPaid) : 0);
+      const calculatedBalance = Math.max(0, total - paidVal);
+      const finalStatus = isModePaid 
+        ? "paid" 
+        : (paidVal > 0 && calculatedBalance > 0 ? "partial" : status);
+
       const extraData = {
         tds_tcs_applicable: tdsTcsApplicable,
         tds_tcs_type: tdsTcsType,
         tds_tcs_rate: cleanTdsTcsRate,
         tds_tcs_amount: tdsTcsAmount,
         autoRoundOff,
-        includeBankDetails,
-        showTerms,
-        showNotes,
+        includeBankDetails: prefShowBankDetails && includeBankDetails,
+        showTerms: prefShowTerms && Boolean(terms.trim()),
+        showNotes: prefShowNotes && Boolean(notes.trim()),
         showSignature,
         deduct_stock: deductStock,
+        bill_show_batch_no: billShowBatchNo,
+        bill_pdf_show_batch_no: billShowBatchNo,
+        payment_mode: paymentMode,
+        bank_account_id: selectedBankAccountId,
+        bank_name: bankName,
+        bank_account_name: bankAccountName,
+        bank_account_number: bankAccountNumber,
+        bank_ifsc: bankIfsc,
+        bank_branch: bankBranch,
+        bank_upi_id: bankUpiId,
+        pref_show_bank_details: prefShowBankDetails,
       };
 
       const billPayload = {
@@ -1103,9 +1253,9 @@ export default function BillBuilderPage() {
         subtotal,
         tax_total: totalTax,
         total,
-        balance_due: total - amountPaid,
-        amount_paid: amountPaid,
-        status: (total - amountPaid) <= 0 && amountPaid > 0 ? "paid" : (amountPaid > 0 ? "partial" : status),
+        balance_due: calculatedBalance,
+        amount_paid: paidVal,
+        status: finalStatus,
         tds_tcs_applicable: tdsTcsApplicable,
         tds_tcs_type: tdsTcsType,
         tds_tcs_rate: cleanTdsTcsRate,
@@ -1264,6 +1414,7 @@ export default function BillBuilderPage() {
           amount: l.amount,
           sort_order: i,
           hsn: l.hsn_code?.trim() || null,
+          batch_no: l.batch_no?.trim() || null,
         }));
 
       const { error: lineError } = await supabase.from("bill_lines").insert(linePayloads);
@@ -1293,17 +1444,38 @@ export default function BillBuilderPage() {
             const oldQty = Number(it.stock_quantity || 0);
             const newQty = Math.max(0, oldQty + delta[it.id]);
             await supabase.from("items").update({ stock_quantity: newQty }).eq("id", it.id);
-            movements.push({
-              orgId: org!.id,
-              itemId: it.id,
-              changeQty: delta[it.id],
-              balanceAfter: newQty,
-              reason: id ? "Purchase bill updated" : "Purchase bill created",
-              refType: "bill",
-              refId: billId!,
-              refNumber: billNumber,
-              createdBy: user?.id || null,
-            });
+            
+            // Record movements per line so individual batch numbers and unit costs are tracked in inventory movements
+            const itemLines = deductStock ? linePayloads.filter((ln) => ln.item_id === it.id) : [];
+            if (itemLines.length > 0) {
+              for (const ln of itemLines) {
+                movements.push({
+                  orgId: org!.id,
+                  itemId: it.id,
+                  changeQty: Number(ln.quantity || 0),
+                  balanceAfter: newQty,
+                  reason: id ? "Purchase bill updated" : "Purchase bill created",
+                  refType: "bill",
+                  refId: billId!,
+                  refNumber: billNumber,
+                  createdBy: user?.id || null,
+                  batchNo: ln.batch_no || null,
+                  unitCost: Number(ln.rate || 0),
+                });
+              }
+            } else {
+              movements.push({
+                orgId: org!.id,
+                itemId: it.id,
+                changeQty: delta[it.id],
+                balanceAfter: newQty,
+                reason: id ? "Purchase bill updated" : "Purchase bill created",
+                refType: "bill",
+                refId: billId!,
+                refNumber: billNumber,
+                createdBy: user?.id || null,
+              });
+            }
             stockToastMessages.push(`${it.name}: Prev ${oldQty} → Updated ${newQty}`);
           }
           await logStockMovements(movements);
@@ -1317,6 +1489,43 @@ export default function BillBuilderPage() {
       // Save custom fields
       if (billId && Object.keys(customFieldValues).length > 0) {
         await saveCustomFieldValues(billId, customFieldValues);
+      }
+
+      // Record vendor payment and sync into banking transactions (Debit / Money Out to Bank Ledger)
+      if (isModePaid && total > 0 && billId) {
+        try {
+          let targetBankId = selectedBankAccountId;
+          if (!targetBankId && paymentMode === "cash") {
+            const cashAcc = await getOrCreateCashAccount(org!.id, org!.currency_code);
+            targetBankId = cashAcc?.id;
+          }
+
+          const { data: billPay } = await supabase.from("bill_payments").insert({
+            org_id: org!.id,
+            vendor_id: vendorId,
+            bill_id: billId,
+            amount: total,
+            payment_date: billDate,
+            payment_method: paymentMode,
+            bank_account_id: targetBankId || null,
+            notes: `Paid via ${paymentMode.replace(/_/g, " ")} on purchase invoice creation`,
+          }).select().single();
+
+          if (targetBankId) {
+            await recordVendorPaymentBankingTransaction({
+              orgId: org!.id,
+              bankAccountId: targetBankId,
+              amount: total,
+              paymentDate: billDate,
+              billNumber: billNumber,
+              vendorName: vendors.find(v => v.id === vendorId)?.display_name,
+              paymentId: billPay?.id,
+              notes: `Paid for Bill ${billNumber}`,
+            });
+          }
+        } catch (payErr) {
+          console.error("Failed to record bill payment / bank debit:", payErr);
+        }
       }
 
       // Audit log
@@ -1662,9 +1871,24 @@ export default function BillBuilderPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between py-3">
           <CardTitle className="text-base">Line Items</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => { setBulkSelected(new Set()); setBulkAddOpen(true); }}>
-            <Layers className="mr-1 h-4 w-4" /> Bulk Add
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant={billShowBatchNo ? "default" : "outline"}
+              size="sm"
+              className="h-8 px-2.5 text-xs font-normal"
+              onClick={() => {
+                const next = !billShowBatchNo;
+                setBillShowBatchNo(next);
+                setBillPdfShowBatchNo(next);
+              }}
+            >
+              {billShowBatchNo ? "✓ Batch No" : "+ Batch No"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { setBulkSelected(new Set()); setBulkAddOpen(true); }}>
+              <Layers className="mr-1 h-4 w-4" /> Bulk Add
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider grid grid-cols-12 gap-2 px-6 pb-2 border-b">
@@ -1688,6 +1912,7 @@ export default function BillBuilderPage() {
                   onAddItem={() => setAddItemOpen(true)}
                   currency={org?.currency_code || "INR"}
                   org={org}
+                  billShowBatchNo={billShowBatchNo}
                 />
               ))}
             </SortableContext>
@@ -1787,15 +2012,212 @@ export default function BillBuilderPage() {
       {/* Totals & Notes */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8 space-y-6">
-          {(billShowNotes || billShowTerms || billShowDisplayOptions) && (
+          {/* Quick builder section toggles */}
+          <div className="flex items-center justify-between pb-2 text-xs text-muted-foreground border-b flex-wrap gap-2">
+            <span className="font-semibold text-slate-800 dark:text-slate-200">Bill Sections:</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Button
+                type="button"
+                variant={prefShowNotes ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-[11px] font-normal"
+                onClick={() => {
+                  const next = !prefShowNotes;
+                  setPrefShowNotes(next);
+                  setShowNotes(next);
+                }}
+              >
+                {prefShowNotes ? "✓ Notes" : "+ Notes"}
+              </Button>
+              <Button
+                type="button"
+                variant={prefShowTerms ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-[11px] font-normal"
+                onClick={() => {
+                  const next = !prefShowTerms;
+                  setPrefShowTerms(next);
+                  setShowTerms(next);
+                }}
+              >
+                {prefShowTerms ? "✓ Terms" : "+ Terms"}
+              </Button>
+              <Button
+                type="button"
+                variant={billShowBatchNo ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-[11px] font-normal"
+                onClick={() => {
+                  const next = !billShowBatchNo;
+                  setBillShowBatchNo(next);
+                }}
+              >
+                {billShowBatchNo ? "✓ Batch No" : "+ Batch No"}
+              </Button>
+              <Button
+                type="button"
+                variant={prefShowBankDetails ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-[11px] font-normal"
+                onClick={() => {
+                  const next = !prefShowBankDetails;
+                  setPrefShowBankDetails(next);
+                  if (!next) setIncludeBankDetails(false);
+                  else setIncludeBankDetails(true);
+                }}
+              >
+                {prefShowBankDetails ? "✓ Bank Details" : "+ Bank Details"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Payment Mode (Compact on Left) */}
+          <div className="p-3 rounded-lg border bg-card/60 space-y-1.5 max-w-sm">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Wallet className="h-3.5 w-3.5 text-primary" />
+                Payment Mode
+              </Label>
+              {paymentMode && paymentMode !== "unpaid" && paymentMode !== "none" && (
+                <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                  Paid In Full ✓
+                </span>
+              )}
+            </div>
+            <Select value={paymentMode} onValueChange={setPaymentMode}>
+              <SelectTrigger className="h-8 text-xs bg-white dark:bg-background">
+                <SelectValue placeholder="Select Payment Mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unpaid">Unpaid / Pay Later</SelectItem>
+                <SelectItem value="bank_transfer">Bank Transfer / NEFT</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="upi">UPI / QR</SelectItem>
+                <SelectItem value="cheque">Cheque</SelectItem>
+                <SelectItem value="credit_card">Credit Card</SelectItem>
+                <SelectItem value="debit_card">Debit Card</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Bank & Payment Details Card */}
+          {prefShowBankDetails && (
+            <div className="p-4 rounded-lg border bg-card/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold">Bank &amp; Payment Details</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={includeBankDetails}
+                    onCheckedChange={setIncludeBankDetails}
+                    id="include-bill-bank"
+                  />
+                  <Label htmlFor="include-bill-bank" className="text-xs cursor-pointer">
+                    {includeBankDetails ? "Visible on PDF" : "Hidden"}
+                  </Label>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Select the bank account used for payment or vendor transactions.
+              </p>
+
+              {includeBankDetails && (
+                <div className="space-y-4 pt-2">
+                  <Select value={selectedBankAccountId || undefined} onValueChange={handleBankAccountSelect}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Select bank account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {savedBankAccounts.map((acc) => (
+                        <SelectItem key={acc.id} value={acc.id}>
+                          {acc.bank_name} {acc.account_number ? `- ...${acc.account_number.slice(-4)}` : ""}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="add-new" className="text-primary font-medium">
+                        + Add New Account
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {selectedBankAccountId && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-xs">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Bank Name</Label>
+                        <div className="font-medium bg-muted/30 p-2 rounded-md">{bankName || "-"}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Account Holder Name</Label>
+                        <div className="font-medium bg-muted/30 p-2 rounded-md">{bankAccountName || "-"}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Account Number</Label>
+                        <div className="font-mono bg-muted/30 p-2 rounded-md">{bankAccountNumber || "-"}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">IFSC Code</Label>
+                        <div className="font-mono bg-muted/30 p-2 rounded-md uppercase">{bankIfsc || "-"}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Branch Name</Label>
+                        <div className="font-medium bg-muted/30 p-2 rounded-md">{bankBranch || "-"}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">UPI ID</Label>
+                        <div className="font-medium bg-muted/30 p-2 rounded-md">{bankUpiId || "-"}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <Dialog open={addNewBankDialogOpen} onOpenChange={setAddNewBankDialogOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add Bank Account</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label>Bank Name</Label>
+                  <Input value={newBankForm.bank_name} onChange={(e) => setNewBankForm({ ...newBankForm, bank_name: e.target.value })} placeholder="e.g. HDFC Bank" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Account Holder Name</Label>
+                  <Input value={newBankForm.account_holder_name} onChange={(e) => setNewBankForm({ ...newBankForm, account_holder_name: e.target.value })} placeholder="e.g. Acme Corp" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Account Number</Label>
+                  <Input value={newBankForm.account_number} onChange={(e) => setNewBankForm({ ...newBankForm, account_number: e.target.value })} placeholder="e.g. 50200012345678" />
+                </div>
+                <div className="space-y-2">
+                  <Label>IFSC Code</Label>
+                  <Input value={newBankForm.ifsc} onChange={(e) => setNewBankForm({ ...newBankForm, ifsc: e.target.value })} placeholder="e.g. HDFC0001234" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Branch Name</Label>
+                  <Input value={newBankForm.branch} onChange={(e) => setNewBankForm({ ...newBankForm, branch: e.target.value })} placeholder="e.g. Connaught Place" />
+                </div>
+                <div className="space-y-2">
+                  <Label>UPI ID (Optional)</Label>
+                  <Input value={newBankForm.upi_id} onChange={(e) => setNewBankForm({ ...newBankForm, upi_id: e.target.value })} placeholder="e.g. merchant@okhdfcbank" />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAddNewBankDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleSaveNewBankAccount}>Save Account</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {(prefShowNotes || prefShowTerms) && (
             <div className={`grid grid-cols-1 ${
-              [billShowNotes, billShowTerms, billShowDisplayOptions].filter(Boolean).length === 3
-                ? "md:grid-cols-3"
-                : [billShowNotes, billShowTerms, billShowDisplayOptions].filter(Boolean).length === 2
-                ? "md:grid-cols-2"
-                : "md:grid-cols-1"
+              prefShowNotes && prefShowTerms ? "md:grid-cols-2" : "md:grid-cols-1"
             } gap-6`}>
-              {billShowNotes && (
+              {prefShowNotes && (
                 <Card className="shadow-sm border-slate-200">
                   <CardHeader className="pb-3 border-b bg-slate-50/50">
                     <div className="flex items-center gap-2">
@@ -1819,7 +2241,7 @@ export default function BillBuilderPage() {
                 </Card>
               )}
 
-              {billShowTerms && (
+              {prefShowTerms && (
                 <Card className="shadow-sm border-slate-200">
                   <CardHeader className="pb-3 border-b bg-slate-50/50">
                     <div className="flex items-center gap-2">
@@ -1837,37 +2259,6 @@ export default function BillBuilderPage() {
                       placeholder="Payment terms, late fees..."
                       className="resize-none bg-slate-50/50 border-slate-200 text-sm"
                     />
-                  </CardContent>
-                </Card>
-              )}
-
-              {billShowDisplayOptions && (
-                <Card className="shadow-sm border-slate-200">
-                  <CardHeader className="pb-3 border-b bg-slate-50/50">
-                    <div className="flex items-center gap-2">
-                      <div className="h-7 w-7 bg-blue-100 text-blue-700 rounded-md flex items-center justify-center">
-                        <Eye className="h-3.5 w-3.5" />
-                      </div>
-                      <CardTitle className="text-sm font-semibold text-blue-700">Display Options</CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-4 space-y-2">
-                    <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
-                      <Checkbox checked={autoRoundOff} onCheckedChange={(v) => setAutoRoundOff(!!v)} />
-                      <span className="text-sm font-medium text-slate-700">Auto Round Off Total</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
-                      <Checkbox checked={includeBankDetails} onCheckedChange={(v) => setIncludeBankDetails(!!v)} />
-                      <span className="text-sm font-medium text-slate-700">Show Bank / UPI Details</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
-                      <Checkbox checked={showTerms} onCheckedChange={(v) => setShowTerms(!!v)} />
-                      <span className="text-sm font-medium text-slate-700">Show Terms</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-md transition-colors">
-                      <Checkbox checked={showNotes} onCheckedChange={(v) => setShowNotes(!!v)} />
-                      <span className="text-sm font-medium text-slate-700">Show Notes</span>
-                    </label>
                   </CardContent>
                 </Card>
               )}
@@ -2124,20 +2515,26 @@ export default function BillBuilderPage() {
                 </div>
               )}
             </div>
-            <div className="flex items-center justify-between text-sm gap-2">
-              <Input
-                className="h-7 w-24 text-xs"
-                value={adjustmentName}
-                onChange={(e) => setAdjustmentName(e.target.value)}
-                disabled={autoRoundOff}
-              />
-              <Input
-                type="number"
-                className="h-7 w-24 text-xs text-right"
-                value={autoRoundOff ? finalAdjustment.toFixed(2) : adjustment}
-                onChange={(e) => setAdjustment(parseFloat(e.target.value) || 0)}
-                disabled={autoRoundOff}
-              />
+            <div className="flex items-center justify-between text-sm py-1 border-t border-dashed">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <Checkbox
+                  checked={autoRoundOff}
+                  onCheckedChange={(v) => {
+                    const checked = !!v;
+                    setAutoRoundOff(checked);
+                    if (!checked) {
+                      setAdjustment(0);
+                    }
+                  }}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm font-medium">Round Off</span>
+              </label>
+              <span className={`text-xs font-semibold tabular-nums ${finalAdjustment > 0 ? "text-emerald-600" : finalAdjustment < 0 ? "text-rose-600" : "text-muted-foreground"}`}>
+                {autoRoundOff
+                  ? (finalAdjustment !== 0 ? (finalAdjustment > 0 ? `+${fmt(finalAdjustment)}` : fmt(finalAdjustment)) : "₹0.00")
+                  : "₹0.00"}
+              </span>
             </div>
             <div className="border-t pt-3 flex justify-between text-lg font-bold">
               <span>Total</span>

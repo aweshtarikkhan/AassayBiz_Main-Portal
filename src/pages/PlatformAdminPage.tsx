@@ -550,11 +550,13 @@ export default function PlatformAdminPage() {
             finalDashData = {
               ...finalDashData,
               organizations: finalDashData.organizations.map(o => {
-                const ownerUserId = o.owner?.user_id || o.owner?.id;
-                const ownerAccId = o.owner?.account_id || (o as any).owner_account_id;
+                const ownerUserId = (o as any).owner_id || o.owner?.user_id || o.owner?.id;
+                const ownerAccId = (ownerUserId ? idMap.get(ownerUserId) : null) || o.owner?.account_id || (o as any).owner_account_id;
                 const orgPhone = o.phone || (o.owner as any)?.phone || (ownerUserId ? phoneMap.get(ownerUserId) : null) || (ownerAccId ? phoneMap.get(ownerAccId) : null) || null;
                 return {
                   ...o,
+                  owner_id: ownerUserId || (o as any).owner_id,
+                  owner_account_id: ownerAccId || null,
                   phone: orgPhone,
                   owner: o.owner ? {
                     ...o.owner,
@@ -602,10 +604,11 @@ export default function PlatformAdminPage() {
               const defaultPlat = isSuite ? 5 : 3;
 
               // Manual override limits configured by platform admin
-              const adminEmpOverride = Math.max(
-                ...oSubs.map((s: any) => Number(s.manual_override_features?.employee_limit) || 0),
-                Number(o.invoice_preferences?.employee_limit) || 0
-              );
+              const adminEmpOverride = Number(o.invoice_preferences?.employee_limit) ||
+                Math.max(
+                  ...oSubs.map((s: any) => Number(s.manual_override_features?.employee_limit) || 0),
+                  0
+                );
 
               const empLimit = adminEmpOverride > 0
                 ? adminEmpOverride
@@ -621,34 +624,40 @@ export default function PlatformAdminPage() {
               const crmTeamEnabled = !adminCrmDisabled && (hasCrmPlan || adminCrmOverride);
 
               const crmLimit = crmTeamEnabled
-                ? Math.max(
-                    2,
-                    ...oSubs.map((s: any) => Number(s.manual_override_features?.crm_team_limit) || 0),
-                    Number(o.invoice_preferences?.crm_team_limit) || 0
+                ? (
+                    Number(o.invoice_preferences?.crm_team_limit) ||
+                    Math.max(
+                      2,
+                      ...oSubs.map((s: any) => Number(s.manual_override_features?.crm_team_limit) || 0)
+                    )
                   )
                 : 0;
 
-              const platLimit = Math.max(
-                defaultPlat,
-                ...oSubs.map((s: any) => Number(s.platform_employee_count || s.manual_override_features?.platform_user_limit) || 0),
-                Number(o.invoice_preferences?.platform_user_limit) || 0
-              );
+              const platLimit = Number(o.invoice_preferences?.platform_user_limit) ||
+                Math.max(
+                  defaultPlat,
+                  ...oSubs.map((s: any) => Number(s.platform_employee_count || s.manual_override_features?.platform_user_limit) || 0)
+                );
 
-              const taskEnabled = oSubs.some((s: any) => s.manual_override_features?.task_management_enabled === true) || Boolean(o.invoice_preferences?.task_management_enabled);
-              const taskLimit = Math.max(
-                10,
-                ...oSubs.map((s: any) => Number(s.manual_override_features?.task_employee_limit) || 0),
-                Number(o.invoice_preferences?.task_employee_limit) || 0
-              );
+              const adminTaskDisabled = o.invoice_preferences?.task_management_enabled === false || oSubs.some((s: any) => s.manual_override_features?.task_management_enabled === false);
+              const adminTaskEnabled = o.invoice_preferences?.task_management_enabled === true || oSubs.some((s: any) => s.manual_override_features?.task_management_enabled === true);
+              const taskEnabled = !adminTaskDisabled && (adminTaskEnabled || isSuite);
+              const taskLimit = Number(o.invoice_preferences?.task_employee_limit) ||
+                Math.max(
+                  10,
+                  ...oSubs.map((s: any) => Number(s.manual_override_features?.task_employee_limit) || 0)
+                );
 
-              const expenseEnabled = oSubs.some((s: any) => s.manual_override_features?.expense_management_enabled === true) || Boolean(o.invoice_preferences?.expense_management_enabled);
-              const expenseLimit = Math.max(
-                10,
-                ...oSubs.map((s: any) => Number(s.manual_override_features?.expense_employee_limit) || 0),
-                Number(o.invoice_preferences?.expense_employee_limit) || 0
-              );
+              const adminExpenseDisabled = o.invoice_preferences?.expense_management_enabled === false || oSubs.some((s: any) => s.manual_override_features?.expense_management_enabled === false);
+              const adminExpenseEnabled = o.invoice_preferences?.expense_management_enabled === true || oSubs.some((s: any) => s.manual_override_features?.expense_management_enabled === true);
+              const expenseEnabled = !adminExpenseDisabled && (adminExpenseEnabled || isSuite);
+              const expenseLimit = Number(o.invoice_preferences?.expense_employee_limit) ||
+                Math.max(
+                  10,
+                  ...oSubs.map((s: any) => Number(s.manual_override_features?.expense_employee_limit) || 0)
+                );
 
-              const attendanceEnabled = oSubs.every((s: any) => s.manual_override_features?.attendance_enabled !== false) && o.invoice_preferences?.attendance_portal_enabled !== false;
+              const attendanceEnabled = o.invoice_preferences?.attendance_portal_enabled !== false && oSubs.every((s: any) => s.manual_override_features?.attendance_enabled !== false);
 
               return {
                 ...o,
@@ -1355,21 +1364,21 @@ export default function PlatformAdminPage() {
     const limits = org.custom_limits;
     const prefs = org.invoice_preferences || {};
 
-    setQuotaEmpLimit(limits?.employee_limit || org.subscription?.employee_limit || defaultEmp);
-    setQuotaAttendanceEnabled(limits?.attendance_enabled ?? prefs.attendance_portal_enabled ?? true);
+    setQuotaEmpLimit(prefs.employee_limit || limits?.employee_limit || org.subscription?.employee_limit || defaultEmp);
+    setQuotaAttendanceEnabled(prefs.attendance_portal_enabled ?? limits?.attendance_enabled ?? true);
 
     // CRM Team: Free plan has 0 access (disabled) by default; only enabled if CRM/Suite plan or explicit admin toggle
-    const initialCrmEnabled = limits?.crm_team_enabled !== undefined
-      ? limits.crm_team_enabled
-      : (prefs.crm_team_enabled !== undefined ? prefs.crm_team_enabled : hasCrmPlan);
+    const initialCrmEnabled = prefs.crm_team_enabled !== undefined
+      ? Boolean(prefs.crm_team_enabled)
+      : (limits?.crm_team_enabled !== undefined ? limits.crm_team_enabled : hasCrmPlan);
 
     setQuotaCrmEnabled(initialCrmEnabled);
-    setQuotaCrmLimit(initialCrmEnabled ? (limits?.crm_team_limit || prefs.crm_team_limit || 2) : 0);
-    setQuotaPlatUserLimit(limits?.platform_user_limit || defaultPlat);
-    setQuotaTaskEnabled(limits?.task_management_enabled ?? prefs.task_management_enabled ?? false);
-    setQuotaTaskLimit(limits?.task_employee_limit || prefs.task_employee_limit || 10);
-    setQuotaExpenseEnabled(limits?.expense_management_enabled ?? prefs.expense_management_enabled ?? false);
-    setQuotaExpenseLimit(limits?.expense_employee_limit || prefs.expense_employee_limit || 10);
+    setQuotaCrmLimit(initialCrmEnabled ? (prefs.crm_team_limit || limits?.crm_team_limit || 2) : 0);
+    setQuotaPlatUserLimit(prefs.platform_user_limit || limits?.platform_user_limit || defaultPlat);
+    setQuotaTaskEnabled(prefs.task_management_enabled !== undefined ? Boolean(prefs.task_management_enabled) : (limits?.task_management_enabled ?? false));
+    setQuotaTaskLimit(prefs.task_employee_limit || limits?.task_employee_limit || 10);
+    setQuotaExpenseEnabled(prefs.expense_management_enabled !== undefined ? Boolean(prefs.expense_management_enabled) : (limits?.expense_management_enabled ?? false));
+    setQuotaExpenseLimit(prefs.expense_employee_limit || limits?.expense_employee_limit || 10);
     setIsQuotaModalOpen(true);
   };
 
@@ -1378,13 +1387,7 @@ export default function PlatformAdminPage() {
     setSavingQuota(true);
     try {
       const orgId = selectedOrgForQuota.id;
-      const { data: existingSubs } = await supabase
-        .from("subscriptions")
-        .select("id, manual_override_features")
-        .eq("org_id", orgId);
-
       const overrideObj = {
-        ...(existingSubs?.[0]?.manual_override_features || {}),
         employee_limit: quotaEmpLimit,
         attendance_employee_limit: quotaEmpLimit,
         attendance_enabled: quotaAttendanceEnabled,
@@ -1397,59 +1400,19 @@ export default function PlatformAdminPage() {
         platform_user_limit: quotaPlatUserLimit,
       };
 
-      if (existingSubs && existingSubs.length > 0) {
-        const { error: updErr } = await supabase
-          .from("subscriptions")
-          .update({
-            employee_count: quotaEmpLimit,
-            platform_employee_count: quotaPlatUserLimit,
-            manual_override_features: overrideObj,
-          })
-          .eq("org_id", orgId);
+      // Call database security-definer RPC function to persist in both organizations & subscriptions
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc("admin_set_quota_limits" as any, {
+        p_org_id: orgId,
+        p_limits: overrideObj,
+      });
 
-        if (updErr) throw updErr;
-      } else {
-        const { data: plans } = await supabase.from("plans").select("id, name");
-        const suitePlan = plans?.find(p => p.name === 'suite') || plans?.[0];
-        if (suitePlan) {
-          await supabase.from("subscriptions").insert({
-            org_id: orgId,
-            plan_id: suitePlan.id,
-            status: 'active',
-            billing_cycle: 'monthly',
-            employee_count: quotaEmpLimit,
-            platform_employee_count: quotaPlatUserLimit,
-            manual_override_features: overrideObj,
-          });
-        }
-      }
+      if (rpcErr) throw rpcErr;
 
-      // Sync into organizations invoice_preferences so app frontend and sub-portals receive it immediately
-      const { data: currentOrgRow } = await supabase
-        .from("organizations")
-        .select("invoice_preferences")
-        .eq("id", orgId)
-        .maybeSingle();
-
-      const existingPrefs = currentOrgRow?.invoice_preferences || {};
-      const updatedPrefs = {
-        ...existingPrefs,
+      const updatedPrefs = (rpcRes as any)?.invoice_preferences || {
+        ...selectedOrgForQuota.invoice_preferences,
+        ...overrideObj,
         attendance_portal_enabled: quotaAttendanceEnabled,
-        employee_limit: quotaEmpLimit,
-        attendance_employee_limit: quotaEmpLimit,
-        task_management_enabled: quotaTaskEnabled,
-        task_employee_limit: quotaTaskLimit,
-        expense_management_enabled: quotaExpenseEnabled,
-        expense_employee_limit: quotaExpenseLimit,
-        crm_team_enabled: quotaCrmEnabled,
-        crm_team_limit: quotaCrmLimit,
-        platform_user_limit: quotaPlatUserLimit,
       };
-
-      await supabase
-        .from("organizations")
-        .update({ invoice_preferences: updatedPrefs })
-        .eq("id", orgId);
 
       setDashData(prev => {
         if (!prev) return prev;
@@ -1483,7 +1446,7 @@ export default function PlatformAdminPage() {
         description: `Updated for ${selectedOrgForQuota.name}: Attendance (${quotaAttendanceEnabled ? `${quotaEmpLimit} Staff` : "Disabled"}), Tasks (${quotaTaskEnabled ? `${quotaTaskLimit} Staff` : "Disabled"}), Expenses (${quotaExpenseEnabled ? `${quotaExpenseLimit} Staff` : "Disabled"}), Sales Team (${quotaCrmEnabled ? `${quotaCrmLimit} Logins` : "Disabled"}).`,
       });
       setIsQuotaModalOpen(false);
-      fetchDashboardData(false);
+      await fetchDashboardData(false);
     } catch (err: any) {
       console.error("Failed to update quota limits:", err);
       toast({
@@ -2134,23 +2097,26 @@ export default function PlatformAdminPage() {
 
               // 1. Filter by Search Query
               let filtered = q
-                ? dashData.organizations.filter(o =>
-                    o.name?.toLowerCase().includes(q) ||
-                    o.owner?.email?.toLowerCase().includes(q) ||
-                    o.email?.toLowerCase().includes(q) ||
-                    (o.phone && o.phone.includes(cleanQ)) ||
-                    ((o.owner as any)?.phone && String((o.owner as any)?.phone).includes(cleanQ)) ||
-                    String(o.owner?.account_id || "").toLowerCase().includes(cleanQ) ||
-                    String((o as any).owner_account_id || "").toLowerCase().includes(cleanQ) ||
-                    `#${o.owner?.account_id || (o as any).owner_account_id || ""}`.toLowerCase().includes(q) ||
-                    o.id?.toLowerCase().includes(q) ||
-                    (dashData.users || []).some(u => u.org_id === o.id && (
-                      String(u.account_id || "").toLowerCase().includes(cleanQ) ||
-                      u.email?.toLowerCase().includes(q) ||
-                      (u.phone && u.phone.includes(cleanQ)) ||
-                      `${u.first_name || ""} ${u.last_name || ""}`.toLowerCase().includes(q)
-                    ))
-                  )
+                ? dashData.organizations.filter(o => {
+                    const ownerAcc = String(o.owner?.account_id || (o as any).owner_account_id || "").toLowerCase();
+                    return (
+                      o.name?.toLowerCase().includes(q) ||
+                      o.owner?.email?.toLowerCase().includes(q) ||
+                      o.email?.toLowerCase().includes(q) ||
+                      (o.phone && o.phone.includes(cleanQ)) ||
+                      ((o.owner as any)?.phone && String((o.owner as any)?.phone).includes(cleanQ)) ||
+                      ownerAcc.includes(cleanQ) ||
+                      `#${ownerAcc}`.includes(q) ||
+                      o.id?.toLowerCase().includes(q) ||
+                      (dashData.users || []).some(u => (u.org_id === o.id || (o.owner_id && u.user_id === o.owner_id)) && (
+                        String(u.account_id || "").toLowerCase().includes(cleanQ) ||
+                        `#${u.account_id || ""}`.toLowerCase().includes(q) ||
+                        u.email?.toLowerCase().includes(q) ||
+                        (u.phone && u.phone.includes(cleanQ)) ||
+                        `${u.first_name || ""} ${u.last_name || ""}`.toLowerCase().includes(q)
+                      ))
+                    );
+                  })
                 : [...dashData.organizations];
 
               // 2. Filter by Subscription Plan

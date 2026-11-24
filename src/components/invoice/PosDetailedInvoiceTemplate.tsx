@@ -23,6 +23,8 @@ export function PosDetailedInvoiceTemplate({
   const rawBillToObj = invoice?.billing_address || (invoice?.clients as any)?.billing_address;
   const parsedBillTo = typeof rawBillToObj === "string" ? (() => { try { return JSON.parse(rawBillToObj); } catch { return null; } })() : rawBillToObj;
 
+  const referredBy = (invoice?.metadata as any)?.referred_by;
+  const referredByLabel = (invoice?.metadata as any)?.referred_by_label || "Referred By";
   const clientName = (invoice?.metadata as any)?.client_name || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.name : null) || (invoice.clients as any)?.display_name || (invoice.clients as any)?.company_name || invoice.client_name || "Walk-in Customer";
   const clientPhone = (invoice?.metadata as any)?.client_mobile || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.phone : null) || (invoice.clients as any)?.phone || invoice.client_phone || "-";
   const number = type === "estimate" ? invoice.estimate_number : (type === "po" ? invoice.po_number : (type === "bill" ? invoice.bill_number : invoice.invoice_number));
@@ -155,6 +157,12 @@ export function PosDetailedInvoiceTemplate({
           <span>Customer Mobile :</span>
           <span>{clientPhone}</span>
         </div>
+        {referredBy && (
+          <div className="flex justify-between">
+            <span>{referredByLabel} :</span>
+            <span className="font-semibold truncate max-w-[150px]">{referredBy}</span>
+          </div>
+        )}
       </div>
 
       {/* ── DIVIDER ── */}
@@ -193,8 +201,11 @@ export function PosDetailedInvoiceTemplate({
             <div key={line.id || idx}>
               <div className="flex justify-between items-start">
                 <span className="w-[8%] text-left text-zinc-700">{idx + 1}.</span>
-                <span className="w-[38%] text-left font-semibold truncate">
-                  {itemName}
+                <span className="w-[38%] text-left font-semibold">
+                  <div>{itemName}</div>
+                  {line.batch_no && (
+                    <div className="text-[8.5px] text-zinc-600 font-normal">Batch: {line.batch_no}</div>
+                  )}
                 </span>
                 <span className="w-[12%] text-center">{qty}</span>
                 <span className="w-[14%] text-right">{rate.toFixed(2)}</span>

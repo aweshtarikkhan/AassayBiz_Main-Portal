@@ -10,6 +10,12 @@ import { ModernNavyInvoiceTemplate } from "./ModernNavyInvoiceTemplate";
 import { ModernTealInvoiceTemplate } from "./ModernTealInvoiceTemplate";
 import { ModernCrimsonInvoiceTemplate } from "./ModernCrimsonInvoiceTemplate";
 import { RetailA5InvoiceTemplate } from "./RetailA5InvoiceTemplate";
+import { IndustryA5ModernInvoiceTemplate } from "./IndustryA5ModernInvoiceTemplate";
+import { IndustryA5ClassicInvoiceTemplate } from "./IndustryA5ClassicInvoiceTemplate";
+import { IndustryA6MonochromeInvoiceTemplate } from "./IndustryA6MonochromeInvoiceTemplate";
+import { IndustryA6SlantInvoiceTemplate } from "./IndustryA6SlantInvoiceTemplate";
+import { IndustryA6GeometricInvoiceTemplate } from "./IndustryA6GeometricInvoiceTemplate";
+import { CorporateMaroonInvoiceTemplate } from "./CorporateMaroonInvoiceTemplate";
 import { PosCleanInvoiceTemplate } from "./PosCleanInvoiceTemplate";
 import { PosDetailedInvoiceTemplate } from "./PosDetailedInvoiceTemplate";
 import { isRetailOrg } from "@/lib/business-category";
@@ -34,11 +40,104 @@ const getTitleText = (type: string, hasGst = true) => {
 };
 
 export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoice", taxBreakdown, isInterstate, showSignature = true }: StyledInvoiceTemplateProps) {
-  const paperSize = org?.template_paper_size || (invoice?.metadata as any)?.template_paper_size;
-  const tplStyle = org?.template_style || (invoice?.metadata as any)?.template_style;
+  const paperSize = (invoice?.metadata as any)?.template_paper_size || org?.template_paper_size || "a4";
+  const tplStyle = (invoice?.metadata as any)?.template_style || org?.template_style || "standard_gst";
+
+  // Dedicated Industry A6 Templates
+  if (tplStyle === "industry_a6_slant") {
+    return (
+      <IndustryA6SlantInvoiceTemplate
+        org={org}
+        invoice={invoice}
+        lines={lines}
+        fmt={fmt}
+        type={type}
+        taxBreakdown={taxBreakdown}
+        isInterstate={isInterstate}
+        showSignature={showSignature}
+      />
+    );
+  }
+
+  if (tplStyle === "industry_a6_geometric") {
+    return (
+      <IndustryA6GeometricInvoiceTemplate
+        org={org}
+        invoice={invoice}
+        lines={lines}
+        fmt={fmt}
+        type={type}
+        taxBreakdown={taxBreakdown}
+        isInterstate={isInterstate}
+        showSignature={showSignature}
+      />
+    );
+  }
+
+  if (tplStyle === "industry_a6_monochrome" || (!isRetailOrg(org) && paperSize === "a6")) {
+    return (
+      <IndustryA6MonochromeInvoiceTemplate
+        org={org}
+        invoice={invoice}
+        lines={lines}
+        fmt={fmt}
+        type={type}
+        taxBreakdown={taxBreakdown}
+        isInterstate={isInterstate}
+        showSignature={showSignature}
+      />
+    );
+  }
+
+  // Dedicated Corporate Maroon & Gold GST A4 Template
+  if (tplStyle === "maroon_classic_gst") {
+    return (
+      <CorporateMaroonInvoiceTemplate
+        org={org}
+        invoice={invoice}
+        lines={lines}
+        fmt={fmt}
+        type={type}
+        taxBreakdown={taxBreakdown}
+        isInterstate={isInterstate}
+        showSignature={showSignature}
+      />
+    );
+  }
+
+  // Dedicated Industry A5 Templates
+  if (tplStyle === "industry_a5_classic" || (!isRetailOrg(org) && paperSize === "a5" && tplStyle === "industry_a5_classic")) {
+    return (
+      <IndustryA5ClassicInvoiceTemplate
+        org={org}
+        invoice={invoice}
+        lines={lines}
+        fmt={fmt}
+        type={type}
+        taxBreakdown={taxBreakdown}
+        isInterstate={isInterstate}
+        showSignature={showSignature}
+      />
+    );
+  }
+
+  if (tplStyle === "industry_a5_modern" || (!isRetailOrg(org) && paperSize === "a5")) {
+    return (
+      <IndustryA5ModernInvoiceTemplate
+        org={org}
+        invoice={invoice}
+        lines={lines}
+        fmt={fmt}
+        type={type}
+        taxBreakdown={taxBreakdown}
+        isInterstate={isInterstate}
+        showSignature={showSignature}
+      />
+    );
+  }
 
   // Dedicated Retail A5 & POS Templates
-  if (tplStyle === "retail_a5" || (paperSize === "a5" && (isRetailOrg(org) || tplStyle === "retail_a5" || !tplStyle || tplStyle === "standard_gst"))) {
+  if (tplStyle === "retail_a5" || (paperSize === "a5" && isRetailOrg(org))) {
     return (
       <RetailA5InvoiceTemplate
         org={org}
@@ -81,20 +180,20 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
     );
   }
 
-  if (org?.template_style === "classic_tabular") {
+  if (tplStyle === "classic_tabular") {
     return <ClassicTabularInvoiceTemplate org={org} invoice={invoice} lines={lines} fmt={fmt} type={type} taxBreakdown={taxBreakdown} isInterstate={isInterstate} showSignature={showSignature} />;
   }
-  if (org?.template_style === "modern_navy") {
+  if (tplStyle === "modern_navy") {
     return <ModernNavyInvoiceTemplate org={org} invoice={invoice} lines={lines} fmt={fmt} type={type} taxBreakdown={taxBreakdown} isInterstate={isInterstate} showSignature={showSignature} />;
   }
-  if (org?.template_style === "modern_teal") {
+  if (tplStyle === "modern_teal") {
     return <ModernTealInvoiceTemplate org={org} invoice={invoice} lines={lines} fmt={fmt} type={type} taxBreakdown={taxBreakdown} isInterstate={isInterstate} showSignature={showSignature} />;
   }
-  if (org?.template_style === "modern_crimson") {
+  if (tplStyle === "modern_crimson") {
     return <ModernCrimsonInvoiceTemplate org={org} invoice={invoice} lines={lines} fmt={fmt} type={type} taxBreakdown={taxBreakdown} isInterstate={isInterstate} showSignature={showSignature} />;
   }
 
-  if (org?.template_style === "professional_navy") {
+  if (tplStyle === "professional_navy") {
     return (
       <ProfessionalNavyInvoiceTemplate
         org={org}
@@ -108,7 +207,7 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
     );
   }
 
-  if (org?.template_style === "corporate_blue") {
+  if (tplStyle === "corporate_blue") {
     return (
       <CorporateBlueInvoiceTemplate
         org={org}
@@ -128,6 +227,8 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
 
   const { line1: orgLine1, line2: orgLine2 } = splitCompanyNameIntoTwoLines(org?.name);
   const isRetailDoc = Boolean((invoice?.metadata as any)?.is_retail || isRetailOrg(org));
+  const referredBy = (invoice?.metadata as any)?.referred_by;
+  const referredByLabel = (invoice?.metadata as any)?.referred_by_label || "Referred By";
   const rawBillTo = invoice?.billing_address || (invoice?.clients as any)?.billing_address;
   const parsedBillTo = typeof rawBillTo === "string" ? (() => { try { return JSON.parse(rawBillTo); } catch { return null; } })() : rawBillTo;
   const clientName = (invoice?.metadata as any)?.client_name || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.name : null) || (invoice.clients as any)?.display_name || (invoice.clients as any)?.company_name || (invoice.clients as any)?.name || (invoice as any)?.client_name || "";
@@ -279,7 +380,14 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
             <div style={{ fontSize: 11, fontWeight: 600, marginTop: 2 }}>PAN: {(invoice.clients as any).pan_number}</div>
           )}
         </div>
-        {(shipToAddressLines.length > 0 || shipToName) && (
+        {referredBy ? (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+              {referredByLabel}
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{referredBy}</div>
+          </div>
+        ) : (shipToAddressLines.length > 0 || shipToName) ? (
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Ship To</div>
             {shipToName && <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{shipToName}</div>}
@@ -289,7 +397,7 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
             {shipToPhone && <div style={{ fontSize: 11, color: "#3f3f46" }}>Phone: {shipToPhone}</div>}
             {shipToGstin && <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4 }}>GSTIN: {shipToGstin}</div>}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* IRN & E-Invoice Details */}
@@ -361,6 +469,7 @@ export function StyledInvoiceTemplate({ org, invoice, lines, fmt, type = "invoic
                 <td style={{ ...tdStyle, textAlign: "left" }}>{idx + 1}</td>
                 <td style={{ ...tdStyle, textAlign: "left" }}>
                   <div style={{ fontWeight: 600 }}>{itemName}</div>
+                  {line.batch_no && <div style={{ fontSize: 9.5, color: "#64748b", marginTop: 1 }}>Batch: {line.batch_no}</div>}
                   {itemDesc && <div style={{ fontSize: 10, color: "#52525b", marginTop: 2, whiteSpace: "pre-wrap" }}>{itemDesc}</div>}
                 </td>
                 {hasGst && <td style={{ ...tdStyle, textAlign: "left", fontSize: 11 }}>{line.hsn_code || line.hsn || line.hsn_sac || line.item?.hsn_code || line.items?.hsn_code || "-"}</td>}

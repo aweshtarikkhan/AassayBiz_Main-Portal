@@ -61,6 +61,13 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useSearchParams } from "react-router-dom";
 import { ensureAdminInCrmTeam } from "@/lib/crm-automations";
 
@@ -90,6 +97,8 @@ export default function CRMTeamPage() {
   // Add / Edit Modal state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [existingEmployees, setExistingEmployees] = useState<any[]>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -243,8 +252,25 @@ export default function CRMTeamPage() {
     }
   };
 
+  const fetchExistingEmployees = async () => {
+    if (!org?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id, name, email, phone, designation, is_active")
+        .eq("org_id", org.id)
+        .order("name");
+      if (!error && data) {
+        setExistingEmployees(data);
+      }
+    } catch (e) {
+      console.warn("Could not load employees for CRM dropdown:", e);
+    }
+  };
+
   useEffect(() => {
     fetchTeam();
+    fetchExistingEmployees();
   }, [org?.id]);
 
   // Handle Add / Edit
@@ -280,7 +306,8 @@ export default function CRMTeamPage() {
             role: formData.role || "Sales Executive",
             is_active: formData.is_active,
             org_id: org.id,
-          })
+            employee_id: selectedEmployeeId && selectedEmployeeId !== "manual" ? selectedEmployeeId : null,
+          } as any)
           .select()
           .single();
 
@@ -304,37 +331,49 @@ export default function CRMTeamPage() {
             setLimitModalOpen(true);
           } else {
             try {
-            await supabase.rpc("grant_crm_portal_access", {
-              p_team_member_id: inserted.id,
-              p_email: cleanEmail,
-              p_password: formData.portal_password,
-              p_role: formData.role?.toLowerCase().includes("manager") ? "manager" : "sales_executive",
-            });
+              const { data: rpcRes, error: rpcErr } = await supabase.rpc("grant_crm_portal_access", {
+                p_team_member_id: inserted.id,
+                p_email: cleanEmail,
+                p_password: formData.portal_password,
+                p_role: formData.role?.toLowerCase().includes("manager") ? "manager" : "sales_executive",
+              });
 
-            const emailSent = await sendCrmCredentialsEmail({
-              name: formData.name,
-              email: cleanEmail,
-              password: formData.portal_password,
-              orgName: org?.name || "Your Company",
-              portalUrl: crmPortalUrl,
-            });
+              if (rpcErr) throw rpcErr;
 
-            setCredentialsData({
-              name: formData.name,
-              email: cleanEmail,
-              password: formData.portal_password,
-              orgName: org?.name || "Your Company",
-              portalUrl: crmPortalUrl,
-              phone: formData.phone,
-              emailSent,
-            });
+              const emailSent = await sendCrmCredentialsEmail({
+                name: formData.name,
+                email: cleanEmail,
+                password: formData.portal_password,
+                orgName: org?.name || "Your Company",
+                portalUrl: crmPortalUrl,
+              });
+
+              setCredentialsData({
+                name: formData.name,
+                email: cleanEmail,
+                password: formData.portal_password,
+                orgName: org?.name || "Your Company",
+                portalUrl: crmPortalUrl,
+                phone: formData.phone,
+                emailSent,
+              });
+
+              toast({
+                title: "Sales Executive Added & Access Granted!",
+                description: `Portal account created${emailSent ? " and credentials emailed to " + cleanEmail : ""}.`,
+              });
             } catch (accErr: any) {
-              console.warn("Auto grant access error:", accErr);
+              console.error("Auto grant access error:", accErr);
+              toast({
+                title: "Executive saved, but portal login failed",
+                description: accErr.message || "Could not generate portal credentials.",
+                variant: "destructive",
+              });
             }
           }
+        } else {
+          toast({ title: "Executive added successfully" });
         }
-
-        toast({ title: "Executive added successfully" });
       }
 
       setIsDialogOpen(false);
@@ -370,11 +409,14 @@ export default function CRMTeamPage() {
       portal_password: "",
     });
     setEditingId(null);
+    setSelectedEmployeeId("");
   };
 
   const openAdd = () => {
     resetForm();
+    setSelectedEmployeeId("");
     setFormData((f) => ({ ...f, portal_password: generateRandomPassword() }));
+    fetchExistingEmployees();
     setIsDialogOpen(true);
   };
 
@@ -887,6 +929,71 @@ export default function CRMTeamPage() {
           </DialogHeader>
 
           <div className="grid gap-3.5 py-3">
+            {!editingId && (
+              <div className="space-y-1.5 p-3 rounded-xl bg-orange-50/70 dark:bg-orange-950/20 border border-orange-200/90 dark:border-orange-900/40">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-orange-950 dark:text-orange-200 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                    Select from Existing Staff / Employees (Attendance Portal)
+                  </Label>
+                  {selectedEmployeeId && selectedEmployeeId !== "manual" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedEmployeeId("manual");
+                        setFormData((prev) => ({
+                          ...prev,
+                          name: "",
+                          email: "",
+                          phone: "",
+                          role: "Sales Executive",
+                        }));
+                      }}
+                      className="text-[10.5px] text-orange-600 hover:text-orange-700 font-semibold hover:underline"
+                    >
+                      Clear / Enter Manually
+                    </button>
+                  )}
+                </div>
+                <Select
+                  value={selectedEmployeeId}
+                  onValueChange={(val) => {
+                    setSelectedEmployeeId(val);
+                    if (val === "manual") {
+                      return;
+                    }
+                    const emp = existingEmployees.find((e) => e.id === val);
+                    if (emp) {
+                      setFormData((prev) => ({
+                        ...prev,
+                        name: emp.name || "",
+                        email: emp.email || "",
+                        phone: emp.phone || "",
+                        role: emp.designation ? emp.designation : "Sales Executive",
+                      }));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs bg-white dark:bg-slate-900">
+                    <SelectValue placeholder="-- Select staff member or enter manually below --" />
+                  </SelectTrigger>
+                  <SelectContent className="z-50 max-h-56">
+                    <SelectItem value="manual" className="text-xs text-muted-foreground font-medium">
+                      ✍ Enter Manually (New Sales Executive)
+                    </SelectItem>
+                    {existingEmployees.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.id} className="text-xs">
+                        {emp.name} {emp.designation ? `(${emp.designation})` : ""} {emp.phone ? `• ${emp.phone}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10.5px] text-muted-foreground">
+                  Pick an existing staff member to automatically fill their name, email, and phone number, or type manually below.
+                </p>
+              </div>
+            )}
+
             <div className="grid gap-1.5">
               <Label className="text-xs font-semibold">Full Name *</Label>
               <Input

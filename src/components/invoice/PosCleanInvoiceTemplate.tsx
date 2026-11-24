@@ -23,6 +23,8 @@ export function PosCleanInvoiceTemplate({
   const rawBillToObj = invoice?.billing_address || (invoice?.clients as any)?.billing_address;
   const parsedBillTo = typeof rawBillToObj === "string" ? (() => { try { return JSON.parse(rawBillToObj); } catch { return null; } })() : rawBillToObj;
 
+  const referredBy = (invoice?.metadata as any)?.referred_by;
+  const referredByLabel = (invoice?.metadata as any)?.referred_by_label || "Referred By";
   const clientName = (invoice?.metadata as any)?.client_name || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.name : null) || (invoice.clients as any)?.display_name || (invoice.clients as any)?.company_name || invoice.client_name || "Walk-in Customer";
   const clientPhone = (invoice?.metadata as any)?.client_mobile || (invoice?.metadata as any)?.customer_phone || (invoice?.metadata as any)?.phone || (parsedBillTo && typeof parsedBillTo === "object" ? (parsedBillTo.phone || parsedBillTo.mobile) : null) || (invoice.clients as any)?.phone || invoice.client_phone || invoice.customer_phone || "";
 
@@ -177,22 +179,29 @@ export function PosCleanInvoiceTemplate({
       <div className="border-t-2 border-black my-1.5"></div>
 
       {/* ── CUSTOMER NAME & PHONE (ONE LINE) ── */}
-      <div className="flex justify-between items-center text-[11px] font-bold py-0.5">
-        <div className="truncate pr-2">
+      <div className="flex justify-between items-baseline text-[11px] font-bold py-1.5 overflow-visible" style={{ minHeight: "24px" }}>
+        <div className="whitespace-nowrap overflow-visible pr-2" style={{ lineHeight: "1.6" }}>
           Name : <span className="font-normal">{clientName}</span>
         </div>
         {clientPhone && (
-          <div className="shrink-0 text-right whitespace-nowrap">
+          <div className="shrink-0 text-right whitespace-nowrap overflow-visible" style={{ lineHeight: "1.6" }}>
             Phone No. : <span className="font-normal">{clientPhone}</span>
           </div>
         )}
       </div>
+      {referredBy && (
+        <div className="flex justify-between items-baseline text-[10.5px] font-bold pb-1 overflow-visible">
+          <div className="whitespace-nowrap overflow-visible pr-2" style={{ lineHeight: "1.5" }}>
+            {referredByLabel} : <span className="font-semibold">{referredBy}</span>
+          </div>
+        </div>
+      )}
 
       {/* ── DIVIDER ── */}
       <div className="border-t border-black my-1.5"></div>
 
       {/* ── DATE & INVOICE NO ROW (ONE LINE) ── */}
-      <div className="flex justify-between items-center text-[11px] py-0.5 whitespace-nowrap">
+      <div className="flex justify-between items-center text-[11px] pt-0.5 pb-0.5 whitespace-nowrap overflow-visible leading-normal">
         <div>
           Date : <span className="font-semibold">{dateStr}</span>
         </div>
@@ -234,9 +243,14 @@ export function PosCleanInvoiceTemplate({
 
           return (
             <div key={line.id || idx} className="flex justify-between items-start leading-snug">
-              <span className="w-[44%] text-left font-medium break-words pr-1">
-                {itemName}
-              </span>
+              <div className="w-[44%] text-left font-medium break-words pr-1">
+                <div>{itemName}</div>
+                {line.batch_no && (
+                  <div className="text-[9.5px] text-zinc-600 font-normal">
+                    Batch: {line.batch_no}
+                  </div>
+                )}
+              </div>
               <span className="w-[16%] text-center font-medium">{qty}</span>
               <span className="w-[20%] text-right font-medium">
                 {rate.toFixed(2)}
@@ -297,6 +311,21 @@ export function PosCleanInvoiceTemplate({
       <div className="py-1 text-center font-black text-sm tracking-wide">
         Grand Total ₹ {grandTotal.toFixed(2)}
       </div>
+
+      {/* ── NOTES / TERMS IF PRESENT AND ENABLED ── */}
+      {Boolean(invoice?.notes && ((invoice?.metadata as any)?.show_notes !== false)) && (
+        <div className="text-[10px] pt-1 border-t border-black/40 mt-1">
+          <span className="font-bold">Note: </span>
+          <span>{invoice.notes}</span>
+        </div>
+      )}
+
+      {Boolean((invoice?.terms_conditions || invoice?.terms) && ((invoice?.metadata as any)?.show_terms !== false)) && (
+        <div className="text-[9.5px] pt-1 text-zinc-700 leading-tight">
+          <span className="font-bold text-black">*TERMS &amp; CONDITIONS*</span>
+          <div className="whitespace-pre-line mt-0.5">{invoice.terms_conditions || invoice.terms}</div>
+        </div>
+      )}
 
       <div className="border-t border-black my-1"></div>
       <div className="text-center text-[10px] text-zinc-600 mt-1">

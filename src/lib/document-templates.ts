@@ -56,6 +56,60 @@ export const DOCUMENT_TEMPLATES = [
     recommendedPaperSize: "a4",
   },
   {
+    id: "industry_a5_modern",
+    name: "Modern Cyan A5 (Industry)",
+    description: "High-contrast cyan & dark slate A5 template designed specifically for industrial businesses with angled dual-tone headers, payment methods, and contact badges.",
+    preview: "bg-sky-50 border-sky-600/30",
+    features: ["A5 Industrial format", "Dual-tone header", "Payment Method block", "Cyan totals banner", "Contact badges"],
+    recommendedPaperSize: "a5",
+    category: "industrial",
+  },
+  {
+    id: "industry_a5_classic",
+    name: "Clean Minimalist A5 (Industry)",
+    description: "Monochrome precision A5 layout featuring dual Invoice-To / Ship-To billing panels, hatched Total Due card, and 3-column settlement footer.",
+    preview: "bg-slate-50 border-slate-900/30",
+    features: ["A5 Minimalist format", "Invoice-To & Ship-To card", "Hatched Total Due card", "3-column settlement footer", "Monochrome aesthetics"],
+    recommendedPaperSize: "a5",
+    category: "industrial",
+  },
+  {
+    id: "industry_a6_monochrome",
+    name: "Classic Monochrome A6",
+    description: "Monochrome precision A6 template with black pill headers, dotted billing fields, strict tabular border, and compact terms & signatory.",
+    preview: "bg-zinc-100 border-black/40",
+    features: ["A6 Pocket format", "Pill badges", "Bank Details card", "Compact GST layout", "Authorised signatory"],
+    recommendedPaperSize: "a6",
+    category: "industrial",
+  },
+  {
+    id: "industry_a6_slant",
+    name: "Navy & Orange Slant A6",
+    description: "Professional navy and orange diagonal slant A6 layout with dotted underline fields, navy table header, and matching bottom accent bar.",
+    preview: "bg-blue-50 border-blue-900/40",
+    features: ["A6 Pocket format", "Navy & orange slants", "Dotted data fields", "Clean tax table", "Bottom accent bar"],
+    recommendedPaperSize: "a6",
+    category: "industrial",
+  },
+  {
+    id: "industry_a6_geometric",
+    name: "Corporate Geometric A6",
+    description: "Corporate geometric navy and orange A6 invoice with hexagon brand badge, angled header, QR scan-to-pay card, and handshake footer ribbon.",
+    preview: "bg-orange-50 border-orange-500/30",
+    features: ["A6 Pocket format", "Hexagon brand icon", "QR Scan to Pay", "Orange total box", "Thank you dock ribbon"],
+    recommendedPaperSize: "a6",
+    category: "industrial",
+  },
+  {
+    id: "maroon_classic_gst",
+    name: "Corporate Maroon & Gold GST",
+    description: "Official corporate maroon and gold A4 tax invoice featuring two-column BILL TO / SHIP TO panel, warm cream background, full GST breakdown, and amount in words.",
+    preview: "bg-amber-50 border-amber-900/30",
+    features: ["A4 Full Sheet", "Maroon & Gold styling", "BILL TO / SHIP TO cards", "Amount in words", "Dual signatures"],
+    recommendedPaperSize: "a4",
+    category: "industrial",
+  },
+  {
     id: "retail_a5",
     name: "Retail A5 Invoice",
     description: "Official retail A5 invoice featuring top diagonal banner, branded contact icons, boxed invoice metadata, and curved footer.",
@@ -131,8 +185,8 @@ export function getPrintPageCSS(paperSize?: string): string {
     pos80: "11px",
   };
   const baseFontSize = fontScale[paperSize || "a4"] || "11px";
-  const pageMargin = paperSize === "pos80" ? "2mm" : "8mm";
-  const pagePadding = paperSize === "pos80" ? "0" : "12px";
+  const pageMargin = paperSize === "pos80" ? "2mm" : (paperSize === "a6" ? "4mm" : "8mm");
+  const pagePadding = paperSize === "pos80" ? "0" : (paperSize === "a6" ? "4px" : "12px");
 
   return `
 @media print {

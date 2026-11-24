@@ -20,6 +20,12 @@ import { isRetailOrg } from "@/lib/business-category";
 
 const TEMPLATE_STYLES = [
   { id: "retail_a5", name: "Retail A5 Invoice", description: "Official retail A5 invoice with diagonal header banner, branded contact icons, boxed invoice metadata, and curved footer." },
+  { id: "industry_a5_modern", name: "Modern Cyan A5 (Industry)", description: "High-contrast cyan & dark slate A5 template designed specifically for industrial businesses with angled dual-tone headers, payment methods, and contact badges." },
+  { id: "industry_a5_classic", name: "Clean Minimalist A5 (Industry)", description: "Monochrome precision A5 layout featuring dual Invoice-To / Ship-To billing panels, hatched Total Due card, and 3-column settlement footer." },
+  { id: "industry_a6_monochrome", name: "Classic Monochrome A6", description: "Monochrome precision A6 template with black pill headers, dotted billing fields, strict tabular border, and compact terms & signatory." },
+  { id: "industry_a6_slant", name: "Navy & Orange Slant A6", description: "Professional navy and orange diagonal slant A6 layout with dotted underline fields, navy table header, and matching bottom accent bar." },
+  { id: "industry_a6_geometric", name: "Corporate Geometric A6", description: "Corporate geometric navy and orange A6 invoice with hexagon brand badge, angled header, QR scan-to-pay card, and handshake footer ribbon." },
+  { id: "maroon_classic_gst", name: "Corporate Maroon & Gold GST", description: "Official corporate maroon and gold A4 tax invoice featuring two-column BILL TO / SHIP TO panel, warm cream background, full GST breakdown, and amount in words." },
   { id: "pos_clean", name: "POS Thermal Slip (Clean Receipt)", description: "Clean high-contrast 80mm thermal receipt with company header, bill row, item price table, and grand total." },
   { id: "pos_detailed", name: "POS Tax Invoice (Detailed GST Summary)", description: "Comprehensive 80mm POS slip featuring HSN codes, Salesman details, GST Summary table breakdown, and Terms & Conditions." },
   { id: "standard_gst", name: "Standard GST", description: "Indian GST compliant invoice with HSN/SAC, explicit CGST/SGST/IGST breakdown, and E-Way Bill details." },
@@ -134,21 +140,32 @@ export default function TemplateCustomizationPage() {
   const isRetail = isRetailOrg(org);
 
   const visibleStyles = TEMPLATE_STYLES.filter((tpl) => {
-    if (paperSize === "a5") return tpl.id === "retail_a5";
+    if (paperSize === "a5") {
+      if (isRetail) return tpl.id === "retail_a5";
+      return tpl.id === "industry_a5_modern" || tpl.id === "industry_a5_classic";
+    }
     if (paperSize === "pos80") return tpl.id === "pos_clean" || tpl.id === "pos_detailed";
     if (isRetail) return tpl.id === "retail_a5" || tpl.id === "pos_clean" || tpl.id === "pos_detailed";
-    return tpl.id !== "retail_a5" && tpl.id !== "pos_clean" && tpl.id !== "pos_detailed";
+    return tpl.id !== "retail_a5" && tpl.id !== "industry_a5_modern" && tpl.id !== "industry_a5_classic" && tpl.id !== "pos_clean" && tpl.id !== "pos_detailed";
   });
 
   const handleSelectStyle = (tplId: string) => {
     setStyle(tplId);
-    if (tplId === "retail_a5") setPaperSize("a5");
+    if (tplId === "retail_a5" || tplId === "industry_a5_modern" || tplId === "industry_a5_classic") setPaperSize("a5");
     if (tplId === "pos_clean" || tplId === "pos_detailed") setPaperSize("pos80");
   };
 
   const handlePaperSizeChange = (sizeId: string) => {
     setPaperSize(sizeId);
-    if (sizeId === "a5") setStyle("retail_a5");
+    if (sizeId === "a5") {
+      if (isRetail) {
+        setStyle("retail_a5");
+      } else {
+        if (style !== "industry_a5_modern" && style !== "industry_a5_classic") {
+          setStyle("industry_a5_modern");
+        }
+      }
+    }
     if (sizeId === "pos80" && style !== "pos_clean" && style !== "pos_detailed") {
       setStyle("pos_clean");
     }
@@ -349,7 +366,7 @@ export default function TemplateCustomizationPage() {
           </div>
         </CardHeader>
         <CardContent className="flex justify-center bg-slate-100/70 p-4 sm:p-8 rounded-b-lg overflow-x-auto border-t">
-          <div className={`w-full ${style === 'pos_clean' || style === 'pos_detailed' || paperSize === 'pos80' ? 'max-w-[320px]' : style === 'retail_a5' || paperSize === 'a5' ? 'max-w-[580px]' : 'max-w-[794px]'} bg-white rounded-lg shadow-md border overflow-hidden`}>
+          <div className={`w-full ${style === 'pos_clean' || style === 'pos_detailed' || paperSize === 'pos80' ? 'max-w-[320px]' : style === 'industry_a6_monochrome' || style === 'industry_a6_slant' || style === 'industry_a6_geometric' || paperSize === 'a6' ? 'max-w-[420px]' : style === 'retail_a5' || style === 'industry_a5_modern' || style === 'industry_a5_classic' || paperSize === 'a5' ? 'max-w-[580px]' : 'max-w-[794px]'} bg-white rounded-lg shadow-md border overflow-hidden`}>
             <StyledInvoiceTemplate
               org={{
                 ...org,
