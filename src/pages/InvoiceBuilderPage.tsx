@@ -669,13 +669,13 @@ export default function InvoiceBuilderPage() {
   const [paymentTerms, setPaymentTerms] = useState<number>(() => isRetail ? 0 : (org?.payment_terms !== undefined && org?.payment_terms !== null ? Number(org.payment_terms) : 30));
   const [notes, setNotes] = useState(org?.default_notes || "");
   const [terms, setTerms] = useState(org?.default_terms || "");
-  const [discount, setDiscount] = useState(0);
+  const [discount, setDiscount] = useState<number | string>(0);
   const [discountType, setDiscountType] = useState<"percentage" | "fixed">("percentage");
   const [tdsTcsApplicable, setTdsTcsApplicable] = useState(false);
   const [tdsTcsType, setTdsTcsType] = useState<"tds" | "tcs">("tds");
   const [tdsTcsRate, setTdsTcsRate] = useState<number | string>(0);
-  const [shippingCharge, setShippingCharge] = useState(0);
-  const [expenses, setExpenses] = useState(0);
+  const [shippingCharge, setShippingCharge] = useState<number | string>(0);
+  const [expenses, setExpenses] = useState<number | string>(0);
   const [adjustment, setAdjustment] = useState(0);
   const [adjustmentName, setAdjustmentName] = useState("Adjustment");
   // Invoice Builder sections & PDF display preferences (configured from Settings > Invoices > Preferences)
@@ -3270,21 +3270,39 @@ export default function InvoiceBuilderPage() {
                 <Input
                   type="number"
                   min={0}
+                  placeholder="0"
+                  onFocus={(e) => {
+                    if (e.target.value === "0" || Number(e.target.value) === 0) {
+                      e.target.select();
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "-" || e.key === "e") e.preventDefault();
                   }}
-                  className="h-7 w-16 text-xs text-right"
-                  value={discount}
+                  className="h-7 w-16 text-xs text-right font-medium"
+                  value={discount === 0 || discount === "0" ? "" : discount}
                   onChange={(e) => {
-                    let val = parseFloat(e.target.value) || 0;
+                    let raw = e.target.value;
+                    if (raw === "") {
+                      setDiscount("");
+                      return;
+                    }
+                    if (/^0+[0-9]/.test(raw) && !raw.startsWith("0.")) {
+                      raw = raw.replace(/^0+/, "");
+                      e.target.value = raw;
+                    }
+                    let val = parseFloat(raw) || 0;
                     val = Math.max(0, val);
                     if (discountType === "percentage" && val > 100) val = 100;
-                    setDiscount(val);
+                    setDiscount(raw.endsWith(".") ? raw : val);
+                  }}
+                  onBlur={() => {
+                    if (discount === "") setDiscount(0);
                   }}
                 />
                 <Select value={discountType} onValueChange={(v) => {
                     setDiscountType(v as any);
-                    if (v === "percentage" && discount > 100) setDiscount(100);
+                    if (v === "percentage" && Number(discount) > 100) setDiscount(100);
                   }}>
                   <SelectTrigger className="h-7 w-14 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -3301,12 +3319,33 @@ export default function InvoiceBuilderPage() {
                 <Input
                   type="number"
                   min={0}
-                  className="h-7 w-24 text-xs text-right"
-                  value={expenses}
+                  placeholder="0"
+                  onFocus={(e) => {
+                    if (e.target.value === "0" || Number(e.target.value) === 0) {
+                      e.target.select();
+                    }
+                  }}
+                  className="h-7 w-24 text-xs text-right font-medium"
+                  value={expenses === 0 || expenses === "0" ? "" : expenses}
                   onKeyDown={(e) => {
                     if (e.key === "-" || e.key === "e") e.preventDefault();
                   }}
-                  onChange={(e) => setExpenses(Math.max(0, parseFloat(e.target.value) || 0))}
+                  onChange={(e) => {
+                    let raw = e.target.value;
+                    if (raw === "") {
+                      setExpenses("");
+                      return;
+                    }
+                    if (/^0+[0-9]/.test(raw) && !raw.startsWith("0.")) {
+                      raw = raw.replace(/^0+/, "");
+                      e.target.value = raw;
+                    }
+                    let val = Math.max(0, parseFloat(raw) || 0);
+                    setExpenses(raw.endsWith(".") ? raw : val);
+                  }}
+                  onBlur={() => {
+                    if (expenses === "") setExpenses(0);
+                  }}
                 />
                 {cleanExpenses > 0 && <span className="text-foreground font-medium">+{fmt(cleanExpenses)}</span>}
               </div>
@@ -3317,12 +3356,33 @@ export default function InvoiceBuilderPage() {
                 <Input
                   type="number"
                   min={0}
-                  className="h-7 w-24 text-xs text-right"
-                  value={shippingCharge}
+                  placeholder="0"
+                  onFocus={(e) => {
+                    if (e.target.value === "0" || Number(e.target.value) === 0) {
+                      e.target.select();
+                    }
+                  }}
+                  className="h-7 w-24 text-xs text-right font-medium"
+                  value={shippingCharge === 0 || shippingCharge === "0" ? "" : shippingCharge}
                   onKeyDown={(e) => {
                     if (e.key === "-" || e.key === "e") e.preventDefault();
                   }}
-                  onChange={(e) => setShippingCharge(Math.max(0, parseFloat(e.target.value) || 0))}
+                  onChange={(e) => {
+                    let raw = e.target.value;
+                    if (raw === "") {
+                      setShippingCharge("");
+                      return;
+                    }
+                    if (/^0+[0-9]/.test(raw) && !raw.startsWith("0.")) {
+                      raw = raw.replace(/^0+/, "");
+                      e.target.value = raw;
+                    }
+                    let val = Math.max(0, parseFloat(raw) || 0);
+                    setShippingCharge(raw.endsWith(".") ? raw : val);
+                  }}
+                  onBlur={() => {
+                    if (shippingCharge === "") setShippingCharge(0);
+                  }}
                 />
                 {cleanShipping > 0 && <span className="text-foreground font-medium">+{fmt(cleanShipping)}</span>}
               </div>

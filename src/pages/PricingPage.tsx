@@ -477,32 +477,6 @@ export default function PricingPage() {
                           <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5]" />
                           <span>10 Employee Attendance</span>
                         </div>
-                        
-                        <div className="flex items-center justify-between w-full bg-emerald-50/50 p-2 rounded-lg border border-emerald-100/50 mt-1" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2">
-                             <Users className="w-4 h-4 text-emerald-600 shrink-0" />
-                             <span className="text-slate-700 font-semibold">
-                               + Extra Employee (₹{pricing.hrExtraEmployeePrice || 49}/mo)
-                             </span>
-                          </div>
-                          <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
-                            <button onClick={(e) => { e.stopPropagation(); setHrExtra(Math.max(0, hrExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
-                            <span className="font-bold text-sm w-5 text-center text-slate-800">{hrExtra}</span>
-                            <button 
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                if (!finalSelected.has("hr") && !finalSelected.has("suite")) {
-                                  setSelectedPlans(prev => prev.includes("hr") ? prev : [...prev, "hr"]);
-                                  toast({ title: "Business HR Selected", description: "Selected Business HR plan to enable extra employee attendance capacity." });
-                                }
-                                setHrExtra(hrExtra + 1); 
-                              }} 
-                              className="text-slate-400 hover:text-slate-700 transition-colors"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
                         <div className="flex items-center gap-2.5">
                           <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5]" />
                           <span>Attendance & Payroll</span>
@@ -524,16 +498,8 @@ export default function PricingPage() {
                       </div>
                     </div>
 
-                    {/* Buttons */}
-                    <div className="mt-auto pt-2 flex items-center justify-end gap-2 flex-wrap">
-                      <Link
-                        to={`/register?plan=hr&billing=${billingCycle}${hrExtra > 0 ? `&hr=${hrExtra}` : ''}${taskExtra > 0 ? `&task=${taskExtra}` : ''}${expenseExtra > 0 ? `&expense=${expenseExtra}` : ''}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1 transition-all duration-200 shadow-2xs"
-                      >
-                        <span>Get Started</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </Link>
+                    {/* Buttons: Add-on on Left, Get Started on Right */}
+                    <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between gap-2 w-full">
                       <Button
                         type="button"
                         variant="outline"
@@ -552,6 +518,14 @@ export default function PricingPage() {
                           </span>
                         )}
                       </Button>
+                      <Link
+                        to={`/register?plan=hr&billing=${billingCycle}${hrExtra > 0 ? `&hr=${hrExtra}` : ''}${taskExtra > 0 ? `&task=${taskExtra}` : ''}${expenseExtra > 0 ? `&expense=${expenseExtra}` : ''}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1 transition-all duration-200 shadow-2xs"
+                      >
+                        <span>Get Started</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
                     </div>
                   </div>
                 );
@@ -641,33 +615,6 @@ export default function PricingPage() {
                           <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 stroke-[2.5]" />
                           <span>CRM Portal: 2 Sales Team Logins</span>
                         </div>
-
-                        {/* Additional CRM Member Counter */}
-                        <div className="flex items-center justify-between w-full bg-blue-50/70 p-2 rounded-lg border border-blue-200/80 mt-1" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-blue-600 shrink-0" />
-                            <span className="text-slate-800 font-semibold text-xs sm:text-[13px]">
-                              + Extra CRM Member (₹{pricing.crmExtraMemberPrice || 99}/mo)
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
-                            <button onClick={(e) => { e.stopPropagation(); setCrmExtra(Math.max(0, crmExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
-                            <span className="font-bold text-sm w-5 text-center text-slate-800">{crmExtra}</span>
-                            <button 
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                if (!finalSelected.has("crm") && !finalSelected.has("suite")) {
-                                  setSelectedPlans(prev => prev.includes("crm") ? prev : [...prev, "crm"]);
-                                  toast({ title: "Business CRM Selected", description: "Selected Business CRM plan to enable extra CRM sales team members." });
-                                }
-                                setCrmExtra(crmExtra + 1); 
-                              }} 
-                              className="text-slate-400 hover:text-slate-700 transition-colors"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
                         
                         <div className="flex items-center gap-2.5 text-slate-700 font-semibold pt-1">
                           <Users className="w-4 h-4 text-[#e77817] shrink-0" />
@@ -677,16 +624,8 @@ export default function PricingPage() {
                       </div>
                     </div>
 
-                    {/* Buttons */}
-                    <div className="mt-auto pt-2 flex items-center justify-end gap-2 flex-wrap">
-                      <Link
-                        to={`/register?plan=crm&billing=${billingCycle}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1 transition-all duration-200 shadow-2xs"
-                      >
-                        <span>Get Started</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </Link>
+                    {/* Buttons: Add-on on Left, Get Started on Right */}
+                    <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between gap-2 w-full">
                       <Button
                         type="button"
                         variant="outline"
@@ -705,6 +644,14 @@ export default function PricingPage() {
                           </span>
                         )}
                       </Button>
+                      <Link
+                        to={`/register?plan=crm&billing=${billingCycle}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1 transition-all duration-200 shadow-2xs"
+                      >
+                        <span>Get Started</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
                     </div>
                   </div>
                 );
@@ -918,143 +865,6 @@ export default function PricingPage() {
               </div>
             </div>
 
-            {/* Specialized Add-on Modules: Task & Expense Management */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Task Management Add-on Card */}
-              <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/40 via-white to-amber-50/20 p-5 shadow-xs flex flex-col justify-between">
-                <div>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
-                        <CheckSquare className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-base font-bold text-slate-900">Task Management Module</h4>
-                          {!hasHrOrSuite && (
-                            <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                              <Lock className="w-2.5 h-2.5 text-amber-700" /> Requires Business HR or Suite
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-semibold text-amber-700 bg-amber-100/80 border border-amber-200 px-2 py-0.5 rounded-full inline-block mt-0.5">
-                          ₹{pricing.taskPriceMonthly}/employee/month
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                    Assign, schedule, and track employee work with live updates, team assignee clusters, and priority workflows.
-                  </p>
-                </div>
-
-                <div className="pt-3 border-t border-amber-100 flex items-center justify-between">
-                  <div className="text-xs font-semibold text-slate-700">
-                    <span>Assigned Staff Slots:</span>
-                    {taskExtra > 0 && (
-                      <span className="ml-1 text-amber-800 font-bold">
-                        (₹{(taskExtra * (isYearly ? pricing.taskPriceYearly : pricing.taskPriceMonthly)).toLocaleString('en-IN')}/{isYearly ? 'yr' : 'mo'})
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1 shadow-2xs">
-                    <button
-                      type="button"
-                      onClick={() => setTaskExtra(Math.max(0, taskExtra - 1))}
-                      className="w-7 h-7 flex items-center justify-center rounded text-slate-500 hover:bg-slate-100"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="w-8 text-center font-bold text-sm text-slate-800">{taskExtra}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!hasHrOrSuite) {
-                          toast({
-                            title: "Business HR or Suite Required",
-                            description: "Task Management add-on requires Business HR or Business Suite. Please select Business HR or Suite first.",
-                            variant: "destructive"
-                          });
-                          return;
-                        }
-                        setTaskExtra(taskExtra + 1);
-                      }}
-                      className={`w-7 h-7 flex items-center justify-center rounded ${!hasHrOrSuite ? "text-slate-400 opacity-60 cursor-not-allowed" : "text-slate-500 hover:bg-slate-100"}`}
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Expense Management Add-on Card */}
-              <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/40 via-white to-emerald-50/20 p-5 shadow-xs flex flex-col justify-between">
-                <div>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-                        <Receipt className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-base font-bold text-slate-900">Expense & Travel Claims</h4>
-                          {!hasHrOrSuite && (
-                            <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                              <Lock className="w-2.5 h-2.5 text-emerald-700" /> Requires Business HR or Suite
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100/80 border border-emerald-200 px-2 py-0.5 rounded-full inline-block mt-0.5">
-                          ₹{pricing.expensePriceMonthly}/employee/month
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                    Automate bike/car/cab KM rates, monthly travel cards, fuel bills, multi-stage approval, and disbursements.
-                  </p>
-                </div>
-
-                <div className="pt-3 border-t border-emerald-100 flex items-center justify-between">
-                  <div className="text-xs font-semibold text-slate-700">
-                    <span>Claiming Staff Slots:</span>
-                    {expenseExtra > 0 && (
-                      <span className="ml-1 text-emerald-800 font-bold">
-                        (₹{(expenseExtra * (isYearly ? pricing.expensePriceYearly : pricing.expensePriceMonthly)).toLocaleString('en-IN')}/{isYearly ? 'yr' : 'mo'})
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1 shadow-2xs">
-                    <button
-                      type="button"
-                      onClick={() => setExpenseExtra(Math.max(0, expenseExtra - 1))}
-                      className="w-7 h-7 flex items-center justify-center rounded text-slate-500 hover:bg-slate-100"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="w-8 text-center font-bold text-sm text-slate-800">{expenseExtra}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!hasHrOrSuite) {
-                          toast({
-                            title: "Business HR or Suite Required",
-                            description: "Expense Management add-on requires Business HR or Business Suite. Please select Business HR or Suite first.",
-                            variant: "destructive"
-                          });
-                          return;
-                        }
-                        setExpenseExtra(expenseExtra + 1);
-                      }}
-                      className={`w-7 h-7 flex items-center justify-center rounded ${!hasHrOrSuite ? "text-slate-400 opacity-60 cursor-not-allowed" : "text-slate-500 hover:bg-slate-100"}`}
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* 3. BOTTOM BANNER: Business Suite */}
             {(() => {
               const isSelected = finalSelected.has("suite");
@@ -1125,19 +935,6 @@ export default function PricingPage() {
                         </div>
                         <span>CRM Portal: 2 Sales Team Logins (Extra @ ₹{pricing.crmExtraMemberPrice || 99}/mo)</span>
                       </div>
-                      <div className="flex items-center justify-between max-w-md bg-blue-50/50 p-2 rounded-lg border border-blue-100/50" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span className="text-slate-700 font-semibold text-xs sm:text-[13px]">
-                            + Additional CRM Sales Team (₹{pricing.crmExtraMemberPrice || 99}/mo)
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-sm">
-                          <button onClick={(e) => { e.stopPropagation(); setCrmExtra(Math.max(0, crmExtra - 1)); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Minus className="w-3.5 h-3.5" /></button>
-                          <span className="font-bold text-sm w-5 text-center text-slate-800">{crmExtra}</span>
-                          <button onClick={(e) => { e.stopPropagation(); setCrmExtra(crmExtra + 1); }} className="text-slate-400 hover:text-slate-700 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
-                        </div>
-                      </div>
                       <div className="flex items-center gap-2.5 text-slate-700 font-semibold">
                         <div className="w-4 h-4 rounded-full bg-[#28166f] text-white flex items-center justify-center shrink-0">
                           <Check className="w-2.5 h-2.5 stroke-[3]" />
@@ -1147,16 +944,8 @@ export default function PricingPage() {
 
                     </div>
 
-                    {/* Right: Solid Action Button + Add-ons Button directly below */}
-                    <div className="flex flex-col items-center sm:items-end justify-center lg:border-l lg:border-slate-200 lg:pl-8 gap-2.5 shrink-0">
-                      <Link
-                        to={`/register?plan=suite&billing=${billingCycle}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}${hrExtra > 0 ? `&hr=${hrExtra}` : ''}${taskExtra > 0 ? `&task=${taskExtra}` : ''}${expenseExtra > 0 ? `&expense=${expenseExtra}` : ''}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full sm:w-auto text-center justify-center bg-[#e77817] hover:bg-[#d46a0f] text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-orange-500/25 flex items-center gap-2 transition-all duration-200 text-sm whitespace-nowrap"
-                      >
-                        <span>Get Started</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </Link>
+                    {/* Right: Action Buttons (Add-on on Left, Get Started on Right) */}
+                    <div className="flex items-center justify-end lg:border-l lg:border-slate-200 lg:pl-8 gap-3 shrink-0 flex-wrap sm:flex-nowrap">
                       <Button
                         type="button"
                         variant="outline"
@@ -1165,16 +954,24 @@ export default function PricingPage() {
                           e.stopPropagation();
                           openAddonsModal("suite");
                         }}
-                        className="w-full sm:w-auto justify-center border border-[#e77817]/50 hover:border-[#e77817] bg-orange-50/70 hover:bg-orange-100 text-[#e77817] font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1.5 shadow-2xs"
+                        className="border border-[#e77817]/50 hover:border-[#e77817] bg-orange-50/70 hover:bg-orange-100 text-[#e77817] font-bold text-xs sm:text-sm rounded-xl px-4 py-2.5 flex items-center gap-1.5 shadow-2xs"
                       >
-                        <Plus className="w-3.5 h-3.5" />
+                        <Plus className="w-4 h-4" />
                         <span>Add-on</span>
                         {(hrExtra > 0 || crmExtra > 0 || taskExtra > 0 || expenseExtra > 0) && (
-                          <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#e77817] text-white text-[10px] font-bold">
+                          <span className="ml-1 px-1.5 py-0.2 rounded-full bg-[#e77817] text-white text-[10px] font-bold">
                             {(hrExtra > 0 ? 1 : 0) + (crmExtra > 0 ? 1 : 0) + (taskExtra > 0 ? 1 : 0) + (expenseExtra > 0 ? 1 : 0)}
                           </span>
                         )}
                       </Button>
+                      <Link
+                        to={`/register?plan=suite&billing=${billingCycle}${crmExtra > 0 ? `&crm=${crmExtra}` : ''}${hrExtra > 0 ? `&hr=${hrExtra}` : ''}${taskExtra > 0 ? `&task=${taskExtra}` : ''}${expenseExtra > 0 ? `&expense=${expenseExtra}` : ''}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-[#e77817] hover:bg-[#d46a0f] text-white font-bold px-6 py-2.5 rounded-xl shadow-md shadow-orange-500/25 flex items-center gap-2 transition-all duration-200 text-xs sm:text-sm whitespace-nowrap"
+                      >
+                        <span>Get Started</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
                     </div>
                   </div>
                 </div>

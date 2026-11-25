@@ -103,8 +103,38 @@ export function ModernTealInvoiceTemplate({
   const ewayBill = invoice?.eway_bill_no;
   const vehicleNo = invoice?.vehicle_number || invoice?.eway_vehicle_no;
 
-  const invoiceBank = invoice?.bank_details || null;
-  const upiId = invoiceBank?.bank_upi_id || org?.upi_id || org?.upi_number || "";
+  const extractCity = (addr: any) => {
+    if (!addr) return "";
+    if (typeof addr === "object") return addr.city || addr.state || "";
+    if (typeof addr === "string") {
+      try {
+        const parsed = JSON.parse(addr);
+        if (parsed && typeof parsed === "object") return parsed.city || parsed.state || "";
+      } catch {
+        const parts = addr.split(",").map((p: string) => p.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+          const secondOrThird = parts[1];
+          if (secondOrThird && isNaN(Number(secondOrThird))) return secondOrThird;
+        }
+        return parts[0] || "";
+      }
+    }
+    return "";
+  };
+
+  const clientCity = extractCity(invoice?.shipping_address) || extractCity(invoice?.billing_address) || extractCity(invoice?.clients?.billing_address) || (typeof invoice?.clients?.city === "string" ? invoice.clients.city : "") || "";
+  const resolvedPlaceOfSupply = clientCity || invoice?.place_of_supply || (invoice?.clients as any)?.state || org?.address?.state || "";
+
+  // Bank Info resolution
+  const invBank = invoice?.bank_details ? (typeof invoice.bank_details === "string" ? (() => { try { return JSON.parse(invoice.bank_details); } catch { return null; } })() : invoice.bank_details) : null;
+  const orgBank = org?.bank_details ? (typeof org.bank_details === "string" ? (() => { try { return JSON.parse(org.bank_details); } catch { return null; } })() : org.bank_details) : null;
+
+  const resolvedBankName = invBank?.bank_name || orgBank?.bank_name || org?.bank_name || org?.template_bank_name || "";
+  const resolvedAccountHolder = invBank?.account_holder_name || invBank?.account_name || orgBank?.account_holder_name || org?.bank_account_name || org?.name || "";
+  const resolvedAccountNumber = invBank?.bank_account_number || invBank?.account_number || invBank?.account_no || orgBank?.bank_account_number || orgBank?.account_no || orgBank?.acc_no || org?.bank_account_number || org?.bank_account_no || org?.bank_acc_number || org?.template_bank_account_no || "";
+  const resolvedIfsc = invBank?.bank_ifsc || invBank?.ifsc || orgBank?.bank_ifsc || orgBank?.ifsc || org?.bank_ifsc || org?.template_bank_ifsc || "";
+  const resolvedBranch = invBank?.bank_branch || invBank?.branch || orgBank?.bank_branch || org?.bank_branch || "";
+  const upiId = invBank?.bank_upi_id || invBank?.upi_id || orgBank?.bank_upi_id || org?.upi_id || org?.upi_number || "";
   const upiName = org?.name || org?.company_name || org?.business_name || "Merchant";
   const showBankDetails = invoice?.metadata?.show_bank_details !== false;
   const showTerms = invoice?.metadata?.show_terms !== false;
@@ -216,6 +246,7 @@ export function ModernTealInvoiceTemplate({
             <p className="mt-1">
               {shipToContact && <span><strong>Contact:</strong> {shipToContact}</span>}
             </p>
+            {resolvedPlaceOfSupply && <p className=\"mt-1\"><strong>Place of Supply:</strong> {resolvedPlaceOfSupply}</p>}
           </div>
         </div>
       </div>
@@ -284,12 +315,13 @@ export function ModernTealInvoiceTemplate({
                </div>
                <div className="p-2.5 flex items-center justify-between gap-2.5">
                  <div className="grid grid-cols-[95px_1fr] gap-x-2 gap-y-0.5 text-[9.5px] flex-1">
-                   {org?.bank_name && <><div className="font-semibold text-gray-600">Bank Name :</div><div className="font-medium text-gray-900">{org.bank_name}</div></>}
-                   {(org?.bank_account_name || org?.name) && <><div className="font-semibold text-gray-600">A/C Holder :</div><div className="font-medium text-gray-900">{org?.bank_account_name || org?.name}</div></>}
-                   {org?.bank_account_number && <><div className="font-semibold text-gray-600">Account No :</div><div className="font-mono font-bold text-gray-900 tracking-wider">{org.bank_account_number}</div></>}
-                   {org?.bank_ifsc && <><div className="font-semibold text-gray-600">IFSC Code :</div><div className="font-mono font-bold text-gray-900">{org.bank_ifsc}</div></>}
-                   {org?.bank_branch && <><div className="font-semibold text-gray-600">Branch :</div><div className="text-gray-900">{org.bank_branch}</div></>}
-                   {upiId && <><div className="font-semibold text-gray-600">UPI ID :</div><div className="font-mono font-semibold text-emerald-700">{upiId}</div></>}
+                    {resolvedBankName && <><div className="font-semibold text-gray-600">Bank Name :</div><div className="font-medium text-gray-900">{resolvedBankName}</div></>}
+                    {resolvedAccountHolder && <><div className="font-semibold text-gray-600">A/C Holder :</div><div className="font-medium text-gray-900">{resolvedAccountHolder}</div></>}
+                    {resolvedAccountNumber && <><div className="font-semibold text-gray-600">Account No :</div><div className="font-mono font-bold text-gray-900 tracking-wider">{resolvedAccountNumber}</div></>}
+                    {resolvedIfsc && <><div className="font-semibold text-gray-600">IFSC Code :</div><div className="font-mono font-bold text-gray-900">{resolvedIfsc}</div></>}
+                    {resolvedBranch && <><div className="font-semibold text-gray-600">Branch :</div><div className="text-gray-900">{resolvedBranch}</div></>}
+                    {upiId && <><div className="font-semibold text-gray-600">UPI ID :</div><div className="font-mono font-semibold text-emerald-700">{upiId}</div></>}
+                  </div><div className="font-mono font-semibold text-emerald-700">{upiId}</div></>}
                  </div>
                  {upiString && (
                    <div className="flex flex-col items-center justify-center p-2 bg-gray-50 border border-gray-200 rounded-lg shrink-0">

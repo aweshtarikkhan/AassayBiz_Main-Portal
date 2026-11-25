@@ -184,8 +184,28 @@ export function ProfessionalNavyInvoiceTemplate({
   };
 
   const { line1: orgLine1, line2: orgLine2 } = splitCompanyNameIntoTwoLines(org?.name);
+  const extractCity = (addr: any) => {
+    if (!addr) return "";
+    if (typeof addr === "object") return addr.city || addr.state || "";
+    if (typeof addr === "string") {
+      try {
+        const parsed = JSON.parse(addr);
+        if (parsed && typeof parsed === "object") return parsed.city || parsed.state || "";
+      } catch {
+        const parts = addr.split(",").map((p: string) => p.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+          const secondOrThird = parts[1];
+          if (secondOrThird && isNaN(Number(secondOrThird))) return secondOrThird;
+        }
+        return parts[0] || "";
+      }
+    }
+    return "";
+  };
+
+  const clientCity = extractCity(invoice?.shipping_address) || extractCity(invoice?.billing_address) || extractCity(invoice?.clients?.billing_address) || (typeof invoice?.clients?.city === "string" ? invoice.clients.city : "") || "";
   const stateObj = INDIAN_STATES.find(s => s.code === invoice.place_of_supply);
-  const posName = stateObj ? `${stateObj.name} (${stateObj.code})` : (invoice.place_of_supply || "-");
+  const posName = clientCity || (stateObj ? `${stateObj.name} (${stateObj.code})` : (invoice.place_of_supply || "-"));
 
   return (
     <div style={{

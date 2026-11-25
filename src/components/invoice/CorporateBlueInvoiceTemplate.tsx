@@ -96,12 +96,32 @@ export function CorporateBlueInvoiceTemplate({
 
   // Place of Supply
   const placeOfSupply = useMemo(() => {
+    const extractCity = (addr: any) => {
+      if (!addr) return "";
+      if (typeof addr === "object") return addr.city || addr.state || "";
+      if (typeof addr === "string") {
+        try {
+          const parsed = JSON.parse(addr);
+          if (parsed && typeof parsed === "object") return parsed.city || parsed.state || "";
+        } catch {
+          const parts = addr.split(",").map((p: string) => p.trim()).filter(Boolean);
+          if (parts.length >= 2) {
+            const secondOrThird = parts[1];
+            if (secondOrThird && isNaN(Number(secondOrThird))) return secondOrThird;
+          }
+          return parts[0] || "";
+        }
+      }
+      return "";
+    };
+    const clientCity = extractCity(invoice?.shipping_address) || extractCity(invoice?.billing_address) || extractCity(invoice?.clients?.billing_address) || (typeof invoice?.clients?.city === "string" ? invoice.clients.city : "") || "";
+    if (clientCity) return clientCity;
     const pos = invoice.place_of_supply || (invoice.billing_address as any)?.state || org?.state;
     if (!pos) return "Maharashtra (27)";
     const foundState = INDIAN_STATES.find(s => s.code === pos || s.name.toLowerCase() === String(pos).toLowerCase());
     if (foundState) return `${foundState.name} (${foundState.code})`;
     return String(pos);
-  }, [invoice.place_of_supply, invoice.billing_address, org?.state]);
+  }, [invoice.place_of_supply, invoice.billing_address, invoice.shipping_address, org?.state]);
 
   // Detailed tax rates mapping for middle breakdown
   const taxGroupBreakdown = useMemo(() => {
@@ -413,13 +433,15 @@ export function CorporateBlueInvoiceTemplate({
       {(() => {
         const showBank = invoice?.metadata?.show_bank_details !== false;
         const showTerms = !isRetailDoc && invoice?.metadata?.show_terms !== false;
-        const invoiceBank = invoice?.bank_details;
-        const isBankDisabled = !showBank || (invoiceBank && invoiceBank.enabled === false);
-        const bankAccName = invoiceBank?.bank_account_name || (!isBankDisabled ? (org?.bank_account_name || org?.name) : null);
-        const bankName = invoiceBank?.bank_name || (!isBankDisabled ? org?.bank_name : null);
-        const bankAccNum = invoiceBank?.bank_account_number || (!isBankDisabled ? org?.bank_account_number : null);
-        const bankIfsc = invoiceBank?.bank_ifsc || (!isBankDisabled ? org?.bank_ifsc : null);
-        const bankBranch = invoiceBank?.bank_branch || (!isBankDisabled ? org?.bank_branch : null);
+        const invBank = invoice?.bank_details ? (typeof invoice.bank_details === "string" ? (() => { try { return JSON.parse(invoice.bank_details); } catch { return null; } })() : invoice.bank_details) : null;
+        const orgBank = org?.bank_details ? (typeof org.bank_details === "string" ? (() => { try { return JSON.parse(org.bank_details); } catch { return null; } })() : org.bank_details) : null;
+
+        const isBankDisabled = !showBank || (invBank && invBank.enabled === false);
+        const bankAccName = invBank?.account_holder_name || invBank?.bank_account_name || (!isBankDisabled ? (orgBank?.account_holder_name || org?.bank_account_name || org?.name) : null);
+        const bankName = invBank?.bank_name || (!isBankDisabled ? (orgBank?.bank_name || org?.bank_name) : null);
+        const bankAccNum = invBank?.bank_account_number || invBank?.account_number || invBank?.account_no || (!isBankDisabled ? (orgBank?.bank_account_number || orgBank?.account_no || org?.bank_account_number || org?.bank_account_no || org?.bank_acc_number) : null);
+        const bankIfsc = invBank?.bank_ifsc || invBank?.ifsc || (!isBankDisabled ? (orgBank?.bank_ifsc || orgBank?.ifsc || org?.bank_ifsc) : null);
+        const bankBranch = invBank?.bank_branch || invBank?.branch || (!isBankDisabled ? (orgBank?.bank_branch || org?.bank_branch) : null);
         const hasBankDetails = showBank && !isBankDisabled && Boolean(bankName || bankAccNum || bankIfsc);
 
         const termsContent = showTerms ? (invoice?.terms_conditions || invoice?.terms || invoice?.default_terms || org?.default_terms)?.trim() : "";

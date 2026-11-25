@@ -1,6 +1,7 @@
 import React from "react";
 import { numberToWords } from "@/lib/number-to-words";
 import { getAdaptiveCompanyNameStyle } from "@/lib/document-templates";
+import { computeDocumentTotals } from "@/lib/invoiceCalculations";
 
 interface CorporateMaroonInvoiceTemplateProps {
   org: any;
@@ -47,7 +48,28 @@ export function CorporateMaroonInvoiceTemplate({
 
   const clientPhone = (invoice?.metadata as any)?.client_mobile || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.phone : null) || (invoice.clients as any)?.phone || (invoice.vendors as any)?.phone || invoice.client_phone || "";
   const clientGstin = (invoice.clients as any)?.gstin || (invoice.clients as any)?.tax_number || (invoice as any)?.client_gstin || "";
-  const placeOfSupply = invoice?.place_of_supply || (invoice.clients as any)?.state || org?.state || "";
+
+  const extractCity = (addr: any) => {
+    if (!addr) return "";
+    if (typeof addr === "object") {
+      if (addr.city && String(addr.city).trim()) return String(addr.city).trim();
+    }
+    if (typeof addr === "string") {
+      try {
+        const parsed = JSON.parse(addr);
+        if (parsed?.city && String(parsed.city).trim()) return String(parsed.city).trim();
+      } catch {}
+      const parts = addr.split(",").map((p: string) => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        const candidate = parts[1];
+        if (candidate && !/^\d+$/.test(candidate)) return candidate;
+      }
+    }
+    return "";
+  };
+
+  const clientCity = extractCity(rawShippingObj) || extractCity(rawBillToObj) || (invoice.clients as any)?.city || (invoice.clients as any)?.billing_address?.city || (invoice.clients as any)?.shipping_address?.city || "";
+  const placeOfSupply = clientCity || invoice?.place_of_supply || (invoice.clients as any)?.state || org?.city || org?.state || "";
 
   const referredBy = (invoice?.metadata as any)?.referred_by;
   const referredByLabel = (invoice?.metadata as any)?.referred_by_label || "Referred By";
@@ -71,12 +93,21 @@ export function CorporateMaroonInvoiceTemplate({
   }
   const orgAddressStr = addressLines.length > 0 ? addressLines.join(", ") : (org?.city ? `${org.city}, ${org?.state || ""}` : "Shop No. 12, Main Road, City, State - 452001");
 
-  // Totals
-  const subtotal = Number(invoice.subtotal ?? lines.reduce((acc, l) => acc + (Number(l.quantity || 1) * Number(l.rate || 0)), 0));
-  const discountTotal = Number(invoice.total_discount ?? invoice.discount_amount ?? 0);
-  const taxTotal = Number(invoice.tax_total ?? invoice.total_tax ?? 0);
-  const shippingAmount = Number(invoice.shipping_amount ?? invoice.delivery_charge ?? 0);
-  const grandTotal = Number(invoice.total ?? (subtotal - discountTotal + taxTotal + shippingAmount));
+  const effectiveIsInterstate = isInterstate || (invoice.clients as any)?.is_interstate;
+  const {
+    subtotalVal,
+    discountAmt,
+    expensesAmt,
+    shippingAmt,
+    taxableAmount,
+    tdsAmount,
+    tcsAmount,
+    gstBreakdown,
+    totalTaxAmt,
+    effectiveAdjustment,
+    effectiveAdjustmentName,
+    grandTotal,
+  } = computeDocumentTotals(invoice, lines, taxBreakdown, hasGst, effectiveIsInterstate);
 
   const titleText = type === "estimate" ? "QUOTATION" : type === "po" ? "PURCHASE ORDER" : type === "bill" ? "PURCHASE INVOICE" : (hasGst ? "TAX INVOICE" : "INVOICE");
 
@@ -92,30 +123,15 @@ export function CorporateMaroonInvoiceTemplate({
   const invoiceDate = formatDate(invoice.issue_date || invoice.created_at || new Date().toISOString());
   const dueDate = formatDate(invoice.due_date);
 
-  // Bank details
-  let bankName = org?.bank_name || org?.template_bank_name || "";
-  let accountName = org?.bank_account_name || org?.name || "";
-  let accNo = org?.bank_account_no || org?.bank_acc_number || org?.template_bank_account_no || "";
-  let ifsc = org?.bank_ifsc || org?.template_bank_ifsc || "";
-  let upiId = org?.upi_id || org?.template_upi_id || "";
+  // Bank details resolution
+  const invBank = invoice?.bank_details ? (typeof invoice.bank_details === "string" ? (() => { try { return JSON.parse(invoice.bank_details); } catch { return null; } })() : invoice.bank_details) : null;
+  const orgBank = org?.bank_details ? (typeof org.bank_details === "string" ? (() => { try { return JSON.parse(org.bank_details); } catch { return null; } })() : org.bank_details) : null;
 
-  if (org?.bank_details) {
-    try {
-      const parsed = typeof org.bank_details === "string" ? JSON.parse(org.bank_details) : org.bank_details;
-      bankName = parsed.bank_name || bankName;
-      accountName = parsed.account_name || accountName;
-      accNo = parsed.account_no || parsed.acc_no || accNo;
-      ifsc = parsed.ifsc || ifsc;
-      upiId = parsed.upi_id || upiId;
-    } catch {}
-  }
-
-  // Tax calculations
-  const effectiveIsInterstate = isInterstate || (invoice.clients as any)?.is_interstate;
-  const avgRate = lines.length > 0 ? lines[0]?.tax_rate || 18 : 18;
-  const cgstAmount = !effectiveIsInterstate ? taxTotal / 2 : 0;
-  const sgstAmount = !effectiveIsInterstate ? taxTotal / 2 : 0;
-  const igstAmount = effectiveIsInterstate ? taxTotal : 0;
+  const bankName = invBank?.bank_name || orgBank?.bank_name || org?.bank_name || org?.template_bank_name || "";
+  const accountName = invBank?.bank_account_name || invBank?.account_name || invBank?.account_holder_name || orgBank?.bank_account_name || orgBank?.account_name || org?.bank_account_name || org?.name || "";
+  const accNo = invBank?.bank_account_number || invBank?.account_number || invBank?.account_no || orgBank?.bank_account_number || orgBank?.account_no || orgBank?.acc_no || org?.bank_account_number || org?.bank_account_no || org?.bank_acc_number || org?.template_bank_account_no || "";
+  const ifsc = invBank?.bank_ifsc || invBank?.ifsc || orgBank?.bank_ifsc || orgBank?.ifsc || org?.bank_ifsc || org?.template_bank_ifsc || "";
+  const upiId = invBank?.bank_upi_id || invBank?.upi_id || orgBank?.upi_id || org?.upi_id || org?.template_upi_id || org?.upi_number || "";
 
   // Amount in words
   const integerPart = Math.floor(grandTotal);
@@ -301,36 +317,76 @@ export function CorporateMaroonInvoiceTemplate({
         <div className="border border-[#d9cfb8] rounded-sm overflow-hidden text-[11px]">
           <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8]">
             <span className="text-[#555] font-medium">Subtotal</span>
-            <span className="font-bold text-[#222]">Rs. {fmt(subtotal)}</span>
+            <span className="font-bold text-[#222]">Rs. {fmt(subtotalVal)}</span>
           </div>
-          {taxTotal > 0 && !effectiveIsInterstate && (
-            <>
-              <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8]">
-                <span className="text-[#555]">CGST</span>
-                <span className="font-medium">Rs. {fmt(cgstAmount)}</span>
-              </div>
-              <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8]">
-                <span className="text-[#555]">SGST</span>
-                <span className="font-medium">Rs. {fmt(sgstAmount)}</span>
-              </div>
-            </>
-          )}
-          {taxTotal > 0 && effectiveIsInterstate && (
-            <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8]">
-              <span className="text-[#555]">IGST</span>
-              <span className="font-medium">Rs. {fmt(igstAmount)}</span>
-            </div>
-          )}
-          {discountTotal > 0 && (
-            <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8] text-emerald-800">
+          {discountAmt > 0 && (
+            <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8] text-destructive">
               <span>Discount</span>
-              <span>- Rs. {fmt(discountTotal)}</span>
+              <span className="font-semibold">- Rs. {fmt(discountAmt)}</span>
             </div>
           )}
-          {shippingAmount > 0 && (
+          {expensesAmt > 0 && (
+            <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8]">
+              <span className="text-[#555]">Fixed Cost (Expenses)</span>
+              <span className="font-semibold text-[#222]">+ Rs. {fmt(expensesAmt)}</span>
+            </div>
+          )}
+          {shippingAmt > 0 && (
             <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8]">
               <span className="text-[#555]">Shipping</span>
-              <span className="font-medium">Rs. {fmt(shippingAmount)}</span>
+              <span className="font-semibold text-[#222]">+ Rs. {fmt(shippingAmt)}</span>
+            </div>
+          )}
+          {tdsAmount > 0 && (
+            <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8] text-destructive">
+              <span>TDS Deducted</span>
+              <span className="font-semibold">- Rs. {fmt(tdsAmount)}</span>
+            </div>
+          )}
+          {(discountAmt > 0 || expensesAmt > 0 || shippingAmt > 0 || tdsAmount > 0 || hasGst) && (
+            <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8] bg-[#fdf8ee] font-bold">
+              <span>Taxable Amount</span>
+              <span>Rs. {fmt(taxableAmount)}</span>
+            </div>
+          )}
+          {hasGst && (
+            gstBreakdown.length > 0 ? (
+              gstBreakdown.map((t, i) => (
+                <div key={i} className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8]">
+                  <span className="text-[#555]">{t.name}</span>
+                  <span className="font-medium">+ Rs. {fmt(t.amount)}</span>
+                </div>
+              ))
+            ) : totalTaxAmt > 0 ? (
+              effectiveIsInterstate ? (
+                <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8]">
+                  <span className="text-[#555]">IGST</span>
+                  <span className="font-medium">+ Rs. {fmt(totalTaxAmt)}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8]">
+                    <span className="text-[#555]">CGST</span>
+                    <span className="font-medium">+ Rs. {fmt(totalTaxAmt / 2)}</span>
+                  </div>
+                  <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8]">
+                    <span className="text-[#555]">SGST</span>
+                    <span className="font-medium">+ Rs. {fmt(totalTaxAmt / 2)}</span>
+                  </div>
+                </>
+              )
+            ) : null
+          )}
+          {tcsAmount > 0 && (
+            <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8] text-emerald-800">
+              <span>TCS Collected</span>
+              <span className="font-semibold">+ Rs. {fmt(tcsAmount)}</span>
+            </div>
+          )}
+          {effectiveAdjustment !== 0 && (
+            <div className="flex justify-between px-3 py-1.5 border-b border-[#d9cfb8] text-gray-700 bg-[#fdf8ee]/60">
+              <span>{effectiveAdjustmentName}</span>
+              <span className="font-semibold">{effectiveAdjustment > 0 ? "+ " : ""}{fmt(effectiveAdjustment)}</span>
             </div>
           )}
 

@@ -103,10 +103,11 @@ function TemplatePreviewBox({
   const [scale, setScale] = useState(0.35);
 
   const isPos = templateId === "pos_clean" || templateId === "pos_detailed";
+  const isA6 = templateId === "industry_a6_monochrome" || templateId === "industry_a6_slant" || templateId === "industry_a6_geometric";
   const isA5 = templateId === "retail_a5" || templateId === "industry_a5_modern" || templateId === "industry_a5_classic";
-  const targetWidth = isPos ? 302 : (isA5 ? 559 : 794);
-  const targetMinHeight = isPos ? 550 : (isA5 ? 794 : 1123);
-  const aspectClass = isPos ? "aspect-[80/150]" : (isA5 ? "aspect-[148/210]" : "aspect-[210/297]");
+  const targetWidth = isPos ? 302 : (isA6 ? 420 : (isA5 ? 559 : 794));
+  const targetMinHeight = isPos ? 550 : (isA6 ? 594 : (isA5 ? 794 : 1123));
+  const aspectClass = isPos ? "aspect-[80/150]" : (isA6 ? "aspect-[105/148]" : (isA5 ? "aspect-[148/210]" : "aspect-[210/297]"));
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -199,8 +200,8 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
     const recommended = (tpl as any)?.recommendedPaperSize || "a4";
     const enforcedSize =
       (templateId === "retail_a5" || templateId === "industry_a5_modern" || templateId === "industry_a5_classic") ? "a5" :
+      (templateId === "industry_a6_monochrome" || templateId === "industry_a6_slant" || templateId === "industry_a6_geometric") ? "a6" :
       templateId === "pos_clean" || templateId === "pos_detailed" || templateId === "pos" ? "pos80" :
-      templateId === "compact" ? "a6" :
       recommended;
     const updates: any = { template_style: templateId, template_paper_size: enforcedSize };
     const { error } = await supabase.from("organizations").update(updates).eq("id", org.id);
@@ -222,6 +223,9 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
       if (sizeId === "a5") {
         if (isRetail) return t.id === "retail_a5";
         return t.id === "industry_a5_modern" || t.id === "industry_a5_classic";
+      }
+      if (sizeId === "a6") {
+        return t.id === "industry_a6_monochrome" || t.id === "industry_a6_slant" || t.id === "industry_a6_geometric";
       }
       if (sizeId === "pos80") return t.id === "pos_clean" || t.id === "pos_detailed";
       return ((t as any).recommendedPaperSize || "a4") === sizeId;
@@ -258,6 +262,9 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
       if (isRetail) return t.id === "retail_a5";
       return t.id === "industry_a5_modern" || t.id === "industry_a5_classic";
     }
+    if (paperSize === "a6") {
+      return t.id === "industry_a6_monochrome" || t.id === "industry_a6_slant" || t.id === "industry_a6_geometric";
+    }
     if (paperSize === "pos80") {
       return t.id === "pos_clean" || t.id === "pos_detailed";
     }
@@ -265,8 +272,17 @@ export default function InvoiceTemplatePage({ embedded = false }: { embedded?: b
       // In retail, strictly show only the retail A5 & POS templates
       return t.id === "retail_a5" || t.id === "pos_clean" || t.id === "pos_detailed";
     }
-    // In Industry category on A4 / other sizes, do not show retail or A5 templates
-    if (t.id === "retail_a5" || t.id === "industry_a5_modern" || t.id === "industry_a5_classic" || t.id === "pos_clean" || t.id === "pos_detailed") {
+    // In Industry category on A4 / other sizes, do not show retail, A5, A6 or POS templates
+    if (
+      t.id === "retail_a5" ||
+      t.id === "industry_a5_modern" ||
+      t.id === "industry_a5_classic" ||
+      t.id === "industry_a6_monochrome" ||
+      t.id === "industry_a6_slant" ||
+      t.id === "industry_a6_geometric" ||
+      t.id === "pos_clean" ||
+      t.id === "pos_detailed"
+    ) {
       return false;
     }
     const rec = (t as any).recommendedPaperSize || "a4";

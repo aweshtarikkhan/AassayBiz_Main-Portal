@@ -1733,106 +1733,6 @@ let planDisplay = targetPlanNames.map((p) => {
                             <span>10 Employee Attendance</span>
                           </div>
 
-                          {/* Extra Employee Counter Box */}
-                          <div className="w-full bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-200/70 mt-1" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-between mb-1.5">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <Users className="w-4 h-4 text-emerald-600 shrink-0" />
-                                <span className="text-slate-800 font-bold text-xs">
-                                  + Extra Employee (₹{pricing.hrExtraEmployeePrice || HR_EXTRA_EMPLOYEE_COST_PER_MONTH}/mo)
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
-                                <button type="button" onClick={(e) => { e.stopPropagation(); setExtraEmployeesToAdd(Math.max(0, extraEmployeesToAdd - 1)); }} className="text-slate-400 hover:text-slate-700"><Minus className="w-3.5 h-3.5" /></button>
-                                <span className="font-bold text-xs w-5 text-center text-slate-800">+{extraEmployeesToAdd}</span>
-                                <button 
-                                  type="button" 
-                                  onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    if (!canAccessHrAddons) {
-                                      const hrPlan = plans.find(p => p.name === "hr");
-                                      if (hrPlan) {
-                                        setSelectedPlanIds(prev => new Set(prev).add(hrPlan.id));
-                                        toast({
-                                          title: "Business HR Selected",
-                                          description: "Selected Business HR plan to enable extra staff capacity."
-                                        });
-                                      } else {
-                                        toast({
-                                          title: "Business HR Required",
-                                          description: "Extra employees require Business HR or Business Suite.",
-                                          variant: "destructive"
-                                        });
-                                        return;
-                                      }
-                                    }
-                                    setExtraEmployeesToAdd(extraEmployeesToAdd + 1); 
-                                  }} 
-                                  className="text-slate-400 hover:text-slate-700"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                            {!canAccessHrAddons && (
-                              <div className="text-[10px] text-amber-800 font-semibold flex items-center gap-1 my-1 bg-amber-50/90 px-2 py-0.5 rounded border border-amber-300">
-                                <Lock className="w-2.5 h-2.5 shrink-0 text-amber-700" /> Select Business HR above to add extra staff
-                              </div>
-                            )}
-                            <div className="flex items-center gap-1.5 justify-center mt-1">
-                              {[5, 10, 20, 50].map((num) => (
-                                <button
-                                  key={num}
-                                  type="button"
-                                  onClick={() => {
-                                    if (!canAccessHrAddons) {
-                                      const hrPlan = plans.find(p => p.name === "hr");
-                                      if (hrPlan) {
-                                        setSelectedPlanIds(prev => new Set(prev).add(hrPlan.id));
-                                        toast({
-                                          title: "Business HR Selected",
-                                          description: "Selected Business HR plan to enable extra staff capacity."
-                                        });
-                                      } else {
-                                        toast({
-                                          title: "Business HR Required",
-                                          description: "Extra employees require Business HR or Business Suite.",
-                                          variant: "destructive"
-                                        });
-                                        return;
-                                      }
-                                    }
-                                    setExtraEmployeesToAdd(num);
-                                  }}
-                                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
-                                    extraEmployeesToAdd === num
-                                      ? "bg-[#e77817] text-white border-[#e77817] font-bold"
-                                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                                  }`}
-                                >
-                                  +{num}
-                                </button>
-                              ))}
-                              {extraEmployeesToAdd > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setExtraEmployeesToAdd(0)}
-                                  className="text-[10px] px-1.5 py-0.5 text-slate-500 hover:text-slate-800 underline"
-                                >
-                                  Reset
-                                </button>
-                              )}
-                            </div>
-                            {extraEmployeesToAdd > 0 && (
-                              <div className="mt-1.5 pt-1.5 border-t border-emerald-200/50 flex items-center justify-between text-[11px] font-semibold text-emerald-900">
-                                <span>Addon Cost:</span>
-                                <span className="font-bold text-orange-700">
-                                  ₹{getExtraEmployeeCost(extraEmployeesToAdd).toLocaleString('en-IN')}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
                           <div className="flex items-center gap-2.5">
                             <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5]" />
                             <span>Attendance & Payroll</span>
@@ -1851,26 +1751,8 @@ let planDisplay = targetPlanNames.map((p) => {
                           </div>
                         </div>
 
-                        {/* Action Buttons: Get Started + Add-on */}
-                        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-end gap-2 flex-wrap">
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (!isIncludedInNewlySelectedSuite && !active) togglePlan(plan.id);
-                            }}
-                            className={`font-bold text-xs rounded-xl px-4 py-2 transition-all ${
-                              active
-                                ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs"
-                                : isSelected
-                                ? "bg-[#e77817] text-white hover:bg-[#d46a0f] shadow-2xs"
-                                : "border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white bg-transparent shadow-2xs"
-                            }`}
-                          >
-                            <span>{active ? "Active Plan" : isSelected ? "Selected" : "Get Started"}</span>
-                            {!active && !isSelected && <ArrowRight className="w-3.5 h-3.5 ml-1" />}
-                          </Button>
+                        {/* Action Buttons: Add-on on Left, Get Started on Right */}
+                        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between gap-2 w-full">
                           <Button
                             type="button"
                             variant="outline"
@@ -1888,6 +1770,24 @@ let planDisplay = targetPlanNames.map((p) => {
                                 {(extraEmployeesToAdd > 0 ? 1 : 0) + (taskEmployeesToAdd > 0 ? 1 : 0) + (expenseEmployeesToAdd > 0 ? 1 : 0)}
                               </span>
                             )}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isIncludedInNewlySelectedSuite && !active) togglePlan(plan.id);
+                            }}
+                            className={`font-bold text-xs rounded-xl px-4 py-2 transition-all ${
+                              active
+                                ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs"
+                                : isSelected
+                                ? "bg-[#e77817] text-white hover:bg-[#d46a0f] shadow-2xs"
+                                : "border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white bg-transparent shadow-2xs"
+                            }`}
+                          >
+                            <span>{active ? "Active Plan" : isSelected ? "Selected" : "Get Started"}</span>
+                            {!active && !isSelected && <ArrowRight className="w-3.5 h-3.5 ml-1" />}
                           </Button>
                         </div>
                       </div>
@@ -2026,47 +1926,14 @@ let planDisplay = targetPlanNames.map((p) => {
                             <span>CRM Portal: 2 Sales Team Logins</span>
                           </div>
 
-                          {/* Additional CRM Member Counter */}
-                          <div className="flex items-center justify-between w-full bg-blue-50/70 p-2 rounded-lg border border-blue-200/80 mt-1" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1.5">
-                              <Users className="w-4 h-4 text-blue-600 shrink-0" />
-                              <span className="text-slate-800 font-semibold text-xs">
-                                + Extra CRM Member (₹{CRM_ADDITIONAL_USER_COST_PER_MONTH}/mo)
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setExtraCrmMembersToAdd(Math.max(0, extraCrmMembersToAdd - 1)); }} className="text-slate-400 hover:text-slate-700"><Minus className="w-3.5 h-3.5" /></button>
-                              <span className="font-bold text-xs w-4 text-center text-slate-800">{extraCrmMembersToAdd}</span>
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setExtraCrmMembersToAdd(extraCrmMembersToAdd + 1); }} className="text-slate-400 hover:text-slate-700"><Plus className="w-3.5 h-3.5" /></button>
-                            </div>
-                          </div>
-
                           <div className="flex items-center gap-2.5 text-slate-700 font-semibold pt-1">
                             <Users className="w-4 h-4 text-[#e77817] shrink-0" />
                             <span>Platform access up to 3 employees</span>
                           </div>
                         </div>
 
-                        {/* Action Buttons: Get Started + Add-on */}
-                        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-end gap-2 flex-wrap">
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (!isIncludedInNewlySelectedSuite && !active) togglePlan(plan.id);
-                            }}
-                            className={`font-bold text-xs rounded-xl px-4 py-2 transition-all ${
-                              active
-                                ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs"
-                                : isSelected
-                                ? "bg-[#e77817] text-white hover:bg-[#d46a0f] shadow-2xs"
-                                : "border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white bg-transparent shadow-2xs"
-                            }`}
-                          >
-                            <span>{active ? "Active Plan" : isSelected ? "Selected" : "Get Started"}</span>
-                            {!active && !isSelected && <ArrowRight className="w-3.5 h-3.5 ml-1" />}
-                          </Button>
+                        {/* Action Buttons: Add-on on Left, Get Started on Right */}
+                        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between gap-2 w-full">
                           <Button
                             type="button"
                             variant="outline"
@@ -2084,6 +1951,24 @@ let planDisplay = targetPlanNames.map((p) => {
                                 1
                               </span>
                             )}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isIncludedInNewlySelectedSuite && !active) togglePlan(plan.id);
+                            }}
+                            className={`font-bold text-xs rounded-xl px-4 py-2 transition-all ${
+                              active
+                                ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs"
+                                : isSelected
+                                ? "bg-[#e77817] text-white hover:bg-[#d46a0f] shadow-2xs"
+                                : "border border-[#e77817] text-[#e77817] hover:bg-[#e77817] hover:text-white bg-transparent shadow-2xs"
+                            }`}
+                          >
+                            <span>{active ? "Active Plan" : isSelected ? "Selected" : "Get Started"}</span>
+                            {!active && !isSelected && <ArrowRight className="w-3.5 h-3.5 ml-1" />}
                           </Button>
                         </div>
                       </div>
@@ -2409,19 +2294,6 @@ let planDisplay = targetPlanNames.map((p) => {
                           </div>
                           <span>CRM Portal: 2 Sales Team Logins (Extra @ ₹{pricing.crmExtraMemberPrice || CRM_ADDITIONAL_USER_COST_PER_MONTH}/mo)</span>
                         </div>
-                        <div className="flex items-center justify-between max-w-md bg-blue-50/50 p-2 rounded-lg border border-blue-100/50" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-blue-600 shrink-0" />
-                            <span className="text-slate-700 font-semibold text-xs">
-                              + Additional CRM Sales Team (₹{pricing.crmExtraMemberPrice || CRM_ADDITIONAL_USER_COST_PER_MONTH}/mo)
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-xs">
-                            <button type="button" onClick={(e) => { e.stopPropagation(); setExtraCrmMembersToAdd(Math.max(0, extraCrmMembersToAdd - 1)); }} className="text-slate-400 hover:text-slate-700"><Minus className="w-3.5 h-3.5" /></button>
-                            <span className="font-bold text-xs w-5 text-center text-slate-800">{extraCrmMembersToAdd}</span>
-                            <button type="button" onClick={(e) => { e.stopPropagation(); setExtraCrmMembersToAdd(extraCrmMembersToAdd + 1); }} className="text-slate-400 hover:text-slate-700"><Plus className="w-3.5 h-3.5" /></button>
-                          </div>
-                        </div>
                         <div className="flex items-center gap-2.5 text-slate-700 font-semibold">
                           <div className="w-4 h-4 rounded-full bg-[#28166f] text-white flex items-center justify-center shrink-0">
                             <Check className="w-2.5 h-2.5 stroke-[3]" />
@@ -2430,8 +2302,26 @@ let planDisplay = targetPlanNames.map((p) => {
                         </div>
                       </div>
 
-                      {/* Right: Action Buttons (Get Started on top, Add-on directly below) */}
-                      <div className="flex flex-col items-center sm:items-end justify-center lg:border-l lg:border-slate-200 lg:pl-8 gap-2.5 shrink-0">
+                      {/* Right: Action Buttons (Add-on on Left, Get Started on Right) */}
+                      <div className="flex items-center justify-end lg:border-l lg:border-slate-200 lg:pl-8 gap-3 shrink-0 flex-wrap sm:flex-nowrap">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openAddonsModal("suite");
+                          }}
+                          className="border border-[#e77817]/50 hover:border-[#e77817] bg-orange-50/70 hover:bg-orange-100 text-[#e77817] font-bold text-xs rounded-xl px-4 py-2.5 flex items-center gap-1.5 shadow-2xs"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add-on</span>
+                          {(extraEmployeesToAdd > 0 || extraCrmMembersToAdd > 0 || taskEmployeesToAdd > 0 || expenseEmployeesToAdd > 0) && (
+                            <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#e77817] text-white text-[10px] font-bold">
+                              {(extraEmployeesToAdd > 0 ? 1 : 0) + (extraCrmMembersToAdd > 0 ? 1 : 0) + (taskEmployeesToAdd > 0 ? 1 : 0) + (expenseEmployeesToAdd > 0 ? 1 : 0)}
+                            </span>
+                          )}
+                        </Button>
                         <Button
                           type="button"
                           onClick={(e) => {
@@ -2449,293 +2339,12 @@ let planDisplay = targetPlanNames.map((p) => {
                           <span>{active ? "Active Plan" : isSelected ? "Selected" : "Get Started"}</span>
                           {!active && !isSelected && <ArrowRight className="w-4 h-4 ml-1.5" />}
                         </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openAddonsModal("suite");
-                          }}
-                          className="w-full sm:w-auto justify-center border border-[#e77817]/50 hover:border-[#e77817] bg-orange-50/70 hover:bg-orange-100 text-[#e77817] font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1.5 shadow-2xs"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Add-on</span>
-                          {(extraEmployeesToAdd > 0 || extraCrmMembersToAdd > 0 || taskEmployeesToAdd > 0 || expenseEmployeesToAdd > 0) && (
-                            <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#e77817] text-white text-[10px] font-bold">
-                              {(extraEmployeesToAdd > 0 ? 1 : 0) + (extraCrmMembersToAdd > 0 ? 1 : 0) + (taskEmployeesToAdd > 0 ? 1 : 0) + (expenseEmployeesToAdd > 0 ? 1 : 0)}
-                            </span>
-                          )}
-                        </Button>
                       </div>
                     </div>
                   </div>
                 );
               })()}
             </div>
-
-            
-            {/* Global Add-ons Section */}
-            {(hasAnyActionToCheckout || plans.some(p => isPlanActive(p.name) && p.name !== 'free')) && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6 mb-2">
-                <div className="bg-indigo-50/50 rounded-xl border border-indigo-100 p-5">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
-                          <Users className="h-4 w-4 text-indigo-600" />
-                          Extra Admin / Platform Users
-                        </h3>
-                        {!canAccessPlatformAddons && (
-                          <span className="text-[10px] font-semibold text-amber-700 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                            <Lock className="w-2.5 h-2.5" /> Requires Paid Plan
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-600 mt-1 max-w-md">
-                        Your paid plan includes standard platform access. Need to invite more managers to the Admin Panel? Add them here for ₹{pricing.platformExtraUserPrice || PLATFORM_ADDON_COST_PER_MONTH}/user/month.
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-center gap-2 min-w-[140px]">
-                      <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border border-indigo-200 w-full shadow-sm">
-                        <Button 
-                          size="icon" 
-                          variant="outline" 
-                          className="h-8 w-8 rounded-md hover:bg-indigo-50 hover:text-indigo-700" 
-                          disabled={extraPlatformEmployeesToAdd <= 0}
-                          onClick={() => setExtraPlatformEmployeesToAdd(Math.max(0, extraPlatformEmployeesToAdd - 1))}
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </Button>
-                        
-                        <div className="text-center px-2 flex-1">
-                          <span className="text-sm font-bold text-slate-900">
-                            +{extraPlatformEmployeesToAdd}
-                          </span>
-                        </div>
-                        
-                        <Button 
-                          size="icon" 
-                          variant="outline" 
-                          className={`h-8 w-8 rounded-md ${!canAccessPlatformAddons ? "opacity-60 cursor-not-allowed" : "hover:bg-indigo-50 hover:text-indigo-700"}`} 
-                          onClick={() => {
-                            if (!canAccessPlatformAddons) {
-                              toast({
-                                title: "Paid Plan Required",
-                                description: "Extra Admin / Platform Users require an active paid plan or Business Suite.",
-                                variant: "destructive"
-                              });
-                              return;
-                            }
-                            setExtraPlatformEmployeesToAdd(extraPlatformEmployeesToAdd + 1);
-                          }}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                      {extraPlatformEmployeesToAdd > 0 && (
-                        <span className="text-xs font-semibold text-indigo-700">
-                          +₹{getExtraPlatformEmployeeCost(extraPlatformEmployeesToAdd).toLocaleString('en-IN')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-blue-50/50 rounded-xl border border-blue-100 p-5">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm font-bold text-blue-900 flex items-center gap-2">
-                          <Users className="h-4 w-4 text-blue-600" />
-                          Extra CRM Sales Team Members
-                        </h3>
-                        {!canAccessCrmAddons && (
-                          <span className="text-[10px] font-semibold text-blue-700 bg-blue-100/90 border border-blue-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                            <Lock className="w-2.5 h-2.5" /> Requires CRM or Suite
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-600 mt-1 max-w-md">
-                        CRM & Suite include 2 Sales Team logins. Need more executive accounts? Add extra CRM member access for ₹{pricing.crmExtraMemberPrice || CRM_ADDITIONAL_USER_COST_PER_MONTH}/user/month.
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-center gap-2 min-w-[140px]">
-                      <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border border-blue-200 w-full shadow-sm">
-                        <Button 
-                          size="icon" 
-                          variant="outline" 
-                          className="h-8 w-8 rounded-md hover:bg-blue-50 hover:text-blue-700" 
-                          disabled={extraCrmMembersToAdd <= 0}
-                          onClick={() => setExtraCrmMembersToAdd(Math.max(0, extraCrmMembersToAdd - 1))}
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </Button>
-                        
-                        <div className="text-center px-2 flex-1">
-                          <span className="text-sm font-bold text-slate-900">
-                            +{extraCrmMembersToAdd}
-                          </span>
-                        </div>
-                        
-                        <Button 
-                          size="icon" 
-                          variant="outline" 
-                          className={`h-8 w-8 rounded-md ${!canAccessCrmAddons ? "opacity-60 cursor-not-allowed" : "hover:bg-blue-50 hover:text-blue-700"}`} 
-                          onClick={() => {
-                            if (!canAccessCrmAddons) {
-                              toast({
-                                title: "CRM or Suite Plan Required",
-                                description: "Extra CRM Sales Team members require an active Business CRM or Business Suite plan.",
-                                variant: "destructive"
-                              });
-                              return;
-                            }
-                            setExtraCrmMembersToAdd(extraCrmMembersToAdd + 1);
-                          }}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                      {extraCrmMembersToAdd > 0 && (
-                        <span className="text-xs font-semibold text-blue-700">
-                          +₹{getExtraCrmMemberCost(extraCrmMembersToAdd).toLocaleString('en-IN')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-amber-50/50 rounded-xl border border-amber-100 p-5">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm font-bold text-amber-900 flex items-center gap-2">
-                          <CheckSquare className="h-4 w-4 text-amber-600" />
-                          Task Management Add-on
-                        </h3>
-                        {!canAccessHrAddons && (
-                          <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                            <Lock className="w-2.5 h-2.5" /> Requires HR or Suite
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-600 mt-1 max-w-md">
-                        Assign, schedule, and track employee tasks with real-time status updates from the Employee Portal. Add employee task capacity for ₹{pricing.taskPriceMonthly}/employee/month.
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-center gap-2 min-w-[140px]">
-                      <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border border-amber-200 w-full shadow-sm">
-                        <Button 
-                          size="icon" 
-                          variant="outline" 
-                          className="h-8 w-8 rounded-md hover:bg-amber-50 hover:text-amber-700" 
-                          disabled={taskEmployeesToAdd <= 0}
-                          onClick={() => setTaskEmployeesToAdd(Math.max(0, taskEmployeesToAdd - 1))}
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </Button>
-                        
-                        <div className="text-center px-2 flex-1">
-                          <span className="text-sm font-bold text-slate-900">
-                            +{taskEmployeesToAdd}
-                          </span>
-                        </div>
-                        
-                        <Button 
-                          size="icon" 
-                          variant="outline" 
-                          className={`h-8 w-8 rounded-md ${!canAccessHrAddons ? "opacity-60 cursor-not-allowed" : "hover:bg-amber-50 hover:text-amber-700"}`} 
-                          onClick={() => {
-                            if (!canAccessHrAddons) {
-                              toast({
-                                title: "HR or Suite Plan Required",
-                                description: "Task Management add-on requires an active Business HR or Business Suite plan. Please select or activate HR / Business Suite first.",
-                                variant: "destructive"
-                              });
-                              return;
-                            }
-                            setTaskEmployeesToAdd(taskEmployeesToAdd + 1);
-                          }}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                      {taskEmployeesToAdd > 0 && (
-                        <span className="text-xs font-semibold text-amber-700">
-                          +₹{getTaskEmployeeCost(taskEmployeesToAdd).toLocaleString('en-IN')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-emerald-50/50 rounded-xl border border-emerald-100 p-5">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm font-bold text-emerald-900 flex items-center gap-2">
-                          <Receipt className="h-4 w-4 text-emerald-600" />
-                          Expense Management Add-on
-                        </h3>
-                        {!canAccessHrAddons && (
-                          <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                            <Lock className="w-2.5 h-2.5" /> Requires HR or Suite
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-600 mt-1 max-w-md">
-                        Track local travel per-km rates, fuel claims, outstation expenses, multi-level approvals, and disbursements. Add employee expense capacity for ₹{pricing.expensePriceMonthly}/employee/month.
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-center gap-2 min-w-[140px]">
-                      <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border border-emerald-200 w-full shadow-sm">
-                        <Button 
-                          size="icon" 
-                          variant="outline" 
-                          className="h-8 w-8 rounded-md hover:bg-emerald-50 hover:text-emerald-700" 
-                          disabled={expenseEmployeesToAdd <= 0}
-                          onClick={() => setExpenseEmployeesToAdd(Math.max(0, expenseEmployeesToAdd - 1))}
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </Button>
-                        
-                        <div className="text-center px-2 flex-1">
-                          <span className="text-sm font-bold text-slate-900">
-                            +{expenseEmployeesToAdd}
-                          </span>
-                        </div>
-                        
-                        <Button 
-                          size="icon" 
-                          variant="outline" 
-                          className={`h-8 w-8 rounded-md ${!canAccessHrAddons ? "opacity-60 cursor-not-allowed" : "hover:bg-emerald-50 hover:text-emerald-700"}`} 
-                          onClick={() => {
-                            if (!canAccessHrAddons) {
-                              toast({
-                                title: "HR or Suite Plan Required",
-                                description: "Expense Management add-on requires an active Business HR or Business Suite plan. Please select or activate HR / Business Suite first.",
-                                variant: "destructive"
-                              });
-                              return;
-                            }
-                            setExpenseEmployeesToAdd(expenseEmployeesToAdd + 1);
-                          }}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                      {expenseEmployeesToAdd > 0 && (
-                        <span className="text-xs font-semibold text-emerald-700">
-                          +₹{getExpenseEmployeeCost(expenseEmployeesToAdd).toLocaleString('en-IN')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
 
             {/* Promo Code & Checkout Footer */}
             <div className="border-t border-slate-200 pt-6 mt-6">

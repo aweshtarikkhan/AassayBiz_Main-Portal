@@ -810,13 +810,32 @@ export default function PurchaseOrderBuilderPage() {
                     <Input
                       type="number"
                       min={0}
+                      placeholder="0"
+                      onFocus={(e) => {
+                        if (e.target.value === "0" || Number(e.target.value) === 0) {
+                          e.target.select();
+                        }
+                      }}
                       onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
-                      className="h-8 w-20 text-right"
-                      value={discount}
+                      className="h-8 w-20 text-right font-medium"
+                      value={discount === 0 || discount === "0" ? "" : discount}
                       onChange={(e) => {
-                        let val = parseFloat(e.target.value) || 0;
+                        let raw = e.target.value;
+                        if (raw === "") {
+                          setDiscount("");
+                          return;
+                        }
+                        if (/^0+[0-9]/.test(raw) && !raw.startsWith("0.")) {
+                          raw = raw.replace(/^0+/, "");
+                          e.target.value = raw;
+                        }
+                        let val = parseFloat(raw) || 0;
+                        val = Math.max(0, val);
                         if (discountType === "percentage" && val > 100) val = 100;
-                        setDiscount(val);
+                        setDiscount(raw.endsWith(".") ? raw : val);
+                      }}
+                      onBlur={() => {
+                        if (discount === "") setDiscount(0);
                       }}
                     />
                     <Select value={discountType} onValueChange={(v: any) => {
@@ -839,9 +858,31 @@ export default function PurchaseOrderBuilderPage() {
                     <Input
                       type="number"
                       min={0}
-                      className="h-8 w-24 text-right"
-                      value={shippingCharge}
-                      onChange={(e) => setShippingCharge(e.target.value)}
+                      placeholder="0"
+                      onFocus={(e) => {
+                        if (e.target.value === "0" || Number(e.target.value) === 0) {
+                          e.target.select();
+                        }
+                      }}
+                      onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
+                      className="h-8 w-24 text-right font-medium"
+                      value={shippingCharge === 0 || shippingCharge === "0" ? "" : shippingCharge}
+                      onChange={(e) => {
+                        let raw = e.target.value;
+                        if (raw === "") {
+                          setShippingCharge("");
+                          return;
+                        }
+                        if (/^0+[0-9]/.test(raw) && !raw.startsWith("0.")) {
+                          raw = raw.replace(/^0+/, "");
+                          e.target.value = raw;
+                        }
+                        let val = Math.max(0, parseFloat(raw) || 0);
+                        setShippingCharge(raw.endsWith(".") ? raw : val);
+                      }}
+                      onBlur={() => {
+                        if (shippingCharge === "") setShippingCharge(0);
+                      }}
                     />
                     <span className="text-slate-900 font-medium">{formatCurrency(Number(shippingCharge) || 0, currency)}</span>
                   </div>

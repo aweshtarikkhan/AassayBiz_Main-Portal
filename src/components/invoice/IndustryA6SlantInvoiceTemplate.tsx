@@ -1,5 +1,5 @@
 import React from "react";
-import { resolveLineTaxRate } from "@/lib/invoiceCalculations";
+import { resolveLineTaxRate, computeDocumentTotals } from "@/lib/invoiceCalculations";
 
 interface IndustryA6SlantInvoiceTemplateProps {
   org: any;
@@ -36,8 +36,27 @@ export function IndustryA6SlantInvoiceTemplate({
   const rawClientName = (invoice?.metadata as any)?.client_name || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.name : null) || (invoice.clients as any)?.display_name || (invoice.clients as any)?.company_name || (invoice.vendors as any)?.name || (invoice as any)?.client_name || "";
   const clientName = (rawClientName === "Walk-in Customer") ? "" : rawClientName;
 
+  const extractCity = (addr: any) => {
+    if (!addr) return "";
+    if (typeof addr === "object") {
+      if (addr.city && String(addr.city).trim()) return String(addr.city).trim();
+    }
+    if (typeof addr === "string") {
+      try {
+        const parsed = JSON.parse(addr);
+        if (parsed?.city && String(parsed.city).trim()) return String(parsed.city).trim();
+      } catch {}
+      const parts = addr.split(",").map((p: string) => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        const candidate = parts[1];
+        if (candidate && !/^\d+$/.test(candidate)) return candidate;
+      }
+    }
+    return "";
+  };
+
   const clientAddress = (parsedBillTo && typeof parsedBillTo === "object" ? [parsedBillTo.street, parsedBillTo.city, parsedBillTo.state, parsedBillTo.zip].filter(Boolean).join(", ") : null) || (invoice.clients as any)?.address || "";
-  const clientCity = (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.city : null) || (invoice.clients as any)?.city || "";
+  const clientCity = (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.city : null) || extractCity(rawBillToObj) || (invoice.clients as any)?.city || "";
   const clientState = (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.state : null) || (invoice.clients as any)?.state || "";
   const clientGstin = (invoice.clients as any)?.gstin || (invoice.clients as any)?.tax_number || (invoice as any)?.client_gstin || "";
 
@@ -62,10 +81,21 @@ export function IndustryA6SlantInvoiceTemplate({
   const orgAddressStr = addressLines.length > 0 ? addressLines.join(", ") : (org?.city ? `${org.city}, ${org?.state || ""}` : "123, Business Park, Phase II");
 
   // Totals
-  const subtotal = Number(invoice.subtotal ?? lines.reduce((acc, l) => acc + (Number(l.quantity || 1) * Number(l.rate || 0)), 0));
-  const discountTotal = Number(invoice.total_discount ?? invoice.discount_amount ?? 0);
-  const taxTotal = Number(invoice.tax_total ?? invoice.total_tax ?? 0);
-  const grandTotal = Number(invoice.total ?? (subtotal - discountTotal + taxTotal));
+  const effectiveIsInterstate = isInterstate || (invoice.clients as any)?.is_interstate;
+  const {
+    subtotalVal,
+    discountAmt,
+    expensesAmt,
+    shippingAmt,
+    taxableAmount,
+    tdsAmount,
+    tcsAmount,
+    gstBreakdown,
+    totalTaxAmt,
+    effectiveAdjustment,
+    effectiveAdjustmentName,
+    grandTotal,
+  } = computeDocumentTotals(invoice, lines, taxBreakdown, hasGst, effectiveIsInterstate);
 
   const titleText = type === "estimate" ? "QUOTATION" : type === "po" ? "PURCHASE ORDER" : type === "bill" ? "PURCHASE INVOICE" : (hasGst ? "TAX INVOICE" : "INVOICE");
 
@@ -81,22 +111,15 @@ export function IndustryA6SlantInvoiceTemplate({
   const invoiceDate = formatDate(invoice.issue_date || invoice.created_at || new Date().toISOString());
   const dueDate = formatDate(invoice.due_date);
 
-  // Bank Info
-  let bankName = org?.bank_name || org?.template_bank_name || "";
-  let accNo = org?.bank_account_no || org?.bank_acc_number || org?.template_bank_account_no || "";
-  let ifsc = org?.bank_ifsc || org?.template_bank_ifsc || "";
+  // Bank Info resolution
+  const invBank = invoice?.bank_details ? (typeof invoice.bank_details === "string" ? (() => { try { return JSON.parse(invoice.bank_details); } catch { return null; } })() : invoice.bank_details) : null;
+  const orgBank = org?.bank_details ? (typeof org.bank_details === "string" ? (() => { try { return JSON.parse(org.bank_details); } catch { return null; } })() : org.bank_details) : null;
 
-  if (org?.bank_details) {
-    try {
-      const parsed = typeof org.bank_details === "string" ? JSON.parse(org.bank_details) : org.bank_details;
-      bankName = parsed.bank_name || bankName;
-      accNo = parsed.account_no || parsed.acc_no || accNo;
-      ifsc = parsed.ifsc || ifsc;
-    } catch {}
-  }
+  const bankName = invBank?.bank_name || orgBank?.bank_name || org?.bank_name || org?.template_bank_name || "";
+  const accNo = invBank?.bank_account_number || invBank?.account_number || invBank?.account_no || orgBank?.bank_account_number || orgBank?.account_no || orgBank?.acc_no || org?.bank_account_number || org?.bank_account_no || org?.bank_acc_number || org?.template_bank_account_no || "";
+  const ifsc = invBank?.bank_ifsc || invBank?.ifsc || orgBank?.bank_ifsc || orgBank?.ifsc || org?.bank_ifsc || org?.template_bank_ifsc || "";
 
   // Tax breakdown
-  const effectiveIsInterstate = isInterstate || (invoice.clients as any)?.is_interstate;
   const avgRate = lines.length > 0 ? lines[0]?.tax_rate || 18 : 18;
   const cgstAmount = !effectiveIsInterstate ? taxTotal / 2 : 0;
   const sgstAmount = !effectiveIsInterstate ? taxTotal / 2 : 0;
@@ -179,6 +202,10 @@ export function IndustryA6SlantInvoiceTemplate({
               <span className="text-slate-700 flex-1 border-b border-dotted border-slate-300 pb-0.5 min-h-[12px]">{clientState}</span>
             </div>
           </div>
+          <div className="flex items-baseline gap-1">
+            <span className="font-semibold text-slate-600 min-w-[55px]">Place of Supply :</span>
+            <span className="text-slate-700 flex-1 border-b border-dotted border-slate-300 pb-0.5 min-h-[12px]">{clientCity || invoice?.place_of_supply || clientState || "-"}</span>
+          </div>
           {clientGstin && (
             <div className="flex items-baseline gap-1">
               <span className="font-semibold text-slate-600 min-w-[55px]">GSTIN :</span>
@@ -252,32 +279,65 @@ export function IndustryA6SlantInvoiceTemplate({
         <div className="border border-[#0f2347] rounded-sm overflow-hidden text-[7px]">
           <div className="flex justify-between px-1.5 py-0.5 border-b border-slate-200 bg-slate-50">
             <span className="text-slate-600 font-medium">Sub Total</span>
-            <span className="font-bold text-slate-800">{fmt(subtotal)}</span>
+            <span className="font-bold text-slate-800">{fmt(subtotalVal)}</span>
           </div>
-          {taxTotal > 0 && !effectiveIsInterstate && (
-            <>
-              <div className="flex justify-between px-1.5 py-0.5 border-b border-slate-200">
-                <span className="text-slate-600">CGST ( {avgRate / 2}% )</span>
-                <span className="font-medium">{fmt(cgstAmount)}</span>
-              </div>
-              <div className="flex justify-between px-1.5 py-0.5 border-b border-slate-200">
-                <span className="text-slate-600">SGST ( {avgRate / 2}% )</span>
-                <span className="font-medium">{fmt(sgstAmount)}</span>
-              </div>
-            </>
-          )}
-          {taxTotal > 0 && effectiveIsInterstate && (
-            <div className="flex justify-between px-1.5 py-0.5 border-b border-slate-200">
-              <span className="text-slate-600">IGST ( {avgRate}% )</span>
-              <span className="font-medium">{fmt(igstAmount)}</span>
-            </div>
-          )}
-          {discountTotal > 0 && (
+
+          {/* Before-GST Additions / Deductions */}
+          {discountAmt > 0 && (
             <div className="flex justify-between px-1.5 py-0.5 border-b border-slate-200 text-emerald-700">
               <span>Discount</span>
-              <span>- {fmt(discountTotal)}</span>
+              <span>- {fmt(discountAmt)}</span>
             </div>
           )}
+          {expensesAmt > 0 && (
+            <div className="flex justify-between px-1.5 py-0.5 border-b border-slate-200 text-slate-700">
+              <span>Fixed Cost / Expenses</span>
+              <span>+ {fmt(expensesAmt)}</span>
+            </div>
+          )}
+          {shippingAmt > 0 && (
+            <div className="flex justify-between px-1.5 py-0.5 border-b border-slate-200 text-slate-700">
+              <span>Shipping</span>
+              <span>+ {fmt(shippingAmt)}</span>
+            </div>
+          )}
+          {tdsAmount > 0 && (
+            <div className="flex justify-between px-1.5 py-0.5 border-b border-slate-200 text-amber-700">
+              <span>TDS Deducted</span>
+              <span>- {fmt(tdsAmount)}</span>
+            </div>
+          )}
+
+          {/* Taxable Amount */}
+          {(discountAmt > 0 || expensesAmt > 0 || shippingAmt > 0 || tdsAmount > 0) && (
+            <div className="flex justify-between px-1.5 py-0.5 border-b border-slate-200 bg-slate-50/50 font-semibold text-slate-800">
+              <span>Taxable Amount</span>
+              <span>{fmt(taxableAmount)}</span>
+            </div>
+          )}
+
+          {/* Taxes */}
+          {gstBreakdown.map((tax, i) => (
+            <div key={i} className="flex justify-between px-1.5 py-0.5 border-b border-slate-200">
+              <span className="text-slate-600">{tax.name}</span>
+              <span className="font-medium">{fmt(tax.amount)}</span>
+            </div>
+          ))}
+
+          {tcsAmount > 0 && (
+            <div className="flex justify-between px-1.5 py-0.5 border-b border-slate-200 text-slate-700">
+              <span>TCS</span>
+              <span>+ {fmt(tcsAmount)}</span>
+            </div>
+          )}
+
+          {effectiveAdjustment !== 0 && (
+            <div className="flex justify-between px-1.5 py-0.5 border-b border-slate-200 text-slate-600">
+              <span>{effectiveAdjustmentName || "Round Off"}</span>
+              <span>{effectiveAdjustment > 0 ? `+ ${fmt(effectiveAdjustment)}` : `- ${fmt(Math.abs(effectiveAdjustment))}`}</span>
+            </div>
+          )}
+
           <div className="bg-[#0f2347] text-white font-black flex justify-between px-1.5 py-1 text-[8px]">
             <span>Total Amount</span>
             <span>{fmt(grandTotal)}</span>

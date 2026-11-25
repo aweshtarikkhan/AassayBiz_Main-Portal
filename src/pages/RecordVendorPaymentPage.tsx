@@ -92,6 +92,27 @@ export default function RecordVendorPaymentPage() {
 
   const fmt = (n: number) => formatCurrency(n || 0, currency);
 
+  const getAccountDisplayName = (a: any) => {
+    if (a.account_type === "cash") {
+      return a.name || "Cash in Hand";
+    }
+    let bankTitle = a.bank_name?.trim();
+    if (!bankTitle && a.notes) {
+      try {
+        const parsed = typeof a.notes === "string" ? JSON.parse(a.notes) : a.notes;
+        if (parsed.bank_name?.trim()) {
+          bankTitle = parsed.bank_name.trim();
+        }
+      } catch {}
+    }
+    if (!bankTitle) {
+      bankTitle = a.name || "Bank Account";
+    }
+    const accNum = a.account_number ? String(a.account_number).trim() : "";
+    const last4 = accNum ? accNum.slice(-4) : "";
+    return last4 ? `${bankTitle} (${last4})` : bankTitle;
+  };
+
   // Load vendors and calculate dynamic due from unpaid bills
   useEffect(() => {
     if (!org?.id) return;
@@ -500,7 +521,7 @@ export default function RecordVendorPaymentPage() {
   };
 
   return (
-    <div className="space-y-6 w-full pb-16">
+    <div className="space-y-6 max-w-5xl mx-auto px-4 sm:px-6 pb-16">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate("/vendor-payments")}>
           <ArrowLeft className="h-4 w-4" />
@@ -644,13 +665,15 @@ export default function RecordVendorPaymentPage() {
                   <SelectContent>
                     {bankAccounts.map((a) => (
                       <SelectItem key={a.id} value={a.id}>
-                        <div className="flex items-center gap-2">
-                          {a.account_type === "cash" ? (
-                            <Wallet className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                          ) : (
-                            <Building2 className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                          )}
-                          <span className="font-medium">{a.name}</span>
+                        <div className="flex items-center justify-between gap-3 w-full">
+                          <div className="flex items-center gap-2">
+                            {a.account_type === "cash" ? (
+                              <Wallet className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                            ) : (
+                              <Building2 className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                            )}
+                            <span className="font-medium">{getAccountDisplayName(a)}</span>
+                          </div>
                           <span className="text-xs text-muted-foreground font-mono">
                             ({fmt(Number(a.current_balance || 0))})
                           </span>

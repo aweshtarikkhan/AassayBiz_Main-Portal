@@ -359,7 +359,7 @@ export default function CreditNoteBuilderPage() {
   const selectedInvoice = invoices.find((inv) => inv.id === invoiceId);
 
   return (
-    <div className="space-y-6 w-full">
+    <div className="space-y-6 max-w-5xl mx-auto px-4 sm:px-6 pb-16">
       <PageHeader title={isEdit ? "Edit Credit Note" : "New Credit Note"}>
         <Button variant="outline" size="sm" onClick={() => navigate("/credit-notes")}>
           <ArrowLeft className="mr-1 h-4 w-4" /> Back

@@ -344,6 +344,27 @@ export default function BillDetailPage() {
   const fmt = (n: number) =>
     new Intl.NumberFormat("en-IN", { style: "currency", currency: (org as any)?.currency || "INR" }).format(n);
 
+  const getAccountDisplayName = (a: any) => {
+    if (a.account_type === "cash") {
+      return a.name || "Cash in Hand";
+    }
+    let bankTitle = a.bank_name?.trim();
+    if (!bankTitle && a.notes) {
+      try {
+        const parsed = typeof a.notes === "string" ? JSON.parse(a.notes) : a.notes;
+        if (parsed.bank_name?.trim()) {
+          bankTitle = parsed.bank_name.trim();
+        }
+      } catch {}
+    }
+    if (!bankTitle) {
+      bankTitle = a.name || "Bank Account";
+    }
+    const accNum = a.account_number ? String(a.account_number).trim() : "";
+    const last4 = accNum ? accNum.slice(-4) : "";
+    return last4 ? `${bankTitle} (${last4})` : bankTitle;
+  };
+
 
   const generatePDFBlob = useCallback(async (): Promise<Blob | null> => {
     if (!org || !bill) return null;
@@ -657,7 +678,7 @@ export default function BillDetailPage() {
                   {bankAccounts.map((b) => (
                     <SelectItem key={b.id} value={b.id}>
                       <div className="flex items-center justify-between gap-3 w-full">
-                        <span>{b.bank_name ? `${b.bank_name} ${b.account_number ? `(..${b.account_number.slice(-4)})` : ''}` : b.name}</span>
+                        <span>{getAccountDisplayName(b)}</span>
                         <span className="text-[10px] text-muted-foreground uppercase px-1 py-0.5 rounded bg-muted/60">{b.account_type || 'Bank'}</span>
                       </div>
                     </SelectItem>

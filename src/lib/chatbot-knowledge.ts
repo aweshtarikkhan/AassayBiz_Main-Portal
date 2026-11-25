@@ -842,12 +842,19 @@ IMPORTANT CONTACT RULES:
       * If an employee has access to only one module, that respective module ('Tasks' or 'Expenses') appears in the 4th bottom navigation slot.
       * If an employee has access to neither Tasks nor Expenses, 'Holidays' automatically fills the 4th bottom navigation slot so that all 5 bottom icons are always perfectly balanced and functional with Home in the center. In addition, unauthorized modules are strictly hidden from the desktop sidebar, Manage sheet, and Dashboard cards.
 
+  * Payment Recording & Banking Selection Standards:
+    - Centered Form Layout & Margins: The Record Vendor Payment (/vendor-payments/new), Record Payment Received (/payments/new), and Credit Note Builder (/credit-notes/new) forms use standard centered layouts (max-w-5xl mx-auto px-4 sm:px-6 pb-16) with proper left and right margins/spacing, matching Invoice Builder and Quotation Builder rather than stretching edge-to-edge.
+    - Bank Account Display in Payment Forms: In "Paid From Account" (Vendor Payment) and "Deposit To Account" (Client Payment Received), bank accounts display the Bank Name (e.g., "HDFC", "AXIS") followed by the last 4 digits of the account number in parentheses, e.g., "HDFC (3674)", instead of displaying the account holder's name. Cash accounts continue to show "Cash in Hand", and real-time available balances are displayed alongside.
+
   * Specialized Add-on Modules: Task & Expense Management Pricing and Quotas:
     - Plan Add-on Quick Buttons & Modal (Pricing Page & Update Plan Modal):
-      * Business HR Suite: The "+ Add-on" button is placed on the right side of the "Get Started" button. Clicking it opens the HR Add-ons popup to configure Add-on Employees (₹49/emp/mo), Task Management (₹99/emp/mo), and Expense Management (₹499/emp/mo).
-      * Business CRM Suite: The "+ Add-on" button is placed on the right side of the "Get Started" button. Clicking it opens the CRM Add-ons popup to configure Add-on Sales Team Logins (₹99/member/mo).
-      * Business Suite: The "+ Add-on" button is placed directly below the "Get Started" button. Clicking it opens the unified Business Suite Add-ons popup containing ALL add-ons (Add-on Employees, Add-on Sales Team, Task Management, and Expense Management).
-      * Consistent across the platform: These buttons and popups appear seamlessly on the public Pricing Page (/pricing), the Upgrade Plan dialog (PlanSelectorModal), and wherever plans are presented.
+      * Front-of-card Counter Clean-up: The inline counter boxes (+ Extra Employee, + Extra CRM Member, + Additional CRM Sales Team) have been completely removed from the front face of the cards so the plan cards stay clean and uncluttered; all add-on quantities are selected exclusively inside the "+ Add-on" modal popup.
+      * Standalone Module Section Removal: The separate Task Management and Expense Management cards and bottom global add-on boxes have been completely removed from both the Pricing Page and the Plan Upgrade modal (PlanSelectorModal); all add-ons are now configured cleanly via the "+ Add-on" modal popup.
+      * Button Positioning: The "+ Add-on" button is positioned on the LEFT side, and the "Get Started" / "Selected" / "Active Plan" button is positioned on the RIGHT side of the card footer with clean spacing/margin across Business HR, Business CRM, and Business Suite.
+      * Business HR Suite: The "+ Add-on" button (left) opens the HR Add-ons popup to configure Add-on Employees (₹49/emp/mo), Task Management (₹99/emp/mo), and Expense Management (₹499/emp/mo).
+      * Business CRM Suite: The "+ Add-on" button (left) opens the CRM Add-ons popup to configure Add-on Sales Team Logins (₹99/member/mo).
+      * Business Suite: The "+ Add-on" button (left) and "Get Started" (right) open the unified Business Suite Add-ons popup containing ALL add-ons (Add-on Employees, Add-on Sales Team, Task Management, and Expense Management).
+      * Consistent across the platform: These buttons, popups, and clean card layouts appear seamlessly on the public Pricing Page (/pricing), the Upgrade Plan dialog (PlanSelectorModal), and wherever plans are presented.
     - Task Management Add-on: ₹99/employee/month (₹1,188/employee/year). Includes task assignments, deadlines, attachments, status updates, priority filters, and real-time syncing with the Employee Attendance Portal.
     - Expense Management Add-on: ₹499/employee/month (₹5,988/employee/year). Includes local travel claims with per-km vehicle rates, fuel slips, outstation allowances, multi-tier approvals (Send to Accounts, Approved by Accounts, Settled), and accounting exports.
     - Strict Add-on Prerequisite Base Plan Rules:
@@ -907,6 +914,18 @@ IMPORTANT CONTACT RULES:
   * Direct Round Off Toggle & Retirement of Display Options Panel:
     - Direct Round Off Checkbox above Total: Across Sales Invoices (/invoices/new), Purchase Bills (/purchase-invoices/new), Quotations (/estimates/new), and Purchase Orders (/purchase-orders/new), the previous manual adjustment input boxes have been replaced by a clean "Round Off" toggle checkbox placed directly above the Grand Total row. It is active (checked) by default. When ticked, the invoice total automatically rounds to the nearest integer rupee with live round-off difference displayed. When un-ticked, no round off is applied and the exact decimal total is retained.
     - Consolidated Builder Sections & Automatic PDF Reflection: The redundant "Display Options" card and toggle buttons have been completely removed from invoice/purchase builders and Settings > Preferences. Instead, whichever sections are enabled on the builder (Notes, Terms & Conditions, Bank Details, Batch No, Compliance) automatically flow to and print on generated invoice and bill PDFs without needing separate duplicate checkboxes.
+
+  * Invoice Templates & Print System Enhancements:
+    - Universal Bank Account Display: All invoice templates (Corporate Maroon, Corporate Blue, Professional Navy, Modern Crimson/Navy/Teal, Industry A5/A6 series, Classic Tabular) reliably display the Bank Account Number, resolving the exact PostgreSQL column 'bank_account_number' from both invoice-level selection ('invoice.bank_details') and organization settings ('org.bank_details' / 'org.bank_account_number').
+    - Place of Supply (City Resolution): "Place of Supply" automatically extracts the client's city name from structured address objects or comma-separated address strings (e.g., 'Toli Chowki, Hyderabad, 23, 500008' resolves to 'Hyderabad') before falling back to state jurisdiction.
+    - Standardized Before-GST Cost Breakdown: Discount, Fixed Cost (Expenses), and Shipping Cost are explicitly presented before GST computation across all templates and calculation summaries. The calculation order strictly follows: Subtotal -> Discount Deducted -> Fixed Cost (Expenses) Added -> Shipping Added -> TDS Deducted -> Taxable Amount -> GST Breakdown (CGST/SGST/IGST) -> TCS -> Round Off -> Grand Total.
+
+  * Payment Pages & Centered Form Layouts:
+    - Centered Form Alignment: Both Record Payment Received (/payments/new) and Record Vendor Payment (/vendor-payments/new) feature centered layouts with clean left and right margins matching the Invoice and Quotation builder design.
+    - Paid From / Received Into Account Dropdown: The bank account selector displays the Bank Name and the last 4 digits in parentheses, e.g., 'HDFC (3674)' or 'Axis (1092)', instead of displaying the account holder's personal name.
+
+  * Plan Upgrade & Pricing Page Synchronization:
+    - Plan Selector Modal (/pricing & Settings > Upgrade Plan): Synchronized with the main pricing cards, featuring a dedicated '+ Add-on' button alongside 'Get Started', clean spacing, and removal of redundant bottom add-on boxes.
 
 --- END OF KNOWLEDGE BASE ---
 `;

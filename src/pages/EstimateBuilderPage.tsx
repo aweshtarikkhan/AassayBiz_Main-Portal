@@ -217,9 +217,9 @@ export default function EstimateBuilderPage() {
   const [expiryDate, setExpiryDate] = useState("");
   const [notes, setNotes] = useState("");
   const [terms, setTerms] = useState("");
-  const [discount, setDiscount] = useState(0);
+  const [discount, setDiscount] = useState<number | string>(0);
   const [discountType, setDiscountType] = useState<"percentage" | "fixed">("percentage");
-  const [shippingCharge, setShippingCharge] = useState(0);
+  const [shippingCharge, setShippingCharge] = useState<number | string>(0);
   const [adjustment, setAdjustment] = useState(0);
   const [adjustmentName, setAdjustmentName] = useState("Adjustment");
   const [lines, setLines] = useState<LineItem[]>([createEmptyLine()]);
@@ -867,23 +867,41 @@ export default function EstimateBuilderPage() {
               <Input
                 type="number"
                 min={0}
+                placeholder="0"
+                onFocus={(e) => {
+                  if (e.target.value === "0" || Number(e.target.value) === 0) {
+                    e.target.select();
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "-" || e.key === "e") e.preventDefault();
                 }}
-                className="w-20 h-8 text-xs text-right"
-                value={discount}
+                className="w-20 h-8 text-xs text-right font-medium"
+                value={discount === 0 || discount === "0" ? "" : discount}
                 onChange={(e) => {
-                  let val = parseFloat(e.target.value) || 0;
+                  let raw = e.target.value;
+                  if (raw === "") {
+                    setDiscount("");
+                    return;
+                  }
+                  if (/^0+[0-9]/.test(raw) && !raw.startsWith("0.")) {
+                    raw = raw.replace(/^0+/, "");
+                    e.target.value = raw;
+                  }
+                  let val = parseFloat(raw) || 0;
                   val = Math.max(0, val);
                   if (discountType === "percentage" && val > 100) val = 100;
-                  setDiscount(val);
+                  setDiscount(raw.endsWith(".") ? raw : val);
+                }}
+                onBlur={() => {
+                  if (discount === "") setDiscount(0);
                 }}
               />
               <Select
                 value={discountType}
                 onValueChange={(v: any) => {
                   setDiscountType(v);
-                  if (v === "percentage" && discount > 100) setDiscount(100);
+                  if (v === "percentage" && Number(discount) > 100) setDiscount(100);
                 }}
               >
                 <SelectTrigger className="w-20 h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -899,12 +917,33 @@ export default function EstimateBuilderPage() {
               <Input
                 type="number"
                 min={0}
+                placeholder="0"
+                onFocus={(e) => {
+                  if (e.target.value === "0" || Number(e.target.value) === 0) {
+                    e.target.select();
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "-" || e.key === "e") e.preventDefault();
                 }}
-                className="w-24 h-8 text-xs text-right"
-                value={shippingCharge}
-                onChange={(e) => setShippingCharge(Math.max(0, parseFloat(e.target.value) || 0))}
+                className="w-24 h-8 text-xs text-right font-medium"
+                value={shippingCharge === 0 || shippingCharge === "0" ? "" : shippingCharge}
+                onChange={(e) => {
+                  let raw = e.target.value;
+                  if (raw === "") {
+                    setShippingCharge("");
+                    return;
+                  }
+                  if (/^0+[0-9]/.test(raw) && !raw.startsWith("0.")) {
+                    raw = raw.replace(/^0+/, "");
+                    e.target.value = raw;
+                  }
+                  let val = Math.max(0, parseFloat(raw) || 0);
+                  setShippingCharge(raw.endsWith(".") ? raw : val);
+                }}
+                onBlur={() => {
+                  if (shippingCharge === "") setShippingCharge(0);
+                }}
               />
             </div>
             {taxBreakdown.length > 0 ? (
