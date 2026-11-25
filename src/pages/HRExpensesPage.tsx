@@ -1405,11 +1405,11 @@ export default function HRExpensesPage() {
                 </Select>
 
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-40 h-8 text-xs bg-white">
-                    <SelectValue placeholder="All Statuses" />
+                  <SelectTrigger className="w-32 h-8 text-xs bg-white">
+                    <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
                     <SelectItem value="submitted">Pending Review</SelectItem>
                     <SelectItem value="approved">Approved</SelectItem>
                     <SelectItem value="paid">Paid / Settled</SelectItem>
