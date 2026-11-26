@@ -6669,6 +6669,24 @@ export type Database = {
         | "holiday"
         | "late"
         | "wfh"
+        | "lwp"
+        | "casual"
+        | "el_pl"
+        | "sick"
+        | "comp_off"
+        | "maternity"
+        | "approved_leave"
+        | "leave"
+        | "paternity"
+        | "bereavement"
+        | "marriage"
+        | "study"
+        | "jury_duty"
+        | "od"
+        | "unpaid"
+        | "paid"
+        | "other"
+        | "weekly_off"
       bill_status: "draft" | "received" | "partial" | "paid" | "cancelled"
       client_status: "active" | "inactive"
       credit_note_status: "draft" | "sent" | "void"
@@ -6691,7 +6709,7 @@ export type Database = {
         | "void"
       item_type: "service" | "product"
       lead_status: "new" | "contacted" | "qualified" | "converted" | "lost"
-      leave_status: "pending" | "approved" | "rejected"
+      leave_status: "pending" | "approved" | "rejected" | "cancelled"
       leave_type:
         | "casual"
         | "sick"
@@ -6711,6 +6729,8 @@ export type Database = {
         | "half_day"
         | "lwp"
         | "ncns"
+        | "approved_leave"
+        | "leave"
       payroll_status: "draft" | "approved" | "paid"
       tax_type: "simple" | "compound"
     }
@@ -6863,6 +6883,24 @@ export const Constants = {
         "holiday",
         "late",
         "wfh",
+        "lwp",
+        "casual",
+        "el_pl",
+        "sick",
+        "comp_off",
+        "maternity",
+        "approved_leave",
+        "leave",
+        "paternity",
+        "bereavement",
+        "marriage",
+        "study",
+        "jury_duty",
+        "od",
+        "unpaid",
+        "paid",
+        "other",
+        "weekly_off",
       ],
       bill_status: ["draft", "received", "partial", "paid", "cancelled"],
       client_status: ["active", "inactive"],
