@@ -39,7 +39,6 @@ export function IndustryA6GeometricInvoiceTemplate({
   const clientName = (rawClientName === "Walk-in Customer") ? "" : rawClientName;
 
   const clientAddress = (parsedBillTo && typeof parsedBillTo === "object" ? [parsedBillTo.street, parsedBillTo.city, parsedBillTo.state, parsedBillTo.zip].filter(Boolean).join(", ") : null) || (invoice.clients as any)?.address || "";
-  const clientCity = (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.city : null) || (invoice.clients as any)?.city || "";
   const clientState = (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.state : null) || (invoice.clients as any)?.state || "";
   const clientPhone = (invoice?.metadata as any)?.client_mobile || (parsedBillTo && typeof parsedBillTo === "object" ? parsedBillTo.phone : null) || (invoice.clients as any)?.phone || (invoice.vendors as any)?.phone || invoice.client_phone || "";
   const clientGstin = (invoice.clients as any)?.gstin || (invoice.clients as any)?.tax_number || (invoice as any)?.client_gstin || "";
@@ -131,7 +130,6 @@ export function IndustryA6GeometricInvoiceTemplate({
     : `PAYMENT-INVOICE-${number || "INV-01"}`;
 
   // Tax calculations
-  const effectiveIsInterstate = isInterstate || (invoice.clients as any)?.is_interstate;
   const avgRate = lines.length > 0 ? lines[0]?.tax_rate || 18 : 18;
   const cgstAmount = !effectiveIsInterstate ? taxTotal / 2 : 0;
   const sgstAmount = !effectiveIsInterstate ? taxTotal / 2 : 0;

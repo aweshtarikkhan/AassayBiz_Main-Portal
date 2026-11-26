@@ -6667,6 +6667,8 @@ export type Database = {
         | "half_day"
         | "paid_leave"
         | "holiday"
+        | "late"
+        | "wfh"
       bill_status: "draft" | "received" | "partial" | "paid" | "cancelled"
       client_status: "active" | "inactive"
       credit_note_status: "draft" | "sent" | "void"
@@ -6859,6 +6861,8 @@ export const Constants = {
         "half_day",
         "paid_leave",
         "holiday",
+        "late",
+        "wfh",
       ],
       bill_status: ["draft", "received", "partial", "paid", "cancelled"],
       client_status: ["active", "inactive"],

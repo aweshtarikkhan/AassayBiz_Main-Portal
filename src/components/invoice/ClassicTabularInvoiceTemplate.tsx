@@ -243,7 +243,7 @@ export function ClassicTabularInvoiceTemplate({
             <p className="mt-1">
               {shipToContact && <span><strong>Contact:</strong> {shipToContact}</span>}
             </p>
-            {resolvedPlaceOfSupply && <p className=\"mt-1\"><strong>Place of Supply:</strong> {resolvedPlaceOfSupply}</p>}
+            {resolvedPlaceOfSupply && <p className="mt-1"><strong>Place of Supply:</strong> {resolvedPlaceOfSupply}</p>}
           </div>
         </div>
       </div>

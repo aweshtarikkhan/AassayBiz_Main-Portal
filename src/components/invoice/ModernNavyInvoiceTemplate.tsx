@@ -246,7 +246,7 @@ export function ModernNavyInvoiceTemplate({
             <p className="mt-1">
               {shipToContact && <span><strong>Contact:</strong> {shipToContact}</span>}
             </p>
-            {resolvedPlaceOfSupply && <p className=\"mt-1\"><strong>Place of Supply:</strong> {resolvedPlaceOfSupply}</p>}
+            {resolvedPlaceOfSupply && <p className="mt-1"><strong>Place of Supply:</strong> {resolvedPlaceOfSupply}</p>}
           </div>
         </div>
       </div>
@@ -321,8 +321,7 @@ export function ModernNavyInvoiceTemplate({
                     {resolvedIfsc && <><div className="font-semibold text-gray-600">IFSC Code :</div><div className="font-mono font-bold text-gray-900">{resolvedIfsc}</div></>}
                     {resolvedBranch && <><div className="font-semibold text-gray-600">Branch :</div><div className="text-gray-900">{resolvedBranch}</div></>}
                     {upiId && <><div className="font-semibold text-gray-600">UPI ID :</div><div className="font-mono font-semibold text-emerald-700">{upiId}</div></>}
-                  </div><div className="font-mono font-semibold text-emerald-700">{upiId}</div></>}
-                 </div>
+                  </div>
                  {upiString && (
                    <div className="flex flex-col items-center justify-center p-2 bg-gray-50 border border-gray-200 rounded-lg shrink-0">
                      <QRCodeSVG value={upiString} size={62} />

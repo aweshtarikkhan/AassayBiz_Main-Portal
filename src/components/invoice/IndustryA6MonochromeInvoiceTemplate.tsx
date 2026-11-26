@@ -117,7 +117,6 @@ export function IndustryA6MonochromeInvoiceTemplate({
   const ifsc = invBank?.bank_ifsc || invBank?.ifsc || orgBank?.bank_ifsc || orgBank?.ifsc || org?.bank_ifsc || org?.template_bank_ifsc || "";
 
   // Tax calculations
-  const effectiveIsInterstate = isInterstate || (invoice.clients as any)?.is_interstate;
   const avgRate = lines.length > 0 ? lines[0]?.tax_rate || 18 : 18;
   const cgstAmount = !effectiveIsInterstate ? taxTotal / 2 : 0;
   const sgstAmount = !effectiveIsInterstate ? taxTotal / 2 : 0;
