@@ -927,6 +927,18 @@ IMPORTANT CONTACT RULES:
   * Plan Upgrade & Pricing Page Synchronization:
     - Plan Selector Modal (/pricing & Settings > Upgrade Plan): Synchronized with the main pricing cards, featuring a dedicated '+ Add-on' button alongside 'Get Started', clean spacing, and removal of redundant bottom add-on boxes.
 
+  * Automated Subscription Expiry & Renewal Notification Popup System:
+    - Dedicated Expiry Alert Modal in Main Portal: On the Main Portal Dashboard (/dashboard), an automated intelligent subscription alert modal (PlanExpiryAlertModal) monitors the active business subscription expiration date (evaluating both 'organizations.subscription_end_date' and 'subscriptions.current_period_end').
+    - Multi-Tier Notification Rules:
+      * 7 to 2 Days Before Expiration (1 < Days Left <= 7): The notification popup appears ONLY ONCE per browser session on the Dashboard page when logging in or refreshing. Dismissing or viewing it sets a session key so the user is not disrupted on subsequent navigation within the same session.
+      * Last 1 Day & Expired State (Days Left <= 1 or Days Left <= 0): Urgent alert mode is triggered. The popup appears on EVERY page refresh/load of the Dashboard page to ensure prompt renewal and avoid business interruption.
+      * Active Paid Plans (> 7 Days Left) & Free Plans: The popup strictly does NOT appear for active subscriptions with more than 7 days remaining or standard free plan accounts.
+    - Modal Details & Direct Renewal Action:
+      * Visual Styling: Displays an amber badge and timer icon for expiring plans, or an animated red shield and warning banner for expired subscriptions.
+      * Comprehensive Details: Shows the Business / Organization Name, Active Plan Name (e.g. Business HR, Business Suite), and the exact expiry date along with days remaining or days elapsed.
+      * Prominent "Renew Plan Now" Button: Clicking the renewal button immediately launches the PlanSelectorModal with existing plan configurations, allowing one-click renewal and checkout.
+      * Automatic Suppression Upon Renewal: Once the subscription is renewed and the new expiration date is extended into the future (> 7 days), the popup is automatically silenced.
+
 --- END OF KNOWLEDGE BASE ---
 `;
 

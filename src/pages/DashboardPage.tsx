@@ -22,6 +22,7 @@ import {
 import { format, subDays, isAfter, isSameDay } from "date-fns";
 import { AutoFitNumber } from "@/components/shared/AutoFitNumber";
 import { isAdvanceAdjustmentPayment } from "@/lib/utils";
+import { PlanExpiryAlertModal } from "@/components/shared/PlanExpiryAlertModal";
 
 function computeShiftStatus(clockInTime: string, shift: any): string {
   if (!clockInTime) return "absent";
@@ -572,6 +573,9 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto bg-slate-50 min-h-screen">
+      {/* Plan Expiry / Renewal Notification Alert Modal */}
+      <PlanExpiryAlertModal />
+
       {/* 1. Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

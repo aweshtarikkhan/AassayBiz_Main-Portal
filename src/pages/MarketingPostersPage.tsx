@@ -354,7 +354,7 @@ export default function MarketingPostersPage() {
     }
 
     // Load local posters from dynamic folders
-    const localPosters = import.meta.glob('@/assets/posters/**/*.png', { eager: true, as: 'url' }) as Record<string, string>;
+    const localPosters = import.meta.glob('../assets/posters/**/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
     const dynamicTemplates: PosterTemplate[] = [];
     const festivalsWithLocalPosters = new Set<string>();
     
